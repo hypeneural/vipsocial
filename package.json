@@ -1,0 +1,19 @@
+{
+    "name": "vipsocial-hub",
+    "version": "1.0.0",
+    "private": true,
+    "description": "VIPSocial Editorial Hub — Monorepo (API + Web + Packages)",
+    "scripts": {
+        "dev": "turbo run dev",
+        "build": "turbo run build",
+        "lint": "turbo run lint",
+        "test": "turbo run test",
+        "typecheck": "turbo run typecheck",
+        "api:generate-spec": "turbo run api:generate-spec",
+        "api:generate-client": "turbo run api:generate-client"
+    },
+    "devDependencies": {
+        "turbo": "^2"
+    },
+    "packageManager": "pnpm@9.15.0"
+}

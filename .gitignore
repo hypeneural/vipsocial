@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Laravel
+apps/api/storage/*.key
+apps/api/storage/logs/
+apps/api/bootstrap/cache/
+
+# Turbo
+.turbo/
+
+# Composer
+composer.phar
+
+# Testing
+coverage/
+.phpunit.result.cache
+
+# Misc
+*.log
+npm-debug.log*
+apps/web/nul
