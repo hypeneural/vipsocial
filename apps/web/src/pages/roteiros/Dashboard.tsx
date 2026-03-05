@@ -13,14 +13,13 @@ import { CategoriaDialog } from "@/components/roteiros/CategoriaDialog";
 import { StatusDialog } from "@/components/roteiros/StatusDialog";
 import { AuditDayDialog } from "@/components/roteiros/AuditDayDialog";
 import {
-    mapGavetasToNewsDrafts,
     mapMateriaToNewsItem,
     useCategorias,
     useCreateCategoria,
     useDeleteCategoria,
     useFindOrCreateRoteiro,
-    useGavetasWithNoticias,
-    useMarkNoticiaAsChecked,
+    useGavetas,
+    useUpdateGaveta,
     useLatestRoteiro,
     useReorderMaterias,
     useRoteiroByDate,
@@ -64,7 +63,7 @@ const RoteirosDashboard = () => {
     } = useRoteiroByDate(currentDate);
     const { data: latestRoteiro } = useLatestRoteiro();
     const { data: categorias = [] } = useCategorias();
-    const { data: gavetasData = [] } = useGavetasWithNoticias();
+    const { data: gavetas = [] } = useGavetas();
 
     const createCategoriaMutation = useCreateCategoria();
     const updateCategoriaMutation = useUpdateCategoria();
@@ -84,14 +83,12 @@ const RoteirosDashboard = () => {
         currentDate,
     });
 
-    const markNoticiaAsCheckedMutation = useMarkNoticiaAsChecked();
+    const updateGavetaMutation = useUpdateGaveta();
     const findOrCreateMutation = useFindOrCreateRoteiro();
 
     const categoriasIndex = useMemo(() => {
         return new Map<number, Categoria>(categorias.map((categoria) => [categoria.id, categoria]));
     }, [categorias]);
-
-    const gavetas = useMemo(() => mapGavetasToNewsDrafts(gavetasData), [gavetasData]);
 
     const roteiroErrorMessage = useMemo(() => {
         if (!roteiroError) return "";
@@ -233,14 +230,10 @@ const RoteirosDashboard = () => {
         });
     };
 
-    const handleMarkGavetaComplete = (noticiaId: number) => {
-        const noticia = gavetas.find((item) => item.id === noticiaId);
-
-        if (!noticia) return;
-
-        markNoticiaAsCheckedMutation.mutate({
-            gavetaId: noticia.gaveta_id,
-            noticiaId,
+    const handleMarkGavetaComplete = (gavetaId: number) => {
+        updateGavetaMutation.mutate({
+            gavetaId,
+            data: { is_checked: true }
         });
     };
 

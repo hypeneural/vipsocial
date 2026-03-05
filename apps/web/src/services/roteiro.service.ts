@@ -1,12 +1,12 @@
 ﻿import api from "./api";
 import { ApiResponse, PaginatedResponse } from "./types";
-import { Categoria, Gaveta, Materia, MateriaStatus, NoticiaGaveta, Roteiro, RoteiroStatus, StatusMateria } from "@/types/roteiros";
+import { Categoria, Gaveta, Materia, MateriaStatus, Roteiro, RoteiroStatus, StatusMateria } from "@/types/roteiros";
 
 // ==========================================
 // HELPERS
 // ==========================================
 
-const buildFilterParams = (filters?: Record<string, string | number | boolean | undefined>) => {
+const buildFilterParams = (filters?: Record<string, any>) => {
     const params: Record<string, string | number | boolean> = {};
 
     Object.entries(filters ?? {}).forEach(([key, value]) => {
@@ -97,25 +97,15 @@ export interface GavetaListParams {
 }
 
 export interface CreateGavetaDTO {
-    nome: string;
+    titulo: string;
     descricao?: string;
 }
 
 export interface UpdateGavetaDTO {
-    nome?: string;
+    titulo?: string;
     descricao?: string;
     active?: boolean;
-}
-
-export interface CreateNoticiaGavetaDTO {
-    titulo: string;
-    conteudo?: string;
-}
-
-export interface UpdateNoticiaGavetaDTO {
-    titulo?: string;
-    conteudo?: string;
-    is_checked?: 0 | 1;
+    is_checked?: boolean;
 }
 
 // ==========================================
@@ -281,35 +271,9 @@ export const gavetaService = {
         return data;
     },
 
-    addNoticia: async (
-        gavetaId: number,
-        dto: CreateNoticiaGavetaDTO
-    ): Promise<ApiResponse<NoticiaGaveta>> => {
-        const { data } = await api.post<ApiResponse<NoticiaGaveta>>(
-            `/gavetas/${gavetaId}/noticias`,
-            dto
-        );
-        return data;
-    },
-
-    updateNoticia: async (
-        gavetaId: number,
-        noticiaId: number,
-        dto: UpdateNoticiaGavetaDTO
-    ): Promise<ApiResponse<NoticiaGaveta>> => {
-        const { data } = await api.put<ApiResponse<NoticiaGaveta>>(
-            `/gavetas/${gavetaId}/noticias/${noticiaId}`,
-            dto
-        );
-        return data;
-    },
-
-    deleteNoticia: async (gavetaId: number, noticiaId: number): Promise<ApiResponse<void>> => {
-        const { data } = await api.delete<ApiResponse<void>>(
-            `/gavetas/${gavetaId}/noticias/${noticiaId}`
-        );
-        return data;
-    },
+    addNoticia: async () => { throw new Error("Obsolete method"); },
+    updateNoticia: async () => { throw new Error("Obsolete method"); },
+    deleteNoticia: async () => { throw new Error("Obsolete method"); },
 };
 
 // ==========================================

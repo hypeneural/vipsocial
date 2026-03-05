@@ -80,23 +80,17 @@ export interface Roteiro {
     updated_at: string;
 }
 
-export interface NoticiaGaveta {
-    id: number;
-    titulo: string;
-    conteudo: string | null;
-    ordem: number;
-    is_checked: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
 export interface Gaveta {
     id: number;
-    nome: string;
+    titulo: string;
     descricao: string | null;
     active: boolean;
-    noticias?: NoticiaGaveta[];
-    noticias_count?: number;
+    is_checked: boolean;
+    user_id: number | null;
+    user?: {
+        id: number;
+        name: string;
+    } | null;
     created_at: string;
     updated_at: string;
 }
@@ -116,16 +110,6 @@ export interface NewsItem {
     priority: number;
     created_at: string;
     updated_at: string;
-}
-
-export interface NewsDraft {
-    id: number;
-    gaveta_id: number;
-    gaveta_nome: string;
-    title: string;
-    author: string;
-    is_checked: 0 | 1;
-    created_at: string;
 }
 
 export interface EditionPickerProps {

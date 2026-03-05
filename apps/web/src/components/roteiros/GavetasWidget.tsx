@@ -4,13 +4,22 @@ import { Plus, Settings, Check, User, Calendar, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NewsDraft } from "@/types/roteiros";
+import { Gaveta } from "@/types/roteiros";
 import { cn } from "@/lib/utils";
 
+const formatDate = (isoString: string): string => {
+    const date = new Date(isoString);
+    return date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+    });
+};
+
 interface GavetasWidgetProps {
-    gavetas: NewsDraft[];
+    gavetas: Gaveta[];
     onMarkComplete: (id: number) => void;
-    onUpdateField?: (id: number, field: "title" | "author", value: string) => void;
+    onUpdateField?: (id: number, field: "titulo", value: string) => void;
     className?: string;
 }
 
@@ -27,7 +36,7 @@ export const GavetasWidget = ({
     const [editingCell, setEditingCell] = useState<{ id: number; field: string } | null>(null);
     const [editValue, setEditValue] = useState("");
 
-    const pendingGavetas = gavetas.filter((g) => g.is_checked === 0);
+    const pendingGavetas = gavetas.filter((g) => !g.is_checked);
 
     const startEditing = (id: number, field: string, currentValue: string) => {
         if (!onUpdateField) return;
@@ -37,7 +46,7 @@ export const GavetasWidget = ({
 
     const saveEdit = () => {
         if (editingCell && onUpdateField) {
-            onUpdateField(editingCell.id, editingCell.field as "title" | "author", editValue);
+            onUpdateField(editingCell.id, editingCell.field as "titulo", editValue);
             setEditingCell(null);
         }
     };
@@ -88,7 +97,7 @@ export const GavetasWidget = ({
                         >
                             {/* Title */}
                             <div className="flex-1 min-w-0">
-                                {editingCell?.id === gaveta.id && editingCell?.field === "title" ? (
+                                {editingCell?.id === gaveta.id && editingCell?.field === "titulo" ? (
                                     <Input
                                         type="text"
                                         value={editValue}
@@ -101,40 +110,23 @@ export const GavetasWidget = ({
                                 ) : (
                                     <p
                                         className="font-medium text-sm truncate cursor-pointer hover:underline"
-                                        onDoubleClick={() => startEditing(gaveta.id, "title", gaveta.title)}
+                                        onDoubleClick={() => startEditing(gaveta.id, "titulo", gaveta.titulo)}
                                     >
-                                        {gaveta.title}
+                                        {gaveta.titulo}
                                     </p>
                                 )}
                             </div>
 
                             {/* Author */}
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
                                 <User className="w-3 h-3" />
-                                {editingCell?.id === gaveta.id && editingCell?.field === "author" ? (
-                                    <Input
-                                        type="text"
-                                        value={editValue}
-                                        onChange={(e) => setEditValue(e.target.value)}
-                                        onBlur={saveEdit}
-                                        onKeyDown={(e) => e.key === "Enter" && saveEdit()}
-                                        className="h-6 w-20 text-xs"
-                                        autoFocus
-                                    />
-                                ) : (
-                                    <span
-                                        className="cursor-pointer hover:underline"
-                                        onDoubleClick={() => startEditing(gaveta.id, "author", gaveta.author)}
-                                    >
-                                        {gaveta.author}
-                                    </span>
-                                )}
+                                <span>{gaveta.user?.name || "Desconhecido"}</span>
                             </div>
 
                             {/* Created At */}
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <Calendar className="w-3 h-3" />
-                                <span>{gaveta.created_at}</span>
+                                <span>{formatDate(gaveta.created_at)}</span>
                             </div>
 
                             {/* Mark Complete */}

@@ -13,13 +13,13 @@ import showToast from "@/lib/toast";
 
 interface GavetaFormItem {
     id: string;
-    nome: string;
+    titulo: string;
     descricao: string;
 }
 
 const createEmptyGaveta = (): GavetaFormItem => ({
     id: `new-${Date.now()}-${Math.random()}`,
-    nome: "",
+    titulo: "",
     descricao: "",
 });
 
@@ -52,11 +52,11 @@ const GavetasCreate = () => {
 
     const handleSave = async () => {
         const validItems = items.filter(
-            (item) => item.nome.trim()
+            (item) => item.titulo.trim()
         );
 
         if (validItems.length === 0) {
-            showToast.error("Adicione pelo menos uma gaveta com nome.");
+            showToast.error("Adicione pelo menos uma notícia com título.");
             return;
         }
 
@@ -66,19 +66,19 @@ const GavetasCreate = () => {
             // Save each gaveta via API
             for (const item of validItems) {
                 await gavetaService.create({
-                    nome: item.nome.trim(),
+                    titulo: item.titulo.trim(),
                     descricao: item.descricao.trim() || undefined,
                 });
             }
 
             showToast.success(
                 validItems.length === 1
-                    ? "Gaveta criada com sucesso!"
-                    : `${validItems.length} gavetas criadas com sucesso!`
+                    ? "Notícia criada com sucesso!"
+                    : `${validItems.length} notícias criadas com sucesso!`
             );
             navigate("/roteiros/gavetas");
         } catch (error: any) {
-            const message = error.response?.data?.message || "Erro ao criar gaveta(s)";
+            const message = error.response?.data?.message || "Erro ao criar notícia(s)";
             showToast.error(message);
         } finally {
             setIsSaving(false);
@@ -103,9 +103,9 @@ const GavetasCreate = () => {
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-xl md:text-2xl font-bold">Criar Gavetas</h1>
+                        <h1 className="text-xl md:text-2xl font-bold">Criar Notícia de Gaveta</h1>
                         <p className="text-sm text-muted-foreground">
-                            Adicione matérias em espera para uso posterior
+                            Adicione matérias atemporais para uso no roteiro
                         </p>
                     </div>
                 </div>
@@ -119,7 +119,7 @@ const GavetasCreate = () => {
                 className="mb-6 p-4 bg-info/10 border border-info/30 rounded-xl"
             >
                 <p className="text-sm text-info">
-                    <strong>💡 Dica:</strong> Gavetas são matérias de reserva que ficam disponíveis para uso quando necessário.
+                    <strong>💡 Dica:</strong> Notícias de gaveta são matérias de reserva (atemporais) que ficam disponíveis para uso quando necessário.
                     Elas não estão vinculadas a nenhum roteiro específico.
                 </p>
             </motion.div>
@@ -148,11 +148,11 @@ const GavetasCreate = () => {
                             {/* Fields */}
                             <div className="flex-1 space-y-3">
                                 <div>
-                                    <Label>Nome da Gaveta *</Label>
+                                    <Label>Título da Notícia *</Label>
                                     <Input
                                         type="text"
-                                        value={item.nome}
-                                        onChange={(e) => updateItem(item.id, "nome", e.target.value)}
+                                        value={item.titulo}
+                                        onChange={(e) => updateItem(item.id, "titulo", e.target.value)}
                                         placeholder="Ex: Entrevista com o prefeito"
                                         className="w-full"
                                     />
@@ -192,7 +192,7 @@ const GavetasCreate = () => {
             >
                 <Button variant="outline" onClick={addItem} className="rounded-xl">
                     <Plus className="w-4 h-4 mr-2" />
-                    Adicionar Mais Gaveta
+                    Adicionar Mais Notícia
                 </Button>
 
                 <div className="flex-1" />
@@ -206,7 +206,7 @@ const GavetasCreate = () => {
                     className="bg-primary hover:bg-primary-dark rounded-xl"
                 >
                     <Save className="w-4 h-4 mr-2" />
-                    {isSaving ? "Salvando..." : "Salvar Gavetas"}
+                    {isSaving ? "Salvando..." : "Salvar Notícias"}
                 </Button>
             </motion.div>
         </AppShell>

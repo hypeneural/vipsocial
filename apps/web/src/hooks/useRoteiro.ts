@@ -16,9 +16,7 @@ import {
     Categoria,
     Gaveta,
     Materia,
-    NewsDraft,
     NewsItem,
-    NoticiaGaveta,
     Roteiro,
     StatusMateria,
 } from "@/types/roteiros";
@@ -117,23 +115,6 @@ export const mapMateriaToNewsItem = (
     };
 };
 
-const mapNoticiaToDraft = (gaveta: Gaveta, noticia: NoticiaGaveta): NewsDraft => {
-    return {
-        id: noticia.id,
-        gaveta_id: gaveta.id,
-        gaveta_nome: gaveta.nome,
-        title: noticia.titulo,
-        author: gaveta.nome,
-        is_checked: noticia.is_checked ? 1 : 0,
-        created_at: formatDateTime(noticia.created_at),
-    };
-};
-
-export const mapGavetasToNewsDrafts = (gavetas: Gaveta[]): NewsDraft[] => {
-    return gavetas
-        .flatMap((gaveta) => (gaveta.noticias ?? []).map((noticia) => mapNoticiaToDraft(gaveta, noticia)))
-        .sort((a, b) => b.id - a.id);
-};
 
 // ==========================================
 // QUERIES
@@ -184,13 +165,13 @@ export function useCategorias() {
     });
 }
 
-export function useGavetasWithNoticias() {
+export function useGavetas() {
     return useQuery({
         queryKey: roteiroKeys.gavetas,
         queryFn: async () => {
             const response = await gavetaService.getAll({
                 per_page: 100,
-                include: "noticias",
+                include: "user",
                 filters: { active: true },
             });
 
@@ -199,8 +180,55 @@ export function useGavetasWithNoticias() {
     });
 }
 
+// ... keeping other mutators ...
+
+export function useCreateGaveta() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: { titulo: string; descricao?: string }) => gavetaService.create(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: roteiroKeys.gavetas });
+            showToast.success("Notícia de gaveta criada com sucesso");
+        },
+        onError: () => {
+            showToast.error("Erro ao criar notícia de gaveta");
+        },
+    });
+}
+
+export function useUpdateGaveta() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ gavetaId, data }: { gavetaId: number; data: { titulo?: string; descricao?: string; is_checked?: boolean; active?: boolean } }) =>
+            gavetaService.update(gavetaId, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: roteiroKeys.gavetas });
+        },
+        onError: () => {
+            showToast.error("Erro ao atualizar notícia de gaveta");
+        },
+    });
+}
+
+export function useDeleteGaveta() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (gavetaId: number) => gavetaService.delete(gavetaId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: roteiroKeys.gavetas });
+            showToast.success("Notícia removida");
+        },
+        onError: () => {
+            showToast.error("Erro ao remover notícia");
+        },
+    });
+}
+
 // ==========================================
-// MUTATIONS
+// OUTROS HOOKS (Categorias, Status M., Materias)
 // ==========================================
 
 export function useCreateCategoria() {
@@ -395,59 +423,6 @@ export function useFindOrCreateRoteiro() {
         },
         onError: () => {
             showToast.error("Erro ao criar roteiro");
-        },
-    });
-}
-
-export function useMarkNoticiaAsChecked() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: ({ gavetaId, noticiaId }: { gavetaId: number; noticiaId: number }) =>
-            gavetaService.updateNoticia(gavetaId, noticiaId, { is_checked: 1 }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: roteiroKeys.gavetas });
-        },
-        onError: () => {
-            showToast.error("Erro ao atualizar gaveta");
-        },
-    });
-}
-
-export function useUpdateNoticiaGaveta() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: ({
-            gavetaId,
-            noticiaId,
-            data,
-        }: {
-            gavetaId: number;
-            noticiaId: number;
-            data: { titulo?: string; conteudo?: string; is_checked?: 0 | 1 };
-        }) => gavetaService.updateNoticia(gavetaId, noticiaId, data),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: roteiroKeys.gavetas });
-        },
-        onError: () => {
-            showToast.error("Erro ao atualizar noticia da gaveta");
-        },
-    });
-}
-
-export function useDeleteNoticiaGaveta() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: ({ gavetaId, noticiaId }: { gavetaId: number; noticiaId: number }) =>
-            gavetaService.deleteNoticia(gavetaId, noticiaId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: roteiroKeys.gavetas });
-            showToast.success("Noticia removida");
-        },
-        onError: () => {
-            showToast.error("Erro ao remover noticia");
         },
     });
 }
