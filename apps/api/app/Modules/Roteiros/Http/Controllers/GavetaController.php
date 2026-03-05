@@ -18,10 +18,9 @@ class GavetaController extends BaseController
         $gavetas = QueryBuilder::for(Gaveta::class)
             ->allowedFilters([
                 AllowedFilter::exact('active'),
-                AllowedFilter::partial('search', 'nome'),
+                AllowedFilter::partial('search', 'titulo'),
             ])
-            ->allowedIncludes(['noticias'])
-            ->withCount('noticias')
+            ->allowedIncludes(['user'])
             ->defaultSort('-created_at')
             ->paginate($request->get('per_page', 15));
 
@@ -31,19 +30,23 @@ class GavetaController extends BaseController
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'nome' => ['required', 'string', 'max:255'],
+            'titulo' => ['required', 'string', 'max:255'],
             'descricao' => ['nullable', 'string'],
         ]);
 
         $data['active'] = true;
+        // The user ID should be assigned automatically to the logged-in user
+        if (auth()->check()) {
+            $data['user_id'] = auth()->id();
+        }
 
         $gaveta = Gaveta::create($data);
-        return $this->jsonCreated(new GavetaResource($gaveta));
+        return $this->jsonCreated(new GavetaResource($gaveta->load('user')));
     }
 
     public function show(int $id): JsonResponse
     {
-        $gaveta = Gaveta::with('noticias')->withCount('noticias')->findOrFail($id);
+        $gaveta = Gaveta::with('user')->findOrFail($id);
         return $this->jsonSuccess(new GavetaResource($gaveta));
     }
 
@@ -51,50 +54,18 @@ class GavetaController extends BaseController
     {
         $gaveta = Gaveta::findOrFail($id);
         $gaveta->update($request->validate([
-            'nome' => ['sometimes', 'string', 'max:255'],
+            'titulo' => ['sometimes', 'string', 'max:255'],
             'descricao' => ['nullable', 'string'],
             'active' => ['sometimes', 'boolean'],
+            'is_checked' => ['sometimes', 'boolean'],
         ]));
 
-        return $this->jsonSuccess(new GavetaResource($gaveta), 'Gaveta atualizada');
+        return $this->jsonSuccess(new GavetaResource($gaveta->load('user')), 'Notícia de gaveta atualizada');
     }
 
     public function destroy(int $id): JsonResponse
     {
         Gaveta::findOrFail($id)->delete();
-        return $this->jsonDeleted('Gaveta removida');
-    }
-
-    // ── Notícias (nested) ────────────────────────────────
-
-    public function addNoticia(Request $request, int $gavetaId): JsonResponse
-    {
-        $gaveta = Gaveta::findOrFail($gavetaId);
-        $maxOrdem = $gaveta->noticias()->max('ordem') ?? 0;
-
-        $data = $request->validate([
-            'titulo' => ['required', 'string', 'max:255'],
-            'conteudo' => ['nullable', 'string'],
-        ]);
-
-        $noticia = $gaveta->noticias()->create(array_merge($data, [
-            'ordem' => $maxOrdem + 1,
-        ]));
-
-        return $this->jsonCreated($noticia);
-    }
-
-    public function updateNoticia(Request $request, int $gavetaId, int $noticiaId): JsonResponse
-    {
-        $noticia = NoticiaGaveta::where('gaveta_id', $gavetaId)->findOrFail($noticiaId);
-        $noticia->update($request->only(['titulo', 'conteudo', 'is_checked']));
-
-        return $this->jsonSuccess($noticia, 'Notícia atualizada');
-    }
-
-    public function deleteNoticia(int $gavetaId, int $noticiaId): JsonResponse
-    {
-        NoticiaGaveta::where('gaveta_id', $gavetaId)->findOrFail($noticiaId)->delete();
-        return $this->jsonDeleted('Notícia removida');
+        return $this->jsonDeleted('Notícia de gaveta removida');
     }
 }

@@ -11,23 +11,15 @@ class GavetaResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'nome' => $this->nome,
+            'titulo' => $this->titulo,
             'descricao' => $this->descricao,
             'active' => $this->active,
-            'noticias' => $this->whenLoaded(
-                'noticias',
-                fn() =>
-                $this->noticias->map(fn($n) => [
-                    'id' => $n->id,
-                    'titulo' => $n->titulo,
-                    'conteudo' => $n->conteudo,
-                    'ordem' => $n->ordem,
-                    'is_checked' => $n->is_checked,
-                    'created_at' => $n->created_at,
-                    'updated_at' => $n->updated_at,
-                ])
-            ),
-            'noticias_count' => $this->whenCounted('noticias'),
+            'is_checked' => $this->is_checked,
+            'user_id' => $this->user_id,
+            'user' => $this->whenLoaded('user', fn() => [
+                'id' => $this->user->id,
+                'name' => $this->user->name,
+            ]),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

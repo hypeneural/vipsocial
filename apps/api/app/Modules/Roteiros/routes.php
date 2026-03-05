@@ -64,10 +64,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [GavetaController::class, 'show'])->name('gavetas.show');
         Route::put('/{id}', [GavetaController::class, 'update'])->name('gavetas.update');
         Route::delete('/{id}', [GavetaController::class, 'destroy'])->name('gavetas.destroy');
-
-        // Notícias (nested)
-        Route::post('/{gavetaId}/noticias', [GavetaController::class, 'addNoticia'])->name('gavetas.noticias.store');
-        Route::put('/{gavetaId}/noticias/{noticiaId}', [GavetaController::class, 'updateNoticia'])->name('gavetas.noticias.update');
-        Route::delete('/{gavetaId}/noticias/{noticiaId}', [GavetaController::class, 'deleteNoticia'])->name('gavetas.noticias.destroy');
     });
 });
