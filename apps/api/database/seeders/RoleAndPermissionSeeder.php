@@ -15,6 +15,7 @@ class RoleAndPermissionSeeder extends Seeder
 
         $modules = [
             'dashboard',
+            'analytics',
             'users',
             'pessoas',
             'roteiros',

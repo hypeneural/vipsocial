@@ -1,17 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState, type ElementType } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
   TrendingUp,
   Eye,
-  FileText,
   Instagram,
   Youtube,
   Facebook,
   MessageCircle,
   Calendar,
   ChevronRight,
-  CalendarDays,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
@@ -29,16 +27,32 @@ import { BirthdayWidget } from "@/components/dashboard/BirthdayWidget";
 import { ScrapingFeed } from "@/components/dashboard/ScrapingFeed";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { cn } from "@/lib/utils";
+import { useAnalyticsKpis, useAnalyticsTopPages } from "@/hooks/useAnalytics";
 
-// ==========================================
-// KPI CARD COMPONENT
-// ==========================================
+const compactFormatter = new Intl.NumberFormat("pt-BR", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const formatCompactNumber = (value?: number) => {
+  if (typeof value !== "number") return "--";
+  return compactFormatter.format(value);
+};
+
+const formatSecondsToClock = (seconds?: number) => {
+  if (typeof seconds !== "number" || Number.isNaN(seconds)) return "--:--";
+  const rounded = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(rounded / 60);
+  const secs = rounded % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
 interface KPICardProps {
   title: string;
   value: string | number;
   subtitle?: string;
   comparison?: string;
-  icon: React.ElementType;
+  icon: ElementType;
   trend?: { value: number; isPositive: boolean };
   color?: string;
   delay?: number;
@@ -57,7 +71,8 @@ const KPICard = ({ title, value, subtitle, comparison, icon: Icon, trend, color 
       </div>
       {trend && (
         <Badge variant={trend.isPositive ? "default" : "destructive"} className="text-xs">
-          {trend.isPositive ? "+" : ""}{trend.value}%
+          {trend.isPositive ? "+" : ""}
+          {trend.value}%
         </Badge>
       )}
     </div>
@@ -74,12 +89,9 @@ const KPICard = ({ title, value, subtitle, comparison, icon: Icon, trend, color 
   </motion.div>
 );
 
-// ==========================================
-// SOCIAL MEDIA CARD
-// ==========================================
 interface SocialCardProps {
   platform: string;
-  icon: React.ElementType;
+  icon: ElementType;
   followers: string;
   change: string;
   color: string;
@@ -106,15 +118,12 @@ const SocialCard = ({ platform, icon: Icon, followers, change, color, delay = 0 
   </motion.div>
 );
 
-// ==========================================
-// WHATSAPP GROUPS WIDGET
-// ==========================================
 const whatsappGroups = [
   { name: "TV Jornal Principal", members: 256 },
   { name: "Comercial VIP", members: 189 },
-  { name: "Redação Urgente", members: 45 },
+  { name: "Redacao Urgente", members: 45 },
   { name: "Parceiros Imprensa", members: 312 },
-  { name: "Plantão Notícias", members: 128 },
+  { name: "Plantao Noticias", members: 128 },
   { name: "Equipe Externa", members: 34 },
 ];
 
@@ -133,8 +142,8 @@ const WhatsAppGroupsWidget = () => (
       <Badge variant="outline">{whatsappGroups.length} grupos</Badge>
     </div>
     <div className="space-y-2">
-      {whatsappGroups.map((group, i) => (
-        <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
+      {whatsappGroups.map((group, index) => (
+        <div key={index} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
           <span className="text-sm font-medium">{group.name}</span>
           <span className="text-xs text-muted-foreground">{group.members} membros</span>
         </div>
@@ -143,27 +152,24 @@ const WhatsAppGroupsWidget = () => (
   </motion.div>
 );
 
-// ==========================================
-// UPCOMING EVENTS WIDGET
-// ==========================================
 const upcomingEvents = [
   {
     title: "Cobertura Casamento Silva",
     date: "25/01 14:00",
     category: "Evento Social",
-    team: ["Maria Santos", "João Silva"]
+    team: ["Maria Santos", "Joao Silva"],
   },
   {
-    title: "Entrevista Secretário Saúde",
+    title: "Entrevista Secretario Saude",
     date: "22/01 09:00",
     category: "Entrevista",
-    team: ["Carlos Oliveira"]
+    team: ["Carlos Oliveira"],
   },
   {
     title: "Reportagem Obras BR-101",
     date: "23/01 08:00",
     category: "Reportagem",
-    team: ["Carlos Oliveira", "João Silva"]
+    team: ["Carlos Oliveira", "Joao Silva"],
   },
 ];
 
@@ -180,7 +186,7 @@ const UpcomingEventsWidget = () => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold flex items-center gap-2">
           <Calendar className="w-5 h-5 text-primary" />
-          Próximos Eventos
+          Proximos Eventos
         </h3>
         <Button variant="ghost" size="sm" onClick={() => navigate("/externas")}>
           Ver todos
@@ -188,9 +194,9 @@ const UpcomingEventsWidget = () => {
         </Button>
       </div>
       <div className="space-y-3">
-        {upcomingEvents.map((event, i) => (
+        {upcomingEvents.map((event, index) => (
           <div
-            key={i}
+            key={index}
             className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
             onClick={() => navigate("/externas")}
           >
@@ -203,9 +209,7 @@ const UpcomingEventsWidget = () => {
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                {event.team.join(", ")}
-              </span>
+              <span className="text-xs text-muted-foreground">{event.team.join(", ")}</span>
             </div>
           </div>
         ))}
@@ -214,42 +218,47 @@ const UpcomingEventsWidget = () => {
   );
 };
 
-// ==========================================
-// TOP ARTICLES WIDGET
-// ==========================================
-const topArticlesData: Record<string, Array<{ title: string; views: string; trend: string }>> = {
-  "24h": [
-    { title: "Prefeito anuncia novo pacote de obras", views: "12.5k", trend: "+45%" },
-    { title: "Chuvas causam alagamentos na região", views: "8.3k", trend: "+32%" },
-    { title: "Festival de música atrai milhares", views: "6.1k", trend: "+18%" },
-    { title: "Novo shopping será inaugurado", views: "4.8k", trend: "+12%" },
-  ],
-  "7d": [
-    { title: "Operação policial prende 15 suspeitos", views: "45.2k", trend: "+120%" },
-    { title: "Prefeito anuncia novo pacote de obras", views: "38.1k", trend: "+85%" },
-    { title: "Acidente na BR-101 deixa 3 feridos", views: "29.4k", trend: "+67%" },
-    { title: "Time local vence campeonato estadual", views: "24.8k", trend: "+54%" },
-  ],
-  "30d": [
-    { title: "Eleições 2026: candidatos confirmados", views: "156.3k", trend: "+340%" },
-    { title: "Operação policial prende 15 suspeitos", views: "98.7k", trend: "+180%" },
-    { title: "Novo hospital será construído", views: "87.2k", trend: "+145%" },
-    { title: "Prefeito anuncia novo pacote de obras", views: "72.1k", trend: "+98%" },
-  ],
-};
-
 const TopArticlesWidget = () => {
   const [period, setPeriod] = useState("24h");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
-  const articles = topArticlesData[period] || topArticlesData["24h"];
-  const periodLabels: Record<string, string> = {
-    "24h": "Últimas 24h",
-    "7d": "Últimos 7 dias",
-    "30d": "Últimos 30 dias",
-    "custom": "Período específico",
-  };
+  const canLoadCustom = customStart !== "" && customEnd !== "";
+
+  const topPagesParams = useMemo(() => {
+    const baseParams = { limit: 10, path_prefix: "/noticia/" };
+
+    if (period === "24h") {
+      return { ...baseParams, date_preset: "today" as const };
+    }
+
+    if (period === "7d") {
+      return { ...baseParams, date_preset: "last_7_days" as const };
+    }
+
+    if (period === "30d") {
+      return { ...baseParams, date_preset: "last_30_days" as const };
+    }
+
+    if (canLoadCustom) {
+      return {
+        ...baseParams,
+        date_preset: "custom" as const,
+        start_date: customStart,
+        end_date: customEnd,
+      };
+    }
+
+    return { ...baseParams, date_preset: "last_7_days" as const };
+  }, [period, customStart, customEnd, canLoadCustom]);
+
+  const { data: topPagesResponse, isLoading: topPagesLoading } = useAnalyticsTopPages(
+    topPagesParams,
+    period !== "custom" || canLoadCustom
+  );
+
+  const articles = topPagesResponse?.data?.items ?? [];
+  const totalViews = topPagesResponse?.data?.total_views ?? 0;
 
   return (
     <motion.div
@@ -261,17 +270,17 @@ const TopArticlesWidget = () => {
       <div className="flex items-center justify-between mb-4 gap-2">
         <h3 className="font-semibold flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-primary" />
-          Matérias Mais Acessadas
+          Materias Mais Acessadas
         </h3>
         <Select value={period} onValueChange={setPeriod}>
           <SelectTrigger className="w-[140px] h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="24h">Últimas 24h</SelectItem>
-            <SelectItem value="7d">Últimos 7 dias</SelectItem>
-            <SelectItem value="30d">Últimos 30 dias</SelectItem>
-            <SelectItem value="custom">Período específico</SelectItem>
+            <SelectItem value="24h">Ultimas 24h</SelectItem>
+            <SelectItem value="7d">Ultimos 7 dias</SelectItem>
+            <SelectItem value="30d">Ultimos 30 dias</SelectItem>
+            <SelectItem value="custom">Periodo especifico</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -282,16 +291,16 @@ const TopArticlesWidget = () => {
             <Input
               type="date"
               value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
+              onChange={(event) => setCustomStart(event.target.value)}
               className="h-8 text-xs"
-              placeholder="Início"
+              placeholder="Inicio"
             />
           </div>
           <div className="flex-1">
             <Input
               type="date"
               value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
+              onChange={(event) => setCustomEnd(event.target.value)}
               className="h-8 text-xs"
               placeholder="Fim"
             />
@@ -300,31 +309,59 @@ const TopArticlesWidget = () => {
       )}
 
       <div className="space-y-3">
-        {articles.map((article, i) => (
-          <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-            <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}</span>
+        {period === "custom" && !canLoadCustom && (
+          <div className="text-sm text-muted-foreground p-2">
+            Selecione inicio e fim para carregar o historico.
+          </div>
+        )}
+
+        {topPagesLoading && (
+          <div className="text-sm text-muted-foreground p-2">
+            Carregando materias...
+          </div>
+        )}
+
+        {!topPagesLoading && (period !== "custom" || canLoadCustom) && articles.length === 0 && (
+          <div className="text-sm text-muted-foreground p-2">
+            Nenhuma materia encontrada neste periodo.
+          </div>
+        )}
+
+        {!topPagesLoading && articles.map((article) => (
+          <div key={article.rank} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+            <span className="text-lg font-bold text-muted-foreground w-6">{article.rank}</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{article.title}</p>
+              <p className="text-sm font-medium truncate">{article.title || article.path}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Eye className="w-3 h-3" />
-                <span>{article.views} views</span>
-                <span className="text-green-500">{article.trend}</span>
+                <span>{formatCompactNumber(article.views)} views</span>
+                <span>{article.percentage_of_total.toFixed(1)}%</span>
               </div>
             </div>
           </div>
         ))}
+
+        {!topPagesLoading && articles.length > 0 && (
+          <div className="pt-2 mt-2 border-t text-xs text-muted-foreground">
+            Total do periodo: {formatCompactNumber(totalViews)} views
+          </div>
+        )}
       </div>
     </motion.div>
   );
 };
 
-// ==========================================
-// MAIN DASHBOARD
-// ==========================================
 const Dashboard = () => {
+  const { data: kpisResponse, isLoading: kpisLoading } = useAnalyticsKpis({
+    date_preset: "today",
+    compare: "previous_period",
+  });
+
+  const totals = kpisResponse?.data?.totals;
+  const comparison = kpisResponse?.data?.comparison;
+
   return (
     <AppShell>
-      {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -332,48 +369,44 @@ const Dashboard = () => {
       >
         <h1 className="text-xl md:text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
-          Bem-vindo de volta! Aqui está o resumo do dia.
+          Bem-vindo de volta! Aqui esta o resumo do dia.
         </p>
       </motion.div>
 
-      {/* Website KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KPICard
           title="Visitantes Hoje"
-          value="15.2k"
+          value={kpisLoading ? "..." : formatCompactNumber(totals?.users)}
           subtitle="Site principal"
           icon={Users}
-          trend={{ value: 12, isPositive: true }}
+          trend={comparison ? { value: Math.abs(comparison.users_pct), isPositive: comparison.users_pct >= 0 } : undefined}
           delay={0}
         />
         <KPICard
           title="Pageviews"
-          value="45.8k"
-          subtitle="Últimas 24h"
+          value={kpisLoading ? "..." : formatCompactNumber(totals?.pageviews)}
+          subtitle="Ultimas 24h"
           icon={Eye}
-          trend={{ value: 8, isPositive: true }}
+          trend={comparison ? { value: Math.abs(comparison.pageviews_pct), isPositive: comparison.pageviews_pct >= 0 } : undefined}
           delay={0.1}
         />
         <KPICard
-          title="Matérias Publicadas"
-          value="28"
+          title="Usuarios Ativos"
+          value={kpisLoading ? "..." : formatCompactNumber(totals?.active_users)}
           subtitle="Hoje"
-          comparison="Média mensal: 24/dia"
-          icon={FileText}
-          trend={{ value: 17, isPositive: true }}
+          icon={Users}
+          trend={comparison ? { value: Math.abs(comparison.active_users_pct), isPositive: comparison.active_users_pct >= 0 } : undefined}
           delay={0.2}
         />
         <KPICard
-          title="Tempo Médio"
-          value="3:24"
-          subtitle="Minutos no site"
+          title="Tempo Medio"
+          value={kpisLoading ? "..." : formatSecondsToClock(totals?.avg_engagement_time_sec)}
+          subtitle={`Engajamento: ${totals?.engagement_rate?.toFixed(1) ?? "--"}%`}
           icon={TrendingUp}
-          trend={{ value: 5, isPositive: true }}
           delay={0.3}
         />
       </div>
 
-      {/* Social Media KPIs */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -409,34 +442,24 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
-      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Upcoming Events - Takes 2 columns */}
         <div className="lg:col-span-2">
           <UpcomingEventsWidget />
         </div>
-
-        {/* Birthdays Widget */}
         <div>
           <BirthdayWidget />
         </div>
       </div>
 
-      {/* Secondary Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Top Articles */}
         <TopArticlesWidget />
-
-        {/* WhatsApp Groups */}
         <WhatsAppGroupsWidget />
       </div>
 
-      {/* Scraping Feed */}
       <div className="mb-20 md:mb-0">
         <ScrapingFeed />
       </div>
 
-      {/* Mobile FAB */}
       <FloatingActionButton />
     </AppShell>
   );

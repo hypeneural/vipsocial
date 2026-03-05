@@ -20,6 +20,7 @@ class PermissaoController extends BaseController
     {
         return [
             ['label' => 'Dashboard', 'slug' => 'dashboard', 'icon' => 'LayoutDashboard'],
+            ['label' => 'Analytics', 'slug' => 'analytics', 'icon' => 'LineChart'],
             ['label' => 'Pauta do Dia', 'slug' => 'roteiros', 'icon' => 'Newspaper'],
             ['label' => 'Externas', 'slug' => 'externas', 'icon' => 'MapPin'],
             ['label' => 'Cobertura VIP', 'slug' => 'galerias', 'icon' => 'FileText'],
