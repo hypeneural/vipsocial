@@ -58,21 +58,22 @@ const getCollectionData = <T>(payload: unknown): T[] => {
 const pad = (value: number) => String(value).padStart(2, "0");
 
 const normalizeDurationToHms = (value?: string | null): string => {
-    if (!value) return "00:00:00";
+    if (!value) return "00:00";
 
     const parts = value.split(":");
 
     if (parts.length === 3) {
         const [hours, minutes, seconds] = parts.map((part) => Number(part) || 0);
-        return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+        const totalMinutes = hours * 60 + minutes;
+        return `${pad(totalMinutes)}:${pad(seconds)}`;
     }
 
     if (parts.length === 2) {
         const [minutes, seconds] = parts.map((part) => Number(part) || 0);
-        return `00:${pad(minutes)}:${pad(seconds)}`;
+        return `${pad(minutes)}:${pad(seconds)}`;
     }
 
-    return "00:00:00";
+    return "00:00";
 };
 
 const formatDateTime = (isoString: string): string => {

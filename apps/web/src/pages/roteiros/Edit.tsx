@@ -80,7 +80,7 @@ const RoteirosEdit = () => {
             shortcut: `F${items.length + 1}`,
             title: "",
             description: "",
-            duration: "00:00:00",
+            duration: "00:00",
             priority: items.length + 1,
             is_aired: 0,
             created_at: new Date().toISOString(),
@@ -148,7 +148,7 @@ const RoteirosEdit = () => {
                 shortcut: item.shortcut || `F${index + 1}`,
                 title: item.title,
                 description: item.description,
-                duration: item.duration || "00:00:00",
+                duration: item.duration || "00:00",
                 priority: index + 1,
             })),
         };
@@ -253,7 +253,7 @@ const RoteirosEdit = () => {
                                             type="text"
                                             value={item.duration}
                                             onChange={(e) => updateItem(item.id, "duration", e.target.value)}
-                                            placeholder="00:00:00"
+                                            placeholder="00:00"
                                             className="text-center font-mono"
                                         />
                                     </div>

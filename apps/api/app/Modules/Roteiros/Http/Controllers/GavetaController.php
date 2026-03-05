@@ -35,6 +35,8 @@ class GavetaController extends BaseController
             'descricao' => ['nullable', 'string'],
         ]);
 
+        $data['active'] = true;
+
         $gaveta = Gaveta::create($data);
         return $this->jsonCreated(new GavetaResource($gaveta));
     }
