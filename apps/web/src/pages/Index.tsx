@@ -27,7 +27,8 @@ import { BirthdayWidget } from "@/components/dashboard/BirthdayWidget";
 import { ScrapingFeed } from "@/components/dashboard/ScrapingFeed";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { cn } from "@/lib/utils";
-import { useAnalyticsKpis, useAnalyticsTopPages } from "@/hooks/useAnalytics";
+import { useAnalyticsOverview, useAnalyticsTopPages } from "@/hooks/useAnalytics";
+import type { AnalyticsTopPagesData } from "@/services/analytics.service";
 
 const compactFormatter = new Intl.NumberFormat("pt-BR", {
   notation: "compact",
@@ -45,6 +46,17 @@ const formatSecondsToClock = (seconds?: number) => {
   const minutes = Math.floor(rounded / 60);
   const secs = rounded % 60;
   return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
+const formatHourMinute = (iso?: string) => {
+  if (!iso) return "--:--";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "--:--";
+
+  return parsed.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 interface KPICardProps {
@@ -218,12 +230,20 @@ const UpcomingEventsWidget = () => {
   );
 };
 
-const TopArticlesWidget = () => {
+interface TopArticlesWidgetProps {
+  initialData?: AnalyticsTopPagesData;
+  initialLoading?: boolean;
+  analyticsSource?: "ga4" | "cache";
+  analyticsStale?: boolean;
+}
+
+const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSource, analyticsStale = false }: TopArticlesWidgetProps) => {
   const [period, setPeriod] = useState("24h");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
   const canLoadCustom = customStart !== "" && customEnd !== "";
+  const shouldUseInitial = period === "24h" && !!initialData;
 
   const topPagesParams = useMemo(() => {
     const baseParams = { limit: 10, path_prefix: "/noticia/" };
@@ -252,13 +272,18 @@ const TopArticlesWidget = () => {
     return { ...baseParams, date_preset: "last_7_days" as const };
   }, [period, customStart, customEnd, canLoadCustom]);
 
+  const shouldFetchTopPages = (period !== "24h" || !initialData) && (period !== "custom" || canLoadCustom);
+
   const { data: topPagesResponse, isLoading: topPagesLoading } = useAnalyticsTopPages(
     topPagesParams,
-    period !== "custom" || canLoadCustom
+    shouldFetchTopPages,
+    { staleTime: 300000 }
   );
 
-  const articles = topPagesResponse?.data?.items ?? [];
-  const totalViews = topPagesResponse?.data?.total_views ?? 0;
+  const resolvedTopPages = shouldUseInitial ? initialData : topPagesResponse?.data;
+  const articles = resolvedTopPages?.items ?? [];
+  const totalViews = resolvedTopPages?.total_views ?? 0;
+  const isLoadingArticles = shouldUseInitial ? initialLoading && !initialData : topPagesLoading;
 
   return (
     <motion.div
@@ -315,19 +340,19 @@ const TopArticlesWidget = () => {
           </div>
         )}
 
-        {topPagesLoading && (
+        {isLoadingArticles && (
           <div className="text-sm text-muted-foreground p-2">
             Carregando materias...
           </div>
         )}
 
-        {!topPagesLoading && (period !== "custom" || canLoadCustom) && articles.length === 0 && (
+        {!isLoadingArticles && (period !== "custom" || canLoadCustom) && articles.length === 0 && (
           <div className="text-sm text-muted-foreground p-2">
             Nenhuma materia encontrada neste periodo.
           </div>
         )}
 
-        {!topPagesLoading && articles.map((article) => (
+        {!isLoadingArticles && articles.map((article) => (
           <div key={article.rank} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
             <span className="text-lg font-bold text-muted-foreground w-6">{article.rank}</span>
             <div className="flex-1 min-w-0">
@@ -341,9 +366,15 @@ const TopArticlesWidget = () => {
           </div>
         ))}
 
-        {!topPagesLoading && articles.length > 0 && (
+        {!isLoadingArticles && articles.length > 0 && (
           <div className="pt-2 mt-2 border-t text-xs text-muted-foreground">
             Total do periodo: {formatCompactNumber(totalViews)} views
+          </div>
+        )}
+
+        {period === "24h" && !!initialData && (
+          <div className="text-[11px] text-muted-foreground">
+            Fonte: {analyticsSource === "cache" ? "Cache" : "GA4"}{analyticsStale ? " (stale)" : ""}
           </div>
         )}
       </div>
@@ -352,13 +383,28 @@ const TopArticlesWidget = () => {
 };
 
 const Dashboard = () => {
-  const { data: kpisResponse, isLoading: kpisLoading } = useAnalyticsKpis({
-    date_preset: "today",
-    compare: "previous_period",
-  });
+  const overviewParams = useMemo(
+    () => ({
+      date_preset: "today" as const,
+      compare: "previous_period" as const,
+      include: "kpis,realtime,top_pages",
+      limit: 10,
+      path_prefix: "/noticia/",
+    }),
+    []
+  );
 
-  const totals = kpisResponse?.data?.totals;
-  const comparison = kpisResponse?.data?.comparison;
+  const { data: overviewResponse, isLoading: overviewLoading } = useAnalyticsOverview(
+    overviewParams,
+    true,
+    { staleTime: 20000, refetchInterval: 30000 }
+  );
+
+  const totals = overviewResponse?.data?.kpis?.totals;
+  const comparison = overviewResponse?.data?.kpis?.comparison;
+  const realtimeUsers = overviewResponse?.data?.realtime?.active_users_30m;
+  const initialTopPages = overviewResponse?.data?.top_pages;
+  const overviewMeta = overviewResponse?.meta;
 
   return (
     <AppShell>
@@ -371,12 +417,27 @@ const Dashboard = () => {
         <p className="text-sm text-muted-foreground">
           Bem-vindo de volta! Aqui esta o resumo do dia.
         </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {overviewMeta?.source && (
+            <Badge variant="outline">
+              Fonte: {overviewMeta.source === "cache" ? "Cache" : "GA4"}
+            </Badge>
+          )}
+          {overviewMeta?.stale && (
+            <Badge variant="destructive">
+              Dados em contingencia
+            </Badge>
+          )}
+          {overviewMeta?.generated_at && (
+            <span>Atualizado as {formatHourMinute(overviewMeta.generated_at)}</span>
+          )}
+        </div>
       </motion.div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KPICard
           title="Visitantes Hoje"
-          value={kpisLoading ? "..." : formatCompactNumber(totals?.users)}
+          value={overviewLoading ? "..." : formatCompactNumber(totals?.users)}
           subtitle="Site principal"
           icon={Users}
           trend={comparison ? { value: Math.abs(comparison.users_pct), isPositive: comparison.users_pct >= 0 } : undefined}
@@ -384,23 +445,22 @@ const Dashboard = () => {
         />
         <KPICard
           title="Pageviews"
-          value={kpisLoading ? "..." : formatCompactNumber(totals?.pageviews)}
-          subtitle="Ultimas 24h"
+          value={overviewLoading ? "..." : formatCompactNumber(totals?.pageviews)}
+          subtitle="Hoje"
           icon={Eye}
           trend={comparison ? { value: Math.abs(comparison.pageviews_pct), isPositive: comparison.pageviews_pct >= 0 } : undefined}
           delay={0.1}
         />
         <KPICard
-          title="Usuarios Ativos"
-          value={kpisLoading ? "..." : formatCompactNumber(totals?.active_users)}
-          subtitle="Hoje"
+          title="Ativos Agora"
+          value={overviewLoading ? "..." : formatCompactNumber(realtimeUsers)}
+          subtitle="Ultimos 30 min"
           icon={Users}
-          trend={comparison ? { value: Math.abs(comparison.active_users_pct), isPositive: comparison.active_users_pct >= 0 } : undefined}
           delay={0.2}
         />
         <KPICard
           title="Tempo Medio"
-          value={kpisLoading ? "..." : formatSecondsToClock(totals?.avg_engagement_time_sec)}
+          value={overviewLoading ? "..." : formatSecondsToClock(totals?.avg_engagement_time_sec)}
           subtitle={`Engajamento: ${totals?.engagement_rate?.toFixed(1) ?? "--"}%`}
           icon={TrendingUp}
           delay={0.3}
@@ -452,7 +512,12 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <TopArticlesWidget />
+        <TopArticlesWidget
+          initialData={initialTopPages}
+          initialLoading={overviewLoading}
+          analyticsSource={overviewMeta?.source}
+          analyticsStale={overviewMeta?.stale}
+        />
         <WhatsAppGroupsWidget />
       </div>
 
