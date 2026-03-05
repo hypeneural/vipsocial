@@ -15,6 +15,7 @@ import Login from "./pages/auth/Login";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { LoadingProvider } from "./contexts/LoadingContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import OfflineIndicator from "./components/OfflineIndicator";
 
 // ==========================================
@@ -50,7 +51,6 @@ const RoteirosDashboard = lazy(() => import("./pages/roteiros/Dashboard"));
 const GavetasCreate = lazy(() => import("./pages/roteiros/GavetasCreate"));
 const GavetasManage = lazy(() => import("./pages/roteiros/GavetasManage"));
 const GavetaEdit = lazy(() => import("./pages/roteiros/GavetaEdit"));
-
 
 // Alertas
 const AlertasDashboard = lazy(() => import("./pages/alertas/Dashboard"));
@@ -121,95 +121,92 @@ const App = () => (
             <AuthProvider>
               <Suspense fallback={<ShimmerPage />}>
                 <Routes>
-                  <Route path="/" element={<Index />} />
-
-                  {/* Roteiros Routes */}
-                  <Route path="/roteiros" element={<RoteirosDashboard />} />
-                  <Route path="/roteiros/gavetas" element={<GavetasManage />} />
-                  <Route path="/roteiros/gavetas/criar" element={<GavetasCreate />} />
-                  <Route path="/roteiros/gavetas/:id/editar" element={<GavetaEdit />} />
-
-                  {/* Alias Routes for /pauta/* */}
-                  <Route path="/pauta/roteiros" element={<RoteirosDashboard />} />
-
-                  {/* Alertas WhatsApp Routes */}
-                  <Route path="/alertas" element={<AlertasDashboard />} />
-                  <Route path="/alertas/destinos" element={<AlertasDestinationsList />} />
-                  <Route path="/alertas/destinos/novo" element={<AlertasDestinationForm />} />
-                  <Route path="/alertas/destinos/:id/editar" element={<AlertasDestinationForm />} />
-                  <Route path="/alertas/lista" element={<AlertasList />} />
-                  <Route path="/alertas/novo" element={<AlertasForm />} />
-                  <Route path="/alertas/:id/editar" element={<AlertasForm />} />
-                  <Route path="/alertas/logs" element={<AlertasLogs />} />
-
-                  {/* Distribution Routes */}
-                  <Route path="/distribuicao" element={<DistributionDashboard />} />
-                  <Route path="/distribuicao/noticias" element={<DistributedNewsList />} />
-                  <Route path="/distribuicao/publicacoes" element={<PublicacaoNoticias />} />
-
-                  {/* Engajamento Routes */}
-                  <Route path="/engajamento/enquetes" element={<Enquetes />} />
-                  <Route path="/engajamento/enquetes/nova" element={<EnqueteForm />} />
-                  <Route path="/engajamento/enquetes/:id/editar" element={<EnqueteForm />} />
-                  <Route path="/engajamento/enquetes/:id/resultados" element={<EnqueteResultados />} />
-                  <Route path="/engajamento/relatorios" element={<Relatorios />} />
-
-                  {/* Automacao Routes */}
-                  <Route path="/automacao/grupos" element={<AutomacaoGrupos />} />
-                  <Route path="/automacao/templates" element={<AutomacaoTemplates />} />
-                  <Route path="/automacao/status" element={<AutomacaoStatusConexao />} />
-                  <Route path="/automacao/distribuicao" element={<AutomacaoDistribuicao />} />
-                  <Route path="/automacao/campanhas" element={<AutomacaoCampanhas />} />
-                  <Route path="/automacao/logs" element={<AutomacaoLogsEnvio />} />
-
-                  {/* Raspagem Routes */}
-                  <Route path="/raspagem/feed" element={<RaspagemFeed />} />
-                  <Route path="/raspagem/fontes" element={<RaspagemFontes />} />
-                  <Route path="/raspagem/filtros" element={<RaspagemFiltros />} />
-
-                  {/* Pessoas Routes */}
-                  <Route path="/pessoas/colaboradores" element={<PessoasColaboradores />} />
-                  <Route path="/pessoas/aniversarios" element={<PessoasAniversarios />} />
-                  <Route path="/pessoas/permissoes" element={<PessoasPermissoes />} />
-
-                  {/* Auth Routes */}
+                  {/* ===== PUBLIC ROUTES ===== */}
                   <Route path="/auth/login" element={<Login />} />
                   <Route path="/auth/recuperar-senha" element={<ForgotPassword />} />
 
-                  {/* Profile Routes */}
-                  <Route path="/perfil" element={<Profile />} />
-                  <Route path="/perfil/editar" element={<ProfileEdit />} />
-                  <Route path="/perfil/preferencias" element={<Preferences />} />
+                  {/* ===== PROTECTED ROUTES ===== */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/" element={<Index />} />
 
-                  {/* Users Routes */}
-                  <Route path="/usuarios" element={<UsersList />} />
-                  <Route path="/usuarios/novo" element={<UserForm />} />
-                  <Route path="/usuarios/:id/editar" element={<UserForm />} />
+                    {/* Roteiros Routes */}
+                    <Route path="/roteiros" element={<RoteirosDashboard />} />
+                    <Route path="/roteiros/gavetas" element={<GavetasManage />} />
+                    <Route path="/roteiros/gavetas/criar" element={<GavetasCreate />} />
+                    <Route path="/roteiros/gavetas/:id/editar" element={<GavetaEdit />} />
+                    <Route path="/pauta/roteiros" element={<RoteirosDashboard />} />
 
-                  {/* Config Routes */}
-                  <Route path="/config/auditoria" element={<AuditLog />} />
-                  <Route path="/config/parametros" element={<Parametros />} />
-                  <Route path="/config/integracoes" element={<Integracoes />} />
-                  <Route path="/config/equipamentos" element={<EquipmentInventory />} />
+                    {/* Alertas WhatsApp Routes */}
+                    <Route path="/alertas" element={<AlertasDashboard />} />
+                    <Route path="/alertas/destinos" element={<AlertasDestinationsList />} />
+                    <Route path="/alertas/destinos/novo" element={<AlertasDestinationForm />} />
+                    <Route path="/alertas/destinos/:id/editar" element={<AlertasDestinationForm />} />
+                    <Route path="/alertas/lista" element={<AlertasList />} />
+                    <Route path="/alertas/novo" element={<AlertasForm />} />
+                    <Route path="/alertas/:id/editar" element={<AlertasForm />} />
+                    <Route path="/alertas/logs" element={<AlertasLogs />} />
 
-                  {/* Externas Routes */}
-                  <Route path="/externas" element={<ExternasDashboard />} />
-                  <Route path="/externas/novo" element={<ExternasEventForm />} />
-                  <Route path="/externas/:id" element={<ExternasEventDetail />} />
-                  <Route path="/externas/:id/editar" element={<ExternasEventForm />} />
+                    {/* Distribution Routes */}
+                    <Route path="/distribuicao" element={<DistributionDashboard />} />
+                    <Route path="/distribuicao/noticias" element={<DistributedNewsList />} />
+                    <Route path="/distribuicao/publicacoes" element={<PublicacaoNoticias />} />
 
-                  {/* Cobertura VIP Routes */}
-                  <Route path="/cobertura-vip" element={<CoberturaVipDashboard />} />
-                  <Route path="/cobertura-vip/novo" element={<CoberturaVipGalleryForm />} />
-                  <Route path="/cobertura-vip/:id" element={<CoberturaVipGalleryDetail />} />
-                  <Route path="/cobertura-vip/:id/editar" element={<CoberturaVipGalleryForm />} />
-                  <Route path="/cobertura-vip/:id/metricas" element={<CoberturaVipGalleryDetail />} />
+                    {/* Engajamento Routes */}
+                    <Route path="/engajamento/enquetes" element={<Enquetes />} />
+                    <Route path="/engajamento/enquetes/nova" element={<EnqueteForm />} />
+                    <Route path="/engajamento/enquetes/:id/editar" element={<EnqueteForm />} />
+                    <Route path="/engajamento/enquetes/:id/resultados" element={<EnqueteResultados />} />
+                    <Route path="/engajamento/relatorios" element={<Relatorios />} />
 
-                  {/* Pauta Routes */}
+                    {/* Automacao Routes */}
+                    <Route path="/automacao/grupos" element={<AutomacaoGrupos />} />
+                    <Route path="/automacao/templates" element={<AutomacaoTemplates />} />
+                    <Route path="/automacao/status" element={<AutomacaoStatusConexao />} />
+                    <Route path="/automacao/distribuicao" element={<AutomacaoDistribuicao />} />
+                    <Route path="/automacao/campanhas" element={<AutomacaoCampanhas />} />
+                    <Route path="/automacao/logs" element={<AutomacaoLogsEnvio />} />
 
-                  <Route path="/pauta/roteiros" element={<RoteirosDashboard />} />
+                    {/* Raspagem Routes */}
+                    <Route path="/raspagem/feed" element={<RaspagemFeed />} />
+                    <Route path="/raspagem/fontes" element={<RaspagemFontes />} />
+                    <Route path="/raspagem/filtros" element={<RaspagemFiltros />} />
 
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                    {/* Pessoas Routes */}
+                    <Route path="/pessoas/colaboradores" element={<PessoasColaboradores />} />
+                    <Route path="/pessoas/aniversarios" element={<PessoasAniversarios />} />
+                    <Route path="/pessoas/permissoes" element={<PessoasPermissoes />} />
+
+                    {/* Profile Routes */}
+                    <Route path="/perfil" element={<Profile />} />
+                    <Route path="/perfil/editar" element={<ProfileEdit />} />
+                    <Route path="/perfil/preferencias" element={<Preferences />} />
+
+                    {/* Users Routes */}
+                    <Route path="/usuarios" element={<UsersList />} />
+                    <Route path="/usuarios/novo" element={<UserForm />} />
+                    <Route path="/usuarios/:id/editar" element={<UserForm />} />
+
+                    {/* Config Routes */}
+                    <Route path="/config/auditoria" element={<AuditLog />} />
+                    <Route path="/config/parametros" element={<Parametros />} />
+                    <Route path="/config/integracoes" element={<Integracoes />} />
+                    <Route path="/config/equipamentos" element={<EquipmentInventory />} />
+
+                    {/* Externas Routes */}
+                    <Route path="/externas" element={<ExternasDashboard />} />
+                    <Route path="/externas/novo" element={<ExternasEventForm />} />
+                    <Route path="/externas/:id" element={<ExternasEventDetail />} />
+                    <Route path="/externas/:id/editar" element={<ExternasEventForm />} />
+
+                    {/* Cobertura VIP Routes */}
+                    <Route path="/cobertura-vip" element={<CoberturaVipDashboard />} />
+                    <Route path="/cobertura-vip/novo" element={<CoberturaVipGalleryForm />} />
+                    <Route path="/cobertura-vip/:id" element={<CoberturaVipGalleryDetail />} />
+                    <Route path="/cobertura-vip/:id/editar" element={<CoberturaVipGalleryForm />} />
+                    <Route path="/cobertura-vip/:id/metricas" element={<CoberturaVipGalleryDetail />} />
+                  </Route>
+
+                  {/* Catch-all */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

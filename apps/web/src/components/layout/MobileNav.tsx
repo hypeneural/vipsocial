@@ -74,7 +74,7 @@ const navItems: NavItem[] = [
     icon: Bot,
     label: "Raspagem",
     path: "/raspagem",
-    requiredPermission: "publicacoes.view",
+    requiredPermission: "raspagem.view",
     children: [
       { label: "Feed ao Vivo", path: "/raspagem/feed" },
       { label: "Fontes", path: "/raspagem/fontes" },

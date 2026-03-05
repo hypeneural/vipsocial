@@ -125,6 +125,7 @@ const menuItems: MenuItem[] = [
     icon: Bot,
     label: "Raspagem",
     path: "/raspagem",
+    requiredPermission: "raspagem.view",
     children: [
       { icon: Rss, label: "Feed ao Vivo", path: "/raspagem/feed" },
       { icon: Plug, label: "Fontes", path: "/raspagem/fontes" },
