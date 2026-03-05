@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Cake,
@@ -7,122 +7,141 @@ import {
   ChevronRight,
   PartyPopper,
   Gift,
-  Bell,
   Clock,
-  Star,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useAniversarios } from "@/hooks/useColaboradores";
+import type { Collaborator } from "@/services/colaborador.service";
+
+// ==========================================
+// TYPES & HELPERS
+// ==========================================
 
 interface CelebrationItem {
-  id: string;
+  id: number;
   name: string;
   date: string;
   daysUntil: number;
   type: "birthday" | "milestone";
   years?: number;
-  avatar?: string;
+  avatar?: string | null;
   department: string;
 }
-
-const mockCelebrations: CelebrationItem[] = [
-  {
-    id: "1",
-    name: "Maria Santos",
-    date: "20 Jan",
-    daysUntil: 0,
-    type: "birthday",
-    department: "Redação",
-  },
-  {
-    id: "2",
-    name: "Carlos Oliveira",
-    date: "22 Jan",
-    daysUntil: 2,
-    type: "milestone",
-    years: 5,
-    department: "Economia",
-  },
-  {
-    id: "3",
-    name: "Ana Costa",
-    date: "25 Jan",
-    daysUntil: 5,
-    type: "birthday",
-    department: "Mídias Sociais",
-  },
-  {
-    id: "4",
-    name: "Pedro Almeida",
-    date: "28 Jan",
-    daysUntil: 8,
-    type: "milestone",
-    years: 8,
-    department: "TI",
-  },
-  {
-    id: "5",
-    name: "Julia Lima",
-    date: "02 Fev",
-    daysUntil: 13,
-    type: "birthday",
-    department: "RH",
-  },
-  {
-    id: "6",
-    name: "Fernando Souza",
-    date: "05 Fev",
-    daysUntil: 16,
-    type: "milestone",
-    years: 10,
-    department: "Diretoria",
-  },
-  {
-    id: "7",
-    name: "Camila Rocha",
-    date: "10 Fev",
-    daysUntil: 21,
-    type: "birthday",
-    department: "Marketing",
-  },
-  {
-    id: "8",
-    name: "Roberto Dias",
-    date: "15 Fev",
-    daysUntil: 26,
-    type: "milestone",
-    years: 2,
-    department: "Comercial",
-  },
-];
 
 const milestoneLabels: Record<number, string> = {
   1: "1 ano de casa",
   2: "2 anos de casa",
+  3: "3 anos de casa",
   5: "5 anos de casa",
   8: "8 anos de casa",
   10: "10 anos de casa",
   15: "15 anos de casa",
   20: "20 anos de casa",
+  25: "25 anos de casa",
+  30: "30 anos de casa",
 };
 
-const PessoasAniversarios = () => {
-  const [notifications, setNotifications] = useState({
-    birthday1Day: true,
-    birthdayToday: true,
-    milestone1Day: true,
-    milestoneToday: true,
-  });
+function formatBirthDate(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  return `${d.getDate().toString().padStart(2, "0")} ${months[d.getMonth()]}`;
+}
 
-  const birthdays = mockCelebrations.filter((c) => c.type === "birthday");
-  const milestones = mockCelebrations.filter((c) => c.type === "milestone");
-  const todayCelebrations = mockCelebrations.filter((c) => c.daysUntil === 0);
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+/**
+ * Transform Collaborator API data into CelebrationItems (birthdays + milestones)
+ */
+function transformCollaborators(collaborators: Collaborator[]): CelebrationItem[] {
+  const items: CelebrationItem[] = [];
+
+  for (const c of collaborators) {
+    // Birthday
+    if (c.birth_date && c.days_until_birthday !== null && c.days_until_birthday !== undefined) {
+      items.push({
+        id: c.id,
+        name: c.name,
+        date: formatBirthDate(c.birth_date),
+        daysUntil: c.days_until_birthday,
+        type: "birthday",
+        avatar: c.avatar_url,
+        department: c.department || "—",
+      });
+    }
+
+    // Milestone
+    if (c.upcoming_milestone && c.upcoming_milestone.days_until <= 30) {
+      items.push({
+        id: c.id * 10000, // unique key for milestone vs birthday
+        name: c.name,
+        date: formatBirthDate(c.admission_date),
+        daysUntil: c.upcoming_milestone.days_until,
+        type: "milestone",
+        years: c.upcoming_milestone.years,
+        avatar: c.avatar_url,
+        department: c.department || "—",
+      });
+    }
+  }
+
+  // Sort by daysUntil ascending
+  return items.sort((a, b) => a.daysUntil - b.daysUntil);
+}
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
+
+const PessoasAniversarios = () => {
+  const { data: aniversariosData, isLoading, isError } = useAniversarios(60);
+
+  const celebrations = useMemo(() => {
+    if (!aniversariosData?.data) return [];
+    return transformCollaborators(aniversariosData.data);
+  }, [aniversariosData]);
+
+  const birthdays = useMemo(() => celebrations.filter((c) => c.type === "birthday"), [celebrations]);
+  const milestones = useMemo(() => celebrations.filter((c) => c.type === "milestone"), [celebrations]);
+  const todayCelebrations = useMemo(() => celebrations.filter((c) => c.daysUntil === 0), [celebrations]);
+  const weekCelebrations = useMemo(() => celebrations.filter((c) => c.daysUntil <= 7), [celebrations]);
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <span className="ml-3 text-muted-foreground">Carregando aniversários...</span>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (isError) {
+    return (
+      <AppShell>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <AlertCircle className="w-12 h-12 text-destructive mb-4" />
+          <p className="text-destructive font-semibold">Erro ao carregar aniversários</p>
+          <p className="text-sm text-muted-foreground mt-1">Tente novamente mais tarde.</p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -156,12 +175,9 @@ const PessoasAniversarios = () => {
                 className="flex items-center gap-3 bg-card rounded-xl p-3 shadow-md"
               >
                 <Avatar className="h-12 w-12 ring-2 ring-primary">
-                  <AvatarImage src={item.avatar} />
+                  <AvatarImage src={item.avatar || undefined} />
                   <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                    {item.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
+                    {getInitials(item.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -202,7 +218,7 @@ const PessoasAniversarios = () => {
             Aniversários
           </div>
           <p className="text-2xl font-bold mt-1 text-primary">{birthdays.length}</p>
-          <p className="text-[10px] text-muted-foreground">próximos 30 dias</p>
+          <p className="text-[10px] text-muted-foreground">próximos 60 dias</p>
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -240,14 +256,14 @@ const PessoasAniversarios = () => {
             Esta Semana
           </div>
           <p className="text-2xl font-bold mt-1">
-            {mockCelebrations.filter((c) => c.daysUntil <= 7).length}
+            {weekCelebrations.length}
           </p>
         </motion.div>
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="all" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/50 rounded-xl">
+        <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/50 rounded-xl">
           <TabsTrigger value="all" className="rounded-lg py-2 text-xs md:text-sm">
             Todos
           </TabsTrigger>
@@ -259,15 +275,11 @@ const PessoasAniversarios = () => {
             <Award className="w-4 h-4 mr-1 md:mr-2" />
             <span className="hidden md:inline">Marcos</span>
           </TabsTrigger>
-          <TabsTrigger value="settings" className="rounded-lg py-2 text-xs md:text-sm">
-            <Bell className="w-4 h-4 mr-1 md:mr-2" />
-            <span className="hidden md:inline">Notificações</span>
-          </TabsTrigger>
         </TabsList>
 
         {/* All Tab */}
         <TabsContent value="all">
-          <CelebrationList items={mockCelebrations} />
+          <CelebrationList items={celebrations} />
         </TabsContent>
 
         {/* Birthdays Tab */}
@@ -278,101 +290,6 @@ const PessoasAniversarios = () => {
         {/* Milestones Tab */}
         <TabsContent value="milestones">
           <CelebrationList items={milestones} />
-        </TabsContent>
-
-        {/* Settings Tab */}
-        <TabsContent value="settings">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-card rounded-2xl border border-border/50 p-6 space-y-6"
-          >
-            <div>
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <Bell className="w-5 h-5 text-primary" />
-                Notificações Automáticas
-              </h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Configure quando deseja receber alertas sobre aniversários e marcos.
-              </p>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <Cake className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="font-medium">Aniversário - 1 dia antes</p>
-                      <p className="text-xs text-muted-foreground">
-                        Receber lembrete no dia anterior
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={notifications.birthday1Day}
-                    onCheckedChange={(v) =>
-                      setNotifications({ ...notifications, birthday1Day: v })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <PartyPopper className="w-5 h-5 text-success" />
-                    <div>
-                      <p className="font-medium">Aniversário - No dia</p>
-                      <p className="text-xs text-muted-foreground">
-                        Receber notificação no dia do aniversário
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={notifications.birthdayToday}
-                    onCheckedChange={(v) =>
-                      setNotifications({ ...notifications, birthdayToday: v })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <Award className="w-5 h-5 text-warning" />
-                    <div>
-                      <p className="font-medium">Marco - 1 dia antes</p>
-                      <p className="text-xs text-muted-foreground">
-                        Alertar sobre 1, 2, 5, 10, 15, 20 anos de empresa
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={notifications.milestone1Day}
-                    onCheckedChange={(v) =>
-                      setNotifications({ ...notifications, milestone1Day: v })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <Star className="w-5 h-5 text-warning" />
-                    <div>
-                      <p className="font-medium">Marco - No dia</p>
-                      <p className="text-xs text-muted-foreground">
-                        Celebrar o marco no dia exato
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={notifications.milestoneToday}
-                    onCheckedChange={(v) =>
-                      setNotifications({ ...notifications, milestoneToday: v })
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Button className="w-full">Salvar Configurações</Button>
-          </motion.div>
         </TabsContent>
       </Tabs>
     </AppShell>
@@ -401,7 +318,7 @@ function CelebrationList({ items }: { items: CelebrationItem[] }) {
           )}
         >
           <Avatar className="h-12 w-12 flex-shrink-0">
-            <AvatarImage src={item.avatar} />
+            <AvatarImage src={item.avatar || undefined} />
             <AvatarFallback
               className={cn(
                 "font-bold",
@@ -410,10 +327,7 @@ function CelebrationList({ items }: { items: CelebrationItem[] }) {
                   : "bg-warning/20 text-warning"
               )}
             >
-              {item.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
+              {getInitials(item.name)}
             </AvatarFallback>
           </Avatar>
 
