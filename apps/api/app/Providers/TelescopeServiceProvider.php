@@ -4,58 +4,47 @@ namespace App\Providers;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
-use Laravel\Telescope\IncomingEntry;
-use Laravel\Telescope\Telescope;
-use Laravel\Telescope\TelescopeApplicationServiceProvider;
+use Illuminate\Support\ServiceProvider;
 
-class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
+class TelescopeServiceProvider extends ServiceProvider
 {
     /**
      * Register any application services.
      */
     public function register(): void
     {
-        // Telescope::night();
+        if (!$this->app->environment('local')) {
+            return;
+        }
 
-        $this->hideSensitiveRequestDetails();
+        if (!class_exists(\Laravel\Telescope\Telescope::class)) {
+            return;
+        }
 
-        $isLocal = $this->app->environment('local');
+        $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
 
-        Telescope::filter(function (IncomingEntry $entry) use ($isLocal) {
-            return $isLocal ||
-                   $entry->isReportableException() ||
-                   $entry->isFailedRequest() ||
-                   $entry->isFailedJob() ||
-                   $entry->isScheduledTask() ||
-                   $entry->hasMonitoredTag();
+        \Laravel\Telescope\Telescope::filter(function (\Laravel\Telescope\IncomingEntry $entry) {
+            return true;
         });
     }
 
     /**
-     * Prevent sensitive request details from being logged by Telescope.
+     * Bootstrap any application services.
      */
-    protected function hideSensitiveRequestDetails(): void
+    public function boot(): void
     {
-        if ($this->app->environment('local')) {
+        if (!class_exists(\Laravel\Telescope\Telescope::class)) {
             return;
         }
 
-        Telescope::hideRequestParameters(['_token']);
+        \Laravel\Telescope\Telescope::hideRequestParameters(['_token']);
 
-        Telescope::hideRequestHeaders([
+        \Laravel\Telescope\Telescope::hideRequestHeaders([
             'cookie',
             'x-csrf-token',
             'x-xsrf-token',
         ]);
-    }
 
-    /**
-     * Register the Telescope gate.
-     *
-     * This gate determines who can access Telescope in non-local environments.
-     */
-    protected function gate(): void
-    {
         Gate::define('viewTelescope', function (User $user) {
             return in_array($user->email, [
                 //
