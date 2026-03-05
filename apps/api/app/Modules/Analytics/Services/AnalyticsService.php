@@ -23,7 +23,7 @@ class AnalyticsService
 
     public function overview(array $query, array $includes): array
     {
-        $includes = array_values(array_intersect($includes, ['kpis', 'top_pages', 'realtime']));
+        $includes = array_values(array_intersect($includes, ['kpis', 'top_pages', 'cities', 'acquisition', 'realtime']));
         if (empty($includes)) {
             $includes = ['kpis', 'top_pages', 'realtime'];
         }
@@ -36,6 +36,10 @@ class AnalyticsService
                 $result = $this->kpis($query);
             } elseif ($include === 'top_pages') {
                 $result = $this->topPages($query);
+            } elseif ($include === 'cities') {
+                $result = $this->cities($query);
+            } elseif ($include === 'acquisition') {
+                $result = $this->acquisition($query);
             } else {
                 $result = $this->realtime($query);
             }
@@ -84,6 +88,32 @@ class AnalyticsService
         );
     }
 
+    public function cities(array $query): array
+    {
+        $dateContext = DateRangeResolver::resolve($query, $this->timezone);
+        $payload = array_merge($query, ['date_context' => $dateContext]);
+
+        return $this->withCache(
+            endpoint: 'cities',
+            query: $payload,
+            ttlSec: (int) env('ANALYTICS_CACHE_TTL_CITIES', 600),
+            resolver: fn() => $this->client->fetchCities($payload)
+        );
+    }
+
+    public function acquisition(array $query): array
+    {
+        $dateContext = DateRangeResolver::resolve($query, $this->timezone);
+        $payload = array_merge($query, ['date_context' => $dateContext]);
+
+        return $this->withCache(
+            endpoint: 'acquisition',
+            query: $payload,
+            ttlSec: (int) env('ANALYTICS_CACHE_TTL_ACQUISITION', 1800),
+            resolver: fn() => $this->client->fetchAcquisition($payload)
+        );
+    }
+
     public function realtime(array $query = []): array
     {
         return $this->withCache(
@@ -94,10 +124,14 @@ class AnalyticsService
         );
     }
 
-    public function timeseries(array $query): array
+    public function timeseries(array $query, array $metrics = []): array
     {
         $dateContext = DateRangeResolver::resolve($query, $this->timezone);
-        $payload = array_merge($query, ['date_context' => $dateContext]);
+        $resolvedMetrics = !empty($metrics) ? $metrics : (isset($query['metric']) ? [(string) $query['metric']] : []);
+        $payload = array_merge($query, [
+            'date_context' => $dateContext,
+            'metrics' => $resolvedMetrics,
+        ]);
 
         return $this->withCache(
             endpoint: 'timeseries',
@@ -184,4 +218,3 @@ class AnalyticsService
         ];
     }
 }
-

@@ -3,6 +3,8 @@
 namespace App\Modules\Analytics\Http\Controllers;
 
 use App\Modules\Analytics\Exceptions\AnalyticsUnavailableException;
+use App\Modules\Analytics\Http\Requests\AnalyticsAcquisitionRequest;
+use App\Modules\Analytics\Http\Requests\AnalyticsCitiesRequest;
 use App\Modules\Analytics\Http\Requests\AnalyticsKpisRequest;
 use App\Modules\Analytics\Http\Requests\AnalyticsOverviewRequest;
 use App\Modules\Analytics\Http\Requests\AnalyticsRealtimeRequest;
@@ -66,6 +68,38 @@ class AnalyticsController extends BaseController
         }
     }
 
+    public function cities(AnalyticsCitiesRequest $request): JsonResponse
+    {
+        try {
+            $result = $this->service->cities($request->validated());
+
+            return response()->json([
+                'success' => true,
+                'data' => $result['data'],
+                'meta' => $result['meta'],
+                'message' => '',
+            ]);
+        } catch (AnalyticsUnavailableException $e) {
+            return $this->jsonError($e->getMessage(), 'ANALYTICS_UNAVAILABLE', 503);
+        }
+    }
+
+    public function acquisition(AnalyticsAcquisitionRequest $request): JsonResponse
+    {
+        try {
+            $result = $this->service->acquisition($request->validated());
+
+            return response()->json([
+                'success' => true,
+                'data' => $result['data'],
+                'meta' => $result['meta'],
+                'message' => '',
+            ]);
+        } catch (AnalyticsUnavailableException $e) {
+            return $this->jsonError($e->getMessage(), 'ANALYTICS_UNAVAILABLE', 503);
+        }
+    }
+
     public function realtime(AnalyticsRealtimeRequest $request): JsonResponse
     {
         try {
@@ -85,7 +119,7 @@ class AnalyticsController extends BaseController
     public function timeseries(AnalyticsTimeseriesRequest $request): JsonResponse
     {
         try {
-            $result = $this->service->timeseries($request->validated());
+            $result = $this->service->timeseries($request->validated(), $request->metrics());
 
             return response()->json([
                 'success' => true,
@@ -98,4 +132,3 @@ class AnalyticsController extends BaseController
         }
     }
 }
-

@@ -100,6 +100,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             'dimensions' => [
                 new Dimension(['name' => 'pagePath']),
                 new Dimension(['name' => 'pageTitle']),
+                new Dimension(['name' => 'hostName']),
                 new Dimension(['name' => 'fullPageUrl']),
             ],
             'metrics' => [
@@ -134,11 +135,13 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             $views = (int) ($this->metricValues($row)[0] ?? 0);
             $path = $dimensionValues[0] ?? '';
             $title = $dimensionValues[1] ?? '';
-            $fullUrl = $dimensionValues[2] ?? null;
+            $hostName = $dimensionValues[2] ?? null;
+            $fullUrl = $dimensionValues[3] ?? null;
 
             $items[] = [
                 'rank' => $index + 1,
                 'path' => $path,
+                'host_name' => $hostName,
                 'full_url' => $fullUrl,
                 'slug' => $this->extractSlug($path),
                 'title' => $title,
@@ -151,6 +154,81 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             'items' => $items,
             'total_views' => $totalViews,
         ];
+    }
+
+    public function fetchCities(array $query): array
+    {
+        $limit = (int) ($query['limit'] ?? 10);
+        $request = new RunReportRequest([
+            'property' => $this->propertyName(),
+            'date_ranges' => [
+                new DateRange([
+                    'start_date' => $query['date_context']['start'],
+                    'end_date' => $query['date_context']['end'],
+                ]),
+            ],
+            'dimensions' => [
+                new Dimension(['name' => 'city']),
+            ],
+            'metrics' => [
+                new Metric(['name' => 'screenPageViews']),
+                new Metric(['name' => 'totalUsers']),
+            ],
+            'order_bys' => [
+                new OrderBy([
+                    'metric' => new MetricOrderBy(['metric_name' => 'screenPageViews']),
+                    'desc' => true,
+                ]),
+            ],
+            'limit' => $limit,
+        ]);
+
+        $dimensionFilter = $this->buildHostNameFilter($query);
+        if ($dimensionFilter instanceof FilterExpression) {
+            $request->setDimensionFilter($dimensionFilter);
+        }
+
+        $response = $this->client()->runReport($request);
+        $rows = iterator_to_array($response->getRows());
+
+        $totalPageviews = 0;
+        foreach ($rows as $row) {
+            $values = $this->metricValues($row);
+            $totalPageviews += (int) ($values[0] ?? 0);
+        }
+
+        $items = [];
+        foreach ($rows as $index => $row) {
+            $dimensions = $this->dimensionValues($row);
+            $values = $this->metricValues($row);
+            $pageviews = (int) ($values[0] ?? 0);
+            $users = (int) ($values[1] ?? 0);
+
+            $items[] = [
+                'rank' => $index + 1,
+                'city' => $dimensions[0] ?? '(not set)',
+                'pageviews' => $pageviews,
+                'users' => $users,
+                'share_pageviews_pct' => $totalPageviews > 0 ? round(($pageviews / $totalPageviews) * 100, 2) : 0,
+            ];
+        }
+
+        return [
+            'items' => $items,
+            'total_pageviews' => $totalPageviews,
+        ];
+    }
+
+    public function fetchAcquisition(array $query): array
+    {
+        $mode = $query['mode'] ?? 'session';
+        $limit = (int) ($query['limit'] ?? 10);
+
+        if ($mode === 'first_user') {
+            return $this->fetchAcquisitionByFirstUser($query, $limit);
+        }
+
+        return $this->fetchAcquisitionBySession($query, $limit);
     }
 
     public function fetchRealtime(array $query = []): array
@@ -176,10 +254,19 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
 
     public function fetchTimeseries(array $query): array
     {
-        $metric = $query['metric'];
-        $ga4Metric = AnalyticsMetricsMap::toGa4Metric($metric);
+        $metrics = array_values(array_filter(
+            $query['metrics'] ?? [$query['metric'] ?? null],
+            fn($metric) => is_string($metric) && $metric !== ''
+        ));
+
+        if (empty($metrics)) {
+            $metrics = ['pageviews'];
+        }
+
+        $ga4Metrics = array_map(fn(string $metric) => AnalyticsMetricsMap::toGa4Metric($metric), $metrics);
         $granularity = $query['granularity'];
         $dimension = $this->timeseriesDimension($granularity);
+        $keepEmptyRows = (bool) ($query['keep_empty_rows'] ?? false);
 
         $response = $this->client()->runReport(new RunReportRequest([
             'property' => $this->propertyName(),
@@ -193,7 +280,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
                 new Dimension(['name' => $dimension]),
             ],
             'metrics' => [
-                new Metric(['name' => $ga4Metric]),
+                ...array_map(fn(string $ga4Metric) => new Metric(['name' => $ga4Metric]), $ga4Metrics),
             ],
             'order_bys' => [
                 new OrderBy([
@@ -201,6 +288,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
                     'desc' => false,
                 ]),
             ],
+            'keep_empty_rows' => $keepEmptyRows,
         ]));
 
         $points = [];
@@ -208,22 +296,38 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             $dimensionValues = $this->dimensionValues($row);
             $metricValues = $this->metricValues($row);
             $rawLabel = $dimensionValues[0] ?? '';
-            $value = (float) ($metricValues[0] ?? 0);
-
-            if (AnalyticsMetricsMap::isPercentageMetric($metric)) {
-                $value = round($value * 100, 2);
-            }
-
-            $points[] = [
+            $basePoint = [
                 'period' => $rawLabel,
                 'label' => $this->formatTimeseriesLabel($rawLabel, $granularity),
-                'value' => $value,
             ];
+
+            if (count($metrics) === 1) {
+                $value = (float) ($metricValues[0] ?? 0);
+                if (AnalyticsMetricsMap::isPercentageMetric($metrics[0])) {
+                    $value = round($value * 100, 2);
+                }
+                $points[] = array_merge($basePoint, ['value' => $value]);
+                continue;
+            }
+
+            $values = [];
+            foreach ($metrics as $index => $metric) {
+                $value = (float) ($metricValues[$index] ?? 0);
+                if (AnalyticsMetricsMap::isPercentageMetric($metric)) {
+                    $value = round($value * 100, 2);
+                }
+
+                $values[$metric] = $value;
+            }
+
+            $points[] = array_merge($basePoint, ['values' => $values]);
         }
 
         return [
-            'metric' => $metric,
-            'ga4_metric' => $ga4Metric,
+            'metric' => count($metrics) === 1 ? $metrics[0] : null,
+            'ga4_metric' => count($ga4Metrics) === 1 ? $ga4Metrics[0] : null,
+            'metrics' => $metrics,
+            'ga4_metrics' => $ga4Metrics,
             'granularity' => $granularity,
             'points' => $points,
         ];
@@ -305,6 +409,11 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
     {
         $filters = [];
 
+        $hostFilter = $this->buildHostNameFilter($query);
+        if ($hostFilter instanceof FilterExpression) {
+            $filters[] = $hostFilter;
+        }
+
         if (!empty($query['path_prefix'])) {
             $filters[] = new FilterExpression([
                 'filter' => new Filter([
@@ -350,6 +459,144 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
         return null;
     }
 
+    private function fetchAcquisitionBySession(array $query, int $limit): array
+    {
+        $request = new RunReportRequest([
+            'property' => $this->propertyName(),
+            'date_ranges' => [
+                new DateRange([
+                    'start_date' => $query['date_context']['start'],
+                    'end_date' => $query['date_context']['end'],
+                ]),
+            ],
+            'dimensions' => [
+                new Dimension(['name' => 'sessionDefaultChannelGroup']),
+            ],
+            'metrics' => [
+                new Metric(['name' => 'sessions']),
+                new Metric(['name' => 'totalUsers']),
+                new Metric(['name' => 'screenPageViews']),
+            ],
+            'order_bys' => [
+                new OrderBy([
+                    'metric' => new MetricOrderBy(['metric_name' => 'sessions']),
+                    'desc' => true,
+                ]),
+            ],
+            'limit' => $limit,
+        ]);
+
+        $response = $this->client()->runReport($request);
+        $rows = iterator_to_array($response->getRows());
+
+        $totals = [
+            'sessions' => 0,
+            'users' => 0,
+            'pageviews' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $values = $this->metricValues($row);
+            $totals['sessions'] += (int) ($values[0] ?? 0);
+            $totals['users'] += (int) ($values[1] ?? 0);
+            $totals['pageviews'] += (int) ($values[2] ?? 0);
+        }
+
+        $items = [];
+        foreach ($rows as $index => $row) {
+            $dimensions = $this->dimensionValues($row);
+            $values = $this->metricValues($row);
+            $sessions = (int) ($values[0] ?? 0);
+
+            $items[] = [
+                'rank' => $index + 1,
+                'origin' => $dimensions[0] ?? '(not set)',
+                'sessions' => $sessions,
+                'users' => (int) ($values[1] ?? 0),
+                'pageviews' => (int) ($values[2] ?? 0),
+                'share_sessions_pct' => $totals['sessions'] > 0 ? round(($sessions / $totals['sessions']) * 100, 2) : 0,
+            ];
+        }
+
+        return [
+            'mode' => 'session',
+            'items' => $items,
+            'totals' => $totals,
+        ];
+    }
+
+    private function fetchAcquisitionByFirstUser(array $query, int $limit): array
+    {
+        $response = $this->client()->runReport(new RunReportRequest([
+            'property' => $this->propertyName(),
+            'date_ranges' => [
+                new DateRange([
+                    'start_date' => $query['date_context']['start'],
+                    'end_date' => $query['date_context']['end'],
+                ]),
+            ],
+            'dimensions' => [
+                new Dimension(['name' => 'firstUserDefaultChannelGroup']),
+            ],
+            'metrics' => [
+                new Metric(['name' => 'totalUsers']),
+            ],
+            'order_bys' => [
+                new OrderBy([
+                    'metric' => new MetricOrderBy(['metric_name' => 'totalUsers']),
+                    'desc' => true,
+                ]),
+            ],
+            'limit' => $limit,
+        ]));
+
+        $rows = iterator_to_array($response->getRows());
+        $totalUsers = 0;
+        foreach ($rows as $row) {
+            $values = $this->metricValues($row);
+            $totalUsers += (int) ($values[0] ?? 0);
+        }
+
+        $items = [];
+        foreach ($rows as $index => $row) {
+            $dimensions = $this->dimensionValues($row);
+            $users = (int) ($this->metricValues($row)[0] ?? 0);
+
+            $items[] = [
+                'rank' => $index + 1,
+                'origin' => $dimensions[0] ?? '(not set)',
+                'users' => $users,
+                'share_users_pct' => $totalUsers > 0 ? round(($users / $totalUsers) * 100, 2) : 0,
+            ];
+        }
+
+        return [
+            'mode' => 'first_user',
+            'items' => $items,
+            'totals' => [
+                'users' => $totalUsers,
+            ],
+        ];
+    }
+
+    private function buildHostNameFilter(array $query): ?FilterExpression
+    {
+        if (empty($query['host_name'])) {
+            return null;
+        }
+
+        return new FilterExpression([
+            'filter' => new Filter([
+                'field_name' => 'hostName',
+                'string_filter' => new StringFilter([
+                    'match_type' => MatchType::EXACT,
+                    'value' => $query['host_name'],
+                    'case_sensitive' => false,
+                ]),
+            ]),
+        ]);
+    }
+
     private function extractSlug(string $path): ?string
     {
         $trimmed = trim($path, '/');
@@ -380,4 +627,3 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
         return $label;
     }
 }
-

@@ -37,6 +37,29 @@ class NullAnalyticsClient implements AnalyticsClientInterface
         ];
     }
 
+    public function fetchCities(array $query): array
+    {
+        return [
+            'items' => [],
+            'total_pageviews' => 0,
+        ];
+    }
+
+    public function fetchAcquisition(array $query): array
+    {
+        $mode = $query['mode'] ?? 'session';
+
+        return [
+            'mode' => $mode,
+            'items' => [],
+            'totals' => [
+                'sessions' => 0,
+                'users' => 0,
+                'pageviews' => 0,
+            ],
+        ];
+    }
+
     public function fetchRealtime(array $query = []): array
     {
         return [
@@ -46,12 +69,16 @@ class NullAnalyticsClient implements AnalyticsClientInterface
 
     public function fetchTimeseries(array $query): array
     {
+        $metrics = $query['metrics'] ?? [$query['metric'] ?? null];
+        $metrics = array_values(array_filter($metrics, fn($metric) => is_string($metric) && $metric !== ''));
+
         return [
-            'metric' => $query['metric'] ?? null,
-            'ga4_metric' => $query['metric'] ?? null,
+            'metric' => count($metrics) === 1 ? $metrics[0] : null,
+            'ga4_metric' => count($metrics) === 1 ? $metrics[0] : null,
+            'metrics' => $metrics,
+            'ga4_metrics' => $metrics,
             'granularity' => $query['granularity'] ?? 'day',
             'points' => [],
         ];
     }
 }
-

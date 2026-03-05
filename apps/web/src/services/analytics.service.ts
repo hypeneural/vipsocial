@@ -76,24 +76,64 @@ export interface AnalyticsTopPagesData {
     total_views: number;
 }
 
+export interface AnalyticsCityItem {
+    rank: number;
+    city: string;
+    pageviews: number;
+    users: number;
+    share_pageviews_pct: number;
+}
+
+export interface AnalyticsCitiesData {
+    items: AnalyticsCityItem[];
+    total_pageviews: number;
+}
+
+export type AnalyticsAcquisitionMode = "session" | "first_user";
+
+export interface AnalyticsAcquisitionItem {
+    rank: number;
+    origin: string;
+    sessions?: number;
+    users: number;
+    pageviews?: number;
+    share_sessions_pct?: number;
+    share_users_pct?: number;
+}
+
+export interface AnalyticsAcquisitionData {
+    mode: AnalyticsAcquisitionMode;
+    items: AnalyticsAcquisitionItem[];
+    totals: {
+        sessions?: number;
+        users: number;
+        pageviews?: number;
+    };
+}
+
 export interface AnalyticsRealtimeData {
     active_users_30m: number;
 }
 
 export interface AnalyticsTimeseriesData {
-    metric: string;
-    ga4_metric: string;
+    metric: string | null;
+    ga4_metric: string | null;
+    metrics?: string[];
+    ga4_metrics?: string[];
     granularity: "day" | "week" | "month";
     points: Array<{
         period: string;
         label: string;
-        value: number;
+        value?: number;
+        values?: Record<string, number>;
     }>;
 }
 
 export interface AnalyticsOverviewData {
     kpis?: AnalyticsKpisData;
     top_pages?: AnalyticsTopPagesData;
+    cities?: AnalyticsCitiesData;
+    acquisition?: AnalyticsAcquisitionData;
     realtime?: AnalyticsRealtimeData;
 }
 
@@ -102,17 +142,32 @@ export interface AnalyticsOverviewParams extends AnalyticsQueryBase {
     limit?: number;
     path_prefix?: string;
     exclude_prefix?: string;
+    host_name?: string;
+    mode?: AnalyticsAcquisitionMode;
 }
 
 export interface AnalyticsTopPagesParams extends AnalyticsQueryBase {
     limit?: number;
     path_prefix?: string;
     exclude_prefix?: string;
+    host_name?: string;
+}
+
+export interface AnalyticsCitiesParams extends AnalyticsQueryBase {
+    limit?: number;
+    host_name?: string;
+}
+
+export interface AnalyticsAcquisitionParams extends AnalyticsQueryBase {
+    mode?: AnalyticsAcquisitionMode;
+    limit?: number;
 }
 
 export interface AnalyticsTimeseriesParams extends AnalyticsQueryBase {
-    metric: string;
+    metric?: string;
+    metrics?: string[];
     granularity: "day" | "week" | "month";
+    keep_empty_rows?: boolean;
 }
 
 export const analyticsService = {
@@ -137,6 +192,20 @@ export const analyticsService = {
         return data;
     },
 
+    getCities: async (
+        params?: AnalyticsCitiesParams
+    ): Promise<AnalyticsApiResponse<AnalyticsCitiesData>> => {
+        const { data } = await api.get<AnalyticsApiResponse<AnalyticsCitiesData>>("/analytics/cities", { params });
+        return data;
+    },
+
+    getAcquisition: async (
+        params?: AnalyticsAcquisitionParams
+    ): Promise<AnalyticsApiResponse<AnalyticsAcquisitionData>> => {
+        const { data } = await api.get<AnalyticsApiResponse<AnalyticsAcquisitionData>>("/analytics/acquisition", { params });
+        return data;
+    },
+
     getRealtime: async (): Promise<AnalyticsApiResponse<AnalyticsRealtimeData>> => {
         const { data } = await api.get<AnalyticsApiResponse<AnalyticsRealtimeData>>("/analytics/realtime");
         return data;
@@ -151,4 +220,3 @@ export const analyticsService = {
 };
 
 export default analyticsService;
-
