@@ -19,6 +19,7 @@ abstract class BaseAnalyticsRequest extends FormRequest
         $this->merge([
             'date_preset' => $this->input('date_preset', 'last_7_days'),
             'compare' => $this->input('compare', 'none'),
+            'debug_quota' => $this->boolean('debug_quota'),
         ]);
     }
 
@@ -36,7 +37,7 @@ abstract class BaseAnalyticsRequest extends FormRequest
             'start_date' => ['required_if:date_preset,custom', 'date_format:Y-m-d'],
             'end_date' => ['required_if:date_preset,custom', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'compare' => ['required', 'string', Rule::in(['none', 'previous_period', 'previous_year'])],
+            'debug_quota' => ['nullable', 'boolean'],
         ];
     }
 }
-

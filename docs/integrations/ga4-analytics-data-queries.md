@@ -67,10 +67,13 @@ Ajuste importante:
 
 - `fullPageUrl` na Data API e `hostname + path + query` (sem protocolo).
 - Quando precisar URL completa com protocolo, usar `pageLocation`.
+- `pagePath` retorna somente o path.
+- `pagePathPlusQueryString` retorna path + query (sem hostname).
 
 Sugestao pratica:
 
 - Para ranking editorial, padrao: `pagePath + pageTitle + hostName`.
+- Evitar query string no ranking padrao para nao fragmentar a mesma materia por UTM.
 - `pathPrefix` e `excludePrefix` continuam validos.
 
 ## 2.3 Visitantes unicos e visualizacoes totais
@@ -115,6 +118,7 @@ Melhoria de contrato (ja implementada):
 
 Observacao:
 
+- No backend atual, `date` e normalizado para `YYYY-MM-DD` no payload final (`label`).
 - Se desejado, usar `keepEmptyRows=true` para preservar linhas sem valores em series temporais.
 
 ## 3) Ajustes na API do modulo Analytics
@@ -137,8 +141,8 @@ Observacao:
 
 ## 3.4 O que ainda falta (pendencias)
 
-1. Adicionar `checkCompatibility` como smoke test interno de dev/staging.
-2. Definir politica de `debug_quota=1` e permissao de acesso.
+1. Adicionar `checkCompatibility` como smoke test interno de dev/staging (apenas Core reports).
+2. Restringir `debug_quota=1` para perfil/permissao administrativa.
 3. Criar testes automatizados de request/contract para novos endpoints.
 
 ## 4) Compatibilidade, quotas, paginacao e robustez
@@ -150,6 +154,10 @@ Implementar validacao com `checkCompatibility` em dev/staging para combinacoes a
 1. `city + screenPageViews + totalUsers`
 2. `sessionDefaultChannelGroup + sessions + totalUsers + screenPageViews`
 3. `pagePath + pageTitle + hostName + screenPageViews`
+
+Observacao:
+
+- `checkCompatibility` cobre Core reports e nao deve ser usado como validacao de `runRealtimeReport`.
 
 ## 4.2 Paginacao e limites
 
@@ -163,7 +171,13 @@ Implementar validacao com `checkCompatibility` em dev/staging para combinacoes a
 - quotas sao por categoria (`Core`, `Realtime`, `Funnel`) e por property
 - adicionar modo debug interno: `debug_quota=1`
   - quando ativo, enviar `returnPropertyQuota=true`
-  - retornar quota em `meta` somente para perfis autorizados
+  - status atual no backend: retorno de quota em `meta.quota` para endpoints core
+  - pendente: restringir exposicao para perfis autorizados
+
+## 4.4 Protecao de concorrencia de cache
+
+- O service de analytics agora usa lock por cache key para reduzir thundering herd em picos.
+- Quando lock nao estiver disponivel no store, usa espera curta e re-check de cache antes de chamar GA4.
 
 ## 5) Mapeamento direto do que voce pediu
 

@@ -20,6 +20,7 @@ use Google\Analytics\Data\V1beta\OrderBy\MetricOrderBy;
 use Google\Analytics\Data\V1beta\Row;
 use Google\Analytics\Data\V1beta\RunRealtimeReportRequest;
 use Google\Analytics\Data\V1beta\RunReportRequest;
+use Google\Analytics\Data\V1beta\RunReportResponse;
 
 class Ga4AnalyticsClient implements AnalyticsClientInterface
 {
@@ -49,7 +50,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             ]);
         }
 
-        $response = $this->client()->runReport(new RunReportRequest([
+        $response = $this->runCoreReport($query, new RunReportRequest([
             'property' => $this->propertyName(),
             'date_ranges' => $dateRanges,
             'metrics' => [
@@ -70,7 +71,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
         $primary = $this->normalizeKpis($primaryValues);
         $compare = $this->normalizeKpis($compareValues);
 
-        return [
+        return $this->withQuota([
             'period' => [
                 'start_date' => $query['date_context']['start'],
                 'end_date' => $query['date_context']['end'],
@@ -82,7 +83,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
                 'sessions_pct' => $this->percentChange($primary['sessions'], $compare['sessions'] ?? 0),
                 'pageviews_pct' => $this->percentChange($primary['pageviews'], $compare['pageviews'] ?? 0),
             ],
-        ];
+        ], $response, $query);
     }
 
     public function fetchTopPages(array $query): array
@@ -120,7 +121,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             $request->setDimensionFilter($dimensionFilter);
         }
 
-        $response = $this->client()->runReport($request);
+        $response = $this->runCoreReport($query, $request);
         $rows = iterator_to_array($response->getRows());
 
         $items = [];
@@ -150,10 +151,10 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             ];
         }
 
-        return [
+        return $this->withQuota([
             'items' => $items,
             'total_views' => $totalViews,
-        ];
+        ], $response, $query);
     }
 
     public function fetchCities(array $query): array
@@ -188,7 +189,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             $request->setDimensionFilter($dimensionFilter);
         }
 
-        $response = $this->client()->runReport($request);
+        $response = $this->runCoreReport($query, $request);
         $rows = iterator_to_array($response->getRows());
 
         $totalPageviews = 0;
@@ -213,10 +214,10 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             ];
         }
 
-        return [
+        return $this->withQuota([
             'items' => $items,
             'total_pageviews' => $totalPageviews,
-        ];
+        ], $response, $query);
     }
 
     public function fetchAcquisition(array $query): array
@@ -268,7 +269,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
         $dimension = $this->timeseriesDimension($granularity);
         $keepEmptyRows = (bool) ($query['keep_empty_rows'] ?? false);
 
-        $response = $this->client()->runReport(new RunReportRequest([
+        $response = $this->runCoreReport($query, new RunReportRequest([
             'property' => $this->propertyName(),
             'date_ranges' => [
                 new DateRange([
@@ -323,14 +324,14 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             $points[] = array_merge($basePoint, ['values' => $values]);
         }
 
-        return [
+        return $this->withQuota([
             'metric' => count($metrics) === 1 ? $metrics[0] : null,
             'ga4_metric' => count($ga4Metrics) === 1 ? $ga4Metrics[0] : null,
             'metrics' => $metrics,
             'ga4_metrics' => $ga4Metrics,
             'granularity' => $granularity,
             'points' => $points,
-        ];
+        ], $response, $query);
     }
 
     private function client(): BetaAnalyticsDataClient
@@ -486,7 +487,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             'limit' => $limit,
         ]);
 
-        $response = $this->client()->runReport($request);
+        $response = $this->runCoreReport($query, $request);
         $rows = iterator_to_array($response->getRows());
 
         $totals = [
@@ -518,16 +519,16 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             ];
         }
 
-        return [
+        return $this->withQuota([
             'mode' => 'session',
             'items' => $items,
             'totals' => $totals,
-        ];
+        ], $response, $query);
     }
 
     private function fetchAcquisitionByFirstUser(array $query, int $limit): array
     {
-        $response = $this->client()->runReport(new RunReportRequest([
+        $response = $this->runCoreReport($query, new RunReportRequest([
             'property' => $this->propertyName(),
             'date_ranges' => [
                 new DateRange([
@@ -570,13 +571,97 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             ];
         }
 
-        return [
+        return $this->withQuota([
             'mode' => 'first_user',
             'items' => $items,
             'totals' => [
                 'users' => $totalUsers,
             ],
+        ], $response, $query);
+    }
+
+    private function runCoreReport(array $query, RunReportRequest $request): RunReportResponse
+    {
+        if ($this->wantsDebugQuota($query) && method_exists($request, 'setReturnPropertyQuota')) {
+            $request->setReturnPropertyQuota(true);
+        }
+
+        return $this->client()->runReport($request);
+    }
+
+    private function withQuota(array $payload, RunReportResponse $response, array $query): array
+    {
+        if (!$this->wantsDebugQuota($query)) {
+            return $payload;
+        }
+
+        $quota = $this->extractQuota($response);
+        if ($quota === null) {
+            return $payload;
+        }
+
+        $payload['_quota'] = $quota;
+
+        return $payload;
+    }
+
+    private function wantsDebugQuota(array $query): bool
+    {
+        return filter_var($query['debug_quota'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function extractQuota(RunReportResponse $response): ?array
+    {
+        if (!method_exists($response, 'getPropertyQuota')) {
+            return null;
+        }
+
+        $propertyQuota = $response->getPropertyQuota();
+        if (!is_object($propertyQuota)) {
+            return null;
+        }
+
+        $quota = [];
+        $fields = [
+            'tokens_per_day' => 'getTokensPerDay',
+            'tokens_per_hour' => 'getTokensPerHour',
+            'tokens_per_project_per_hour' => 'getTokensPerProjectPerHour',
+            'concurrent_requests' => 'getConcurrentRequests',
+            'server_errors_per_project_per_hour' => 'getServerErrorsPerProjectPerHour',
+            'potentially_thresholded_requests_per_hour' => 'getPotentiallyThresholdedRequestsPerHour',
         ];
+
+        foreach ($fields as $key => $getter) {
+            if (!method_exists($propertyQuota, $getter)) {
+                continue;
+            }
+
+            $status = $this->mapQuotaStatus($propertyQuota->{$getter}());
+            if ($status !== null) {
+                $quota[$key] = $status;
+            }
+        }
+
+        return empty($quota) ? null : $quota;
+    }
+
+    private function mapQuotaStatus(mixed $status): ?array
+    {
+        if (!is_object($status)) {
+            return null;
+        }
+
+        $consumed = method_exists($status, 'getConsumed') ? (int) $status->getConsumed() : null;
+        $remaining = method_exists($status, 'getRemaining') ? (int) $status->getRemaining() : null;
+
+        if ($consumed === null && $remaining === null) {
+            return null;
+        }
+
+        return array_filter([
+            'consumed' => $consumed,
+            'remaining' => $remaining,
+        ], static fn($value) => $value !== null);
     }
 
     private function buildHostNameFilter(array $query): ?FilterExpression

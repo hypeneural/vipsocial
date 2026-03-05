@@ -149,7 +149,7 @@ class AnalyticsService
         $staleTtl = max($ttlSec * 12, 3600);
 
         if (Cache::has($freshKey)) {
-            $data = Cache::get($freshKey);
+            [$data] = $this->splitDataAndMeta(Cache::get($freshKey));
 
             return [
                 'data' => $data,
@@ -163,27 +163,69 @@ class AnalyticsService
             ];
         }
 
+        $lock = $this->acquireComputationLock("{$baseKey}:lock", 15);
+
         try {
-            $data = $resolver();
+            if ($lock !== null && Cache::has($freshKey)) {
+                [$data] = $this->splitDataAndMeta(Cache::get($freshKey));
+
+                return [
+                    'data' => $data,
+                    'meta' => $this->buildMeta(
+                        $query['date_context'] ?? null,
+                        $query['compare'] ?? 'none',
+                        'cache',
+                        false,
+                        $ttlSec
+                    ),
+                ];
+            }
+
+            if ($lock === null) {
+                for ($attempt = 0; $attempt < 5; $attempt++) {
+                    usleep(200000);
+                    if (Cache::has($freshKey)) {
+                        [$data] = $this->splitDataAndMeta(Cache::get($freshKey));
+
+                        return [
+                            'data' => $data,
+                            'meta' => $this->buildMeta(
+                                $query['date_context'] ?? null,
+                                $query['compare'] ?? 'none',
+                                'cache',
+                                false,
+                                $ttlSec
+                            ),
+                        ];
+                    }
+                }
+            }
+
+            [$data, $extraMeta] = $this->splitDataAndMeta($resolver());
             Cache::put($freshKey, $data, $ttlSec);
             Cache::put($staleKey, $data, $staleTtl);
 
             return [
                 'data' => $data,
-                'meta' => $this->buildMeta(
-                    $query['date_context'] ?? null,
-                    $query['compare'] ?? 'none',
-                    'ga4',
-                    false,
-                    $ttlSec
+                'meta' => array_merge(
+                    $this->buildMeta(
+                        $query['date_context'] ?? null,
+                        $query['compare'] ?? 'none',
+                        'ga4',
+                        false,
+                        $ttlSec
+                    ),
+                    $extraMeta
                 ),
             ];
         } catch (Throwable $e) {
             report($e);
 
             if (Cache::has($staleKey)) {
+                [$staleData] = $this->splitDataAndMeta(Cache::get($staleKey));
+
                 return [
-                    'data' => Cache::get($staleKey),
+                    'data' => $staleData,
                     'meta' => $this->buildMeta(
                         $query['date_context'] ?? null,
                         $query['compare'] ?? 'none',
@@ -195,6 +237,48 @@ class AnalyticsService
             }
 
             throw new AnalyticsUnavailableException(previous: $e);
+        } finally {
+            $this->releaseComputationLock($lock);
+        }
+    }
+
+    private function splitDataAndMeta(mixed $payload): array
+    {
+        $data = is_array($payload) ? $payload : (array) $payload;
+        $extraMeta = [];
+
+        if (array_key_exists('_quota', $data)) {
+            $extraMeta['quota'] = $data['_quota'];
+            unset($data['_quota']);
+        }
+
+        return [$data, $extraMeta];
+    }
+
+    private function acquireComputationLock(string $key, int $seconds): mixed
+    {
+        try {
+            $lock = Cache::lock($key, $seconds);
+            if (is_object($lock) && method_exists($lock, 'get') && $lock->get()) {
+                return $lock;
+            }
+        } catch (Throwable) {
+            // Lock provider is optional; continue without distributed lock.
+        }
+
+        return null;
+    }
+
+    private function releaseComputationLock(mixed $lock): void
+    {
+        if (!is_object($lock) || !method_exists($lock, 'release')) {
+            return;
+        }
+
+        try {
+            $lock->release();
+        } catch (Throwable) {
+            // Best-effort release.
         }
     }
 

@@ -15,6 +15,7 @@ export interface AnalyticsQueryBase {
     start_date?: string;
     end_date?: string;
     compare?: AnalyticsCompare;
+    debug_quota?: boolean;
 }
 
 export interface AnalyticsMeta {
@@ -30,6 +31,7 @@ export interface AnalyticsMeta {
     stale: boolean;
     generated_at: string;
     cache_ttl_sec: number;
+    quota?: Record<string, { consumed?: number; remaining?: number }>;
 }
 
 export interface AnalyticsApiResponse<T> {
