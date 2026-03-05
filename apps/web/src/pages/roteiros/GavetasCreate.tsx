@@ -7,18 +7,20 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
+import { gavetaService } from "@/services/roteiro.service";
+import showToast from "@/lib/toast";
 
 interface GavetaFormItem {
     id: string;
-    title: string;
-    author: string;
+    nome: string;
+    descricao: string;
 }
 
 const createEmptyGaveta = (): GavetaFormItem => ({
     id: `new-${Date.now()}-${Math.random()}`,
-    title: "",
-    author: "",
+    nome: "",
+    descricao: "",
 });
 
 const GavetasCreate = () => {
@@ -32,7 +34,6 @@ const GavetasCreate = () => {
 
     const removeItem = (id: string) => {
         if (items.length === 1) {
-            // Limpa o item ao invés de remover
             setItems([createEmptyGaveta()]);
             return;
         }
@@ -50,33 +51,38 @@ const GavetasCreate = () => {
     };
 
     const handleSave = async () => {
-        // Filtra itens válidos
         const validItems = items.filter(
-            (item) => item.title.trim() && item.author.trim()
+            (item) => item.nome.trim()
         );
 
         if (validItems.length === 0) {
-            alert("Adicione pelo menos uma gaveta com Título e Autor.");
+            showToast.error("Adicione pelo menos uma gaveta com nome.");
             return;
         }
 
         setIsSaving(true);
 
-        // TODO: Salvar no backend
-        const payload = {
-            data: validItems.map((item) => ({
-                title: item.title,
-                author: item.author,
-            })),
-        };
+        try {
+            // Save each gaveta via API
+            for (const item of validItems) {
+                await gavetaService.create({
+                    nome: item.nome.trim(),
+                    descricao: item.descricao.trim() || undefined,
+                });
+            }
 
-        console.log("Saving gavetas:", payload);
-
-        // Simula delay
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        setIsSaving(false);
-        navigate("/roteiros/gavetas");
+            showToast.success(
+                validItems.length === 1
+                    ? "Gaveta criada com sucesso!"
+                    : `${validItems.length} gavetas criadas com sucesso!`
+            );
+            navigate("/roteiros/gavetas");
+        } catch (error: any) {
+            const message = error.response?.data?.message || "Erro ao criar gaveta(s)";
+            showToast.error(message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -133,40 +139,41 @@ const GavetasCreate = () => {
                         transition={{ delay: index * 0.05 }}
                         className="bg-card rounded-2xl border border-border/50 p-4"
                     >
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-start gap-4">
                             {/* Number */}
-                            <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center font-bold text-warning flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center font-bold text-warning flex-shrink-0 mt-1">
                                 {index + 1}
                             </div>
 
-                            {/* Title */}
-                            <div className="flex-1 space-y-2">
-                                <Label>Título da Matéria *</Label>
-                                <Input
-                                    type="text"
-                                    value={item.title}
-                                    onChange={(e) => updateItem(item.id, "title", e.target.value)}
-                                    placeholder="Ex: Entrevista com o prefeito"
-                                    className="w-full"
-                                />
-                            </div>
-
-                            {/* Author */}
-                            <div className="w-40 space-y-2">
-                                <Label>Autor *</Label>
-                                <Input
-                                    type="text"
-                                    value={item.author}
-                                    onChange={(e) => updateItem(item.id, "author", e.target.value)}
-                                    placeholder="Nome"
-                                />
+                            {/* Fields */}
+                            <div className="flex-1 space-y-3">
+                                <div>
+                                    <Label>Nome da Gaveta *</Label>
+                                    <Input
+                                        type="text"
+                                        value={item.nome}
+                                        onChange={(e) => updateItem(item.id, "nome", e.target.value)}
+                                        placeholder="Ex: Entrevista com o prefeito"
+                                        className="w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Descrição</Label>
+                                    <Textarea
+                                        value={item.descricao}
+                                        onChange={(e) => updateItem(item.id, "descricao", e.target.value)}
+                                        placeholder="Descrição opcional..."
+                                        className="w-full min-h-[60px]"
+                                        rows={2}
+                                    />
+                                </div>
                             </div>
 
                             {/* Delete */}
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0 mt-6"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0 mt-1"
                                 onClick={() => removeItem(item.id)}
                             >
                                 <Trash2 className="w-5 h-5" />

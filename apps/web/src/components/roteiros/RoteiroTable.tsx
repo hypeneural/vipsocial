@@ -141,7 +141,7 @@ export const RoteiroTable = ({
             {/* Column Header - Sticky below navbar, hidden on mobile */}
             <div className="hidden lg:block sticky top-16 z-20 bg-background">
                 <div className="bg-card rounded-xl sm:rounded-2xl border border-border/50 overflow-hidden">
-                    <div className="grid grid-cols-[40px_50px_minmax(150px,2fr)_minmax(150px,2fr)_90px_130px_75px_60px_30px] gap-2 p-3 bg-muted/50 border-b border-border font-semibold text-sm">
+                    <div className="grid grid-cols-[40px_50px_minmax(150px,2fr)_minmax(150px,2fr)_90px_130px_80px_60px_30px] gap-2 p-3 bg-muted/50 border-b border-border font-semibold text-sm">
                         <div></div>
                         <div className="text-center">Atalho</div>
                         <div>Título</div>
@@ -297,14 +297,14 @@ export const RoteiroTable = ({
                                                     {item.creditos_gc || "Sem créditos"}
                                                 </span>
 
-                                                <span className="font-mono bg-muted px-2 py-0.5 rounded">
-                                                    {item.duration}
+                                                <span className="font-mono bg-muted px-2 py-0.5 rounded text-sm font-semibold">
+                                                    {item.duration ? item.duration.replace(/^00:/, '') : '00:00'}
                                                 </span>
                                             </div>
                                         </div>
 
                                         {/* Desktop Layout */}
-                                        <div className="hidden lg:grid grid-cols-[40px_50px_minmax(150px,2fr)_minmax(150px,2fr)_90px_130px_75px_60px_30px] gap-2 p-3 items-center">
+                                        <div className="hidden lg:grid grid-cols-[40px_50px_minmax(150px,2fr)_minmax(150px,2fr)_90px_130px_80px_60px_30px] gap-2 p-3 items-center">
                                             {/* Drag Handle */}
                                             <div className="flex justify-center cursor-grab active:cursor-grabbing">
                                                 <GripVertical className="w-5 h-5 text-muted-foreground" />
@@ -346,8 +346,8 @@ export const RoteiroTable = ({
                                                     />
                                                 ) : (
                                                     <div
-                                                        className="text-sm px-2 py-1 rounded hover:bg-muted/50"
-                                                        dangerouslySetInnerHTML={{ __html: item.title }}
+                                                        className="text-sm px-2 py-1.5 rounded hover:bg-muted/50 min-h-[36px] flex items-center border border-transparent hover:border-border/50 transition-colors"
+                                                        dangerouslySetInnerHTML={{ __html: item.title || '<span class="text-muted-foreground/50 italic">Clique duplo para editar título</span>' }}
                                                     />
                                                 )}
                                             </div>
@@ -366,8 +366,8 @@ export const RoteiroTable = ({
                                                     />
                                                 ) : (
                                                     <div
-                                                        className="text-sm text-muted-foreground px-2 py-1 rounded hover:bg-muted/50"
-                                                        dangerouslySetInnerHTML={{ __html: item.description }}
+                                                        className="text-sm text-muted-foreground px-2 py-1.5 rounded hover:bg-muted/50 min-h-[36px] flex items-center border border-transparent hover:border-border/50 transition-colors"
+                                                        dangerouslySetInnerHTML={{ __html: item.description || '<span class="text-muted-foreground/50 italic">Clique duplo para editar linha de apoio</span>' }}
                                                     />
                                                 )}
                                             </div>
@@ -429,13 +429,13 @@ export const RoteiroTable = ({
                                                         onChange={(e) => setEditValue(e.target.value)}
                                                         onBlur={saveEdit}
                                                         onKeyDown={handleKeyDown}
-                                                        placeholder="00:00:00"
-                                                        className="w-full h-7 text-center text-xs tabular-nums"
+                                                        placeholder="00:00"
+                                                        className="w-full h-8 text-center text-sm tabular-nums font-mono"
                                                         autoFocus
                                                     />
                                                 ) : (
-                                                    <span className="font-mono text-xs px-2 py-1 rounded hover:bg-muted/50">
-                                                        {item.duration}
+                                                    <span className="font-mono text-sm font-semibold px-2 py-1.5 rounded hover:bg-muted/50 tabular-nums min-h-[36px] flex items-center justify-center">
+                                                        {item.duration ? item.duration.replace(/^00:/, '') : '00:00'}
                                                     </span>
                                                 )}
                                             </div>
