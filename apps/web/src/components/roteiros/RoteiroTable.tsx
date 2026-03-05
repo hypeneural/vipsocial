@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GripVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -97,6 +97,10 @@ export const RoteiroTable = ({
         useDragAndDrop(items, onItemsChange);
 
     const startEditing = (id: number, field: string, currentValue: string) => {
+        // Save previous edit if switching to a different cell
+        if (editingCell && (editingCell.id !== id || editingCell.field !== field)) {
+            onFieldUpdate(editingCell.id, editingCell.field, editValue);
+        }
         setEditingCell({ id, field });
         setEditValue(currentValue);
     };
@@ -111,6 +115,44 @@ export const RoteiroTable = ({
     const cancelEdit = () => {
         setEditingCell(null);
         setEditValue("");
+    };
+
+    // Click-outside to save and close editing
+    const tableRef = useRef<HTMLDivElement>(null);
+
+    const handleClickOutside = useCallback(
+        (e: MouseEvent) => {
+            if (!editingCell) return;
+            const target = e.target as Node;
+            // If clicking inside a select/popover portal, ignore
+            const isInsidePortal = (target as HTMLElement)?.closest?.('[role="listbox"], [data-radix-popper-content-wrapper]');
+            if (isInsidePortal) return;
+            // If clicking inside the table, save
+            if (tableRef.current && !tableRef.current.contains(target)) {
+                saveEdit();
+            }
+        },
+        [editingCell, editValue]
+    );
+
+    useEffect(() => {
+        if (editingCell) {
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }
+    }, [editingCell, handleClickOutside]);
+
+    /**
+     * Format time input as MM:SS mask — only digits allowed
+     */
+    const handleTimeInputChange = (raw: string) => {
+        // Strip everything except digits
+        const digits = raw.replace(/\D/g, "").slice(0, 4);
+        if (digits.length <= 2) {
+            setEditValue(digits);
+        } else {
+            setEditValue(`${digits.slice(0, 2)}:${digits.slice(2)}`);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -137,7 +179,7 @@ export const RoteiroTable = ({
     );
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" ref={tableRef}>
             {/* Column Header - Sticky below navbar, hidden on mobile */}
             <div className="hidden lg:block sticky top-16 z-20 bg-background">
                 <div className="bg-card rounded-xl sm:rounded-2xl border border-border/50 overflow-hidden">
@@ -298,7 +340,7 @@ export const RoteiroTable = ({
                                                 </span>
 
                                                 <span className="font-mono bg-muted px-2 py-0.5 rounded text-sm font-semibold">
-                                                    {item.duration ? item.duration.replace(/^00:/, '') : '00:00'}
+                                                    {item.duration || '00:00'}
                                                 </span>
                                             </div>
                                         </div>
@@ -426,16 +468,17 @@ export const RoteiroTable = ({
                                                     <Input
                                                         type="text"
                                                         value={editValue}
-                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                        onChange={(e) => handleTimeInputChange(e.target.value)}
                                                         onBlur={saveEdit}
                                                         onKeyDown={handleKeyDown}
                                                         placeholder="00:00"
+                                                        maxLength={5}
                                                         className="w-full h-8 text-center text-sm tabular-nums font-mono"
                                                         autoFocus
                                                     />
                                                 ) : (
                                                     <span className="font-mono text-sm font-semibold px-2 py-1.5 rounded hover:bg-muted/50 tabular-nums min-h-[36px] flex items-center justify-center">
-                                                        {item.duration ? item.duration.replace(/^00:/, '') : '00:00'}
+                                                        {item.duration || '00:00'}
                                                     </span>
                                                 )}
                                             </div>

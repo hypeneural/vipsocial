@@ -150,7 +150,7 @@ export interface RichTextEditorProps {
 }
 
 export const PROGRAM_DURATION_SECONDS = 30 * 60;
-export const PROGRAM_DURATION_DISPLAY = "00:30:00";
+export const PROGRAM_DURATION_DISPLAY = "30:00";
 
 export const durationToSeconds = (duration: string): number => {
     const normalized = duration?.trim();
@@ -169,11 +169,10 @@ export const durationToSeconds = (duration: string): number => {
 export const secondsToDuration = (totalSeconds: number): string => {
     const sign = totalSeconds < 0 ? "-" : "";
     const absSeconds = Math.abs(totalSeconds);
-    const h = Math.floor(absSeconds / 3600);
-    const m = Math.floor((absSeconds % 3600) / 60);
+    const m = Math.floor(absSeconds / 60);
     const s = absSeconds % 60;
 
-    return `${sign}${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${sign}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
 export const calculateTimeRemaining = (totalDuration: string): {
