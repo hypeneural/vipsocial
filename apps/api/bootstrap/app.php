@@ -36,7 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'idempotent' => IdempotencyKey::class,
         ]);
 
-        $middleware->statefulApi();
+        // Note: statefulApi() removed — we use Bearer token auth, not cookie/session.
+        // statefulApi() adds CSRF verification which causes 419 errors when SPA + API
+        // share the same domain.
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->renderable(function (\Illuminate\Validation\ValidationException $e, $request) {
