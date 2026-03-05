@@ -12,7 +12,6 @@ import {
     Loader2,
     AlertCircle,
     UserCircle,
-    History,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -25,6 +24,7 @@ import {
 } from "@/hooks/useRoteiro";
 import { Gaveta } from "@/types/roteiros";
 import { cn } from "@/lib/utils";
+import { GavetaAuditDialog } from "@/components/roteiros/GavetaAuditDialog";
 
 const formatDate = (isoString: string): string => {
     const date = new Date(isoString);
@@ -269,19 +269,10 @@ const GavetasManage = () => {
                                             <span className="hidden sm:inline">Utilizar</span>
                                         </Button>
                                     )}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 gap-1.5 hover:bg-muted/50"
-                                        onClick={() => {
-                                            // TODO: open modal with logs. Right now just alert
-                                            alert("Histórico ainda não implementado na UI, veja os logs em /api/v1/roteiros/gavetas/" + gaveta.id);
-                                        }}
-                                        title="Ver histórico de alterações"
-                                    >
-                                        <History className="w-4 h-4" />
-                                        <span className="hidden sm:inline">Histórico</span>
-                                    </Button>
+                                    <GavetaAuditDialog
+                                        gavetaId={gaveta.id}
+                                        gavetaTitle={gaveta.titulo}
+                                    />
                                     <Button
                                         variant="ghost"
                                         size="icon"

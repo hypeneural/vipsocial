@@ -61,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('gavetas')->group(function () {
         Route::get('/', [GavetaController::class, 'index'])->name('gavetas.index');
         Route::post('/', [GavetaController::class, 'store'])->name('gavetas.store');
+        Route::get('/{id}/logs', [GavetaController::class, 'logs'])->name('gavetas.logs');
         Route::get('/{id}', [GavetaController::class, 'show'])->name('gavetas.show');
         Route::put('/{id}', [GavetaController::class, 'update'])->name('gavetas.update');
         Route::delete('/{id}', [GavetaController::class, 'destroy'])->name('gavetas.destroy');

@@ -394,6 +394,16 @@ export interface AuditLogEntry {
 }
 
 export const auditLogService = {
+    getGavetaLogs: async (
+        gavetaId: number,
+        perPage = 50
+    ): Promise<{ data: AuditLogEntry[]; meta: { total: number } }> => {
+        const { data } = await api.get(`/gavetas/${gavetaId}/logs`, {
+            params: { per_page: perPage },
+        });
+        return data;
+    },
+
     getMateriaLogs: async (
         roteiroId: number,
         materiaId: number,

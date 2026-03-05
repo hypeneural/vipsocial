@@ -443,6 +443,18 @@ export function useMateriaLogs(roteiroId?: number, materiaId?: number) {
     });
 }
 
+export function useGavetaLogs(gavetaId?: number) {
+    return useQuery({
+        queryKey: ["roteiros", "gaveta-logs", gavetaId],
+        queryFn: async () => {
+            if (!gavetaId) return [];
+            const response = await auditLogService.getGavetaLogs(gavetaId);
+            return response.data ?? [];
+        },
+        enabled: !!gavetaId,
+    });
+}
+
 export function useLogsByDate(date?: string) {
     return useQuery({
         queryKey: ["roteiros", "logs-by-date", date],
