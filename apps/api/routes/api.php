@@ -13,10 +13,13 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/health', function () {
+$healthHandler = function () {
     return response()->json([
         'status' => 'ok',
         'timestamp' => now()->toIso8601String(),
         'version' => '1.0.0',
     ]);
-});
+};
+
+Route::get('/health', $healthHandler);
+Route::get('/v1/health', $healthHandler);
