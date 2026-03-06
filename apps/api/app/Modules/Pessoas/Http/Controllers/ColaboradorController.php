@@ -80,27 +80,101 @@ class ColaboradorController extends BaseController
      */
     public function aniversarios(Request $request): JsonResponse
     {
-        $days = $request->get('days', 30);
+        $days = max(1, (int) $request->get('days', 30));
+        $limit = max(0, (int) $request->get('limit', 0));
+        $includeMilestones = filter_var(
+            $request->get('include_milestones', true),
+            FILTER_VALIDATE_BOOLEAN,
+            FILTER_NULL_ON_FAILURE
+        );
+        $includeMilestones = $includeMilestones ?? true;
+
         $now = Carbon::now();
 
-        $users = User::whereNotNull('birth_date')
+        $users = User::query()
+            ->with('roles')
             ->where('active', true)
-            ->get();
+            ->where(function ($query) use ($includeMilestones) {
+                $query->whereNotNull('birth_date');
+
+                if ($includeMilestones) {
+                    $query->orWhereNotNull('admission_date');
+                }
+            })
+            ->get([
+                'id',
+                'name',
+                'email',
+                'phone',
+                'avatar_url',
+                'role',
+                'department',
+                'active',
+                'birth_date',
+                'admission_date',
+                'last_login_at',
+                'created_at',
+                'updated_at',
+            ]);
 
         $upcoming = $users->map(function ($user) use ($now) {
-            $birth = Carbon::parse($user->birth_date);
-            $next = $birth->copy()->year($now->year);
-            if ($next->isPast() && !$next->isToday()) {
-                $next->addYear();
+            $birthdayDaysUntil = null;
+            if ($user->birth_date) {
+                $birth = Carbon::parse($user->birth_date);
+                $nextBirthday = $birth->copy()->year($now->year);
+
+                if ($nextBirthday->isPast() && !$nextBirthday->isToday()) {
+                    $nextBirthday->addYear();
+                }
+
+                $birthdayDaysUntil = $now->diffInDays($nextBirthday, false);
             }
-            $user->_days_until = $now->diffInDays($next, false);
+
+            $milestoneDaysUntil = null;
+            if ($user->admission_date) {
+                $nextMilestone = $this->computeNextMilestone($user->admission_date, $now);
+                if ($nextMilestone !== null) {
+                    $milestoneDaysUntil = (int) ($nextMilestone['days_until'] ?? null);
+                }
+            }
+
+            $candidates = array_values(array_filter([
+                is_numeric($birthdayDaysUntil) ? (int) $birthdayDaysUntil : null,
+                is_numeric($milestoneDaysUntil) ? (int) $milestoneDaysUntil : null,
+            ], static fn($value) => $value !== null));
+
+            $user->_days_until = !empty($candidates) ? min($candidates) : null;
+
             return $user;
         })
-            ->filter(fn($u) => $u->_days_until >= 0 && $u->_days_until <= $days)
+            ->filter(fn($u) => $u->_days_until !== null && $u->_days_until >= 0 && $u->_days_until <= $days)
             ->sortBy('_days_until')
-            ->values();
+            ->values()
+            ->when($limit > 0, fn($collection) => $collection->take($limit)->values());
 
         return $this->jsonSuccess(ColaboradorResource::collection($upcoming));
+    }
+
+    private function computeNextMilestone(string|Carbon $admissionDate, Carbon $now): ?array
+    {
+        $admission = Carbon::parse($admissionDate);
+        $yearsWorked = (int) $admission->diffInYears($now);
+        $milestones = [1, 2, 3, 5, 10, 15, 20, 25, 30];
+
+        foreach ($milestones as $milestone) {
+            if ($milestone > $yearsWorked) {
+                $milestoneDate = $admission->copy()->addYears($milestone);
+                $daysUntil = (int) $now->diffInDays($milestoneDate, false);
+
+                return [
+                    'type' => 'anniversary',
+                    'years' => $milestone,
+                    'days_until' => max(0, $daysUntil),
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**

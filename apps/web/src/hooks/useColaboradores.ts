@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { colaboradorService, type CollaboratorListParams, type CreateCollaboratorDTO, type UpdateCollaboratorDTO } from "@/services/colaborador.service";
+import {
+    colaboradorService,
+    type CollaboratorListParams,
+    type CreateCollaboratorDTO,
+    type UpdateCollaboratorDTO,
+    type CollaboratorAniversariosParams
+} from "@/services/colaborador.service";
 import { toast } from "@/lib/toast";
 
 // ==========================================
@@ -11,7 +17,7 @@ export const colaboradorKeys = {
     lists: () => [...colaboradorKeys.all, "list"] as const,
     list: (params?: CollaboratorListParams) => [...colaboradorKeys.lists(), params] as const,
     stats: () => [...colaboradorKeys.all, "stats"] as const,
-    aniversarios: (days?: number) => [...colaboradorKeys.all, "aniversarios", days] as const,
+    aniversarios: (params?: CollaboratorAniversariosParams) => [...colaboradorKeys.all, "aniversarios", params] as const,
     detail: (id: number) => [...colaboradorKeys.all, "detail", id] as const,
 };
 
@@ -40,12 +46,17 @@ export function useColaboradorStats() {
 }
 
 /**
- * Fetch upcoming birthdays
+ * Fetch upcoming celebrations (birthdays + milestones)
  */
-export function useAniversarios(days = 30) {
+export function useAniversarios(days = 30, options?: Omit<CollaboratorAniversariosParams, "days">) {
+    const params: CollaboratorAniversariosParams = {
+        days,
+        ...options,
+    };
+
     return useQuery({
-        queryKey: colaboradorKeys.aniversarios(days),
-        queryFn: () => colaboradorService.getAniversarios(days),
+        queryKey: colaboradorKeys.aniversarios(params),
+        queryFn: () => colaboradorService.getAniversarios(params),
     });
 }
 

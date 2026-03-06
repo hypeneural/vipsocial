@@ -37,6 +37,12 @@ export interface CollaboratorStats {
     upcoming_milestones: number;
 }
 
+export interface CollaboratorAniversariosParams {
+    days?: number;
+    limit?: number;
+    include_milestones?: boolean | 0 | 1;
+}
+
 export interface CreateCollaboratorDTO {
     name: string;
     email: string;
@@ -106,12 +112,18 @@ export const colaboradorService = {
     },
 
     /**
-     * Get upcoming birthdays
+     * Get upcoming celebrations (birthdays + milestones)
      */
-    getAniversarios: async (days = 30): Promise<ApiResponse<Collaborator[]>> => {
+    getAniversarios: async (
+        paramsOrDays: number | CollaboratorAniversariosParams = 30
+    ): Promise<ApiResponse<Collaborator[]>> => {
+        const params: CollaboratorAniversariosParams = typeof paramsOrDays === "number"
+            ? { days: paramsOrDays }
+            : (paramsOrDays ?? {});
+
         const { data } = await api.get<ApiResponse<Collaborator[]>>(
             "/pessoas/colaboradores/aniversarios",
-            { params: { days } }
+            { params }
         );
         return data;
     },
