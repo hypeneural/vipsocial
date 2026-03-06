@@ -110,9 +110,9 @@ class AnalyticsService
         $dateContext = DateRangeResolver::resolve($query, $this->timezone);
         $payload = array_merge($query, [
             'date_context' => $dateContext,
-            'normalization_version' => 'acquisition_v2',
+            'normalization_version' => 'acquisition_v3_ptbr',
         ]);
-        $limit = (int) ($payload['limit'] ?? 10);
+        $limit = max(1, (int) ($payload['limit'] ?? 10));
 
         return $this->withCache(
             endpoint: 'acquisition',
@@ -354,9 +354,10 @@ class AnalyticsService
                 (string) ($row['session_source_medium'] ?? '')
             );
 
-            $sourceNormalized = (string) ($normalized['source_normalized'] ?? 'Other');
+            $sourceNormalized = (string) ($normalized['source_normalized'] ?? 'Outras Origens');
             $sourceKey = (string) ($normalized['source_key'] ?? 'other');
             $group = (string) ($normalized['group'] ?? 'Referral');
+            $groupLabel = (string) ($normalized['group_label'] ?? $group);
             $confidence = (string) ($normalized['confidence'] ?? 'low');
             $key = strtolower("{$sourceNormalized}|{$group}");
 
@@ -367,6 +368,7 @@ class AnalyticsService
                     'source_raw' => $sourceRaw,
                     'source_normalized' => $sourceNormalized,
                     'group' => $group,
+                    'group_label' => $groupLabel,
                     'confidence' => $confidence,
                     'sessions' => 0,
                     'users' => 0,

@@ -104,6 +104,7 @@ export interface AnalyticsAcquisitionItem {
     source_raw?: string;
     source_normalized?: string;
     group?: string;
+    group_label?: string;
     confidence?: "high" | "medium" | "low";
     sessions?: number;
     users: number;

@@ -144,6 +144,132 @@ const acquisitionMetricLabels: Record<AcquisitionMetric, string> = {
   pageviews: "Visualizacoes de pagina",
 };
 
+const acquisitionGroupLabels: Record<string, string> = {
+  direct: "Direto",
+  search: "Buscas",
+  social: "Redes sociais",
+  video: "Videos",
+  messaging: "Mensagens",
+  email: "E-mail",
+  ai: "IA",
+  referral: "Referencias",
+};
+
+const channelRawLabels: Record<string, string> = {
+  Direct: "Direto",
+  "Organic Search": "Busca organica",
+  "Paid Search": "Busca paga",
+  "Organic Social": "Social organico",
+  "Paid Social": "Social pago",
+  Referral: "Referencia",
+  "Organic Video": "Video organico",
+  "Paid Video": "Video pago",
+  Email: "E-mail",
+  Display: "Display",
+  Affiliates: "Afiliados",
+  "Cross-network": "Cross-network",
+  Unassigned: "Nao atribuido",
+};
+
+const normalizeSourceToken = (value?: string): string => {
+  return (value ?? "").trim().toLowerCase();
+};
+
+const sourceLabelFromRaw = (value?: string): string | null => {
+  const token = normalizeSourceToken(value);
+  if (!token || token === "(not set)") {
+    return null;
+  }
+
+  if (token === "(direct)" || token === "direct") {
+    return "Direct";
+  }
+
+  if (
+    token.includes("tvvip.social")
+    || token.includes("roteiro.tvvip.social")
+    || token.includes("whatsapp")
+    || token.includes("wa.me")
+    || token.includes("l.whatsapp.com")
+    || token.includes("l.wl.co")
+  ) {
+    return "WhatsApp";
+  }
+
+  if (token.includes("facebook") || token === "fb" || token.includes("fb.me")) {
+    return "Facebook";
+  }
+
+  if (token.includes("instagram") || token === "ig") {
+    return "Instagram";
+  }
+
+  if (token.includes("youtube") || token.includes("youtu.be")) {
+    return "YouTube";
+  }
+
+  if (token.includes("google")) {
+    return "Google";
+  }
+
+  if (token.includes("bing")) {
+    return "Bing";
+  }
+
+  if (token.includes("twitter") || token.includes("x.com") || token === "t.co") {
+    return "X/Twitter";
+  }
+
+  return null;
+};
+
+const isGenericSourceLabel = (value?: string): boolean => {
+  const normalized = normalizeSourceToken(value);
+  return normalized.startsWith("other") || normalized.startsWith("outr");
+};
+
+const resolveSourceLabel = (item: AnalyticsAcquisitionItem): string => {
+  if (item.source_normalized && !isGenericSourceLabel(item.source_normalized)) {
+    return item.source_normalized;
+  }
+
+  const fromRaw = sourceLabelFromRaw(item.source_raw);
+  if (fromRaw) {
+    return fromRaw;
+  }
+
+  if (item.source_normalized) {
+    return item.source_normalized;
+  }
+
+  if (item.source_raw && item.source_raw !== "(not set)") {
+    return item.source_raw;
+  }
+
+  return "Outras origens";
+};
+
+const resolveGroupLabel = (item: AnalyticsAcquisitionItem): string => {
+  if (item.group_label) {
+    return item.group_label;
+  }
+
+  const key = normalizeSourceToken(item.group);
+  if (key && acquisitionGroupLabels[key]) {
+    return acquisitionGroupLabels[key];
+  }
+
+  return item.group || "Referencias";
+};
+
+const resolveChannelLabel = (value?: string): string => {
+  if (!value) {
+    return "Canal nao identificado";
+  }
+
+  return channelRawLabels[value] ?? value;
+};
+
 const getAcquisitionMetricValue = (item: AnalyticsAcquisitionItem, metric: AcquisitionMetric): number => {
   if (metric === "sessions") {
     return Number(item.sessions ?? 0);
@@ -184,7 +310,7 @@ const getAcquisitionMetricShare = (
 };
 
 const resolveAcquisitionVisual = (item: AnalyticsAcquisitionItem): { icon: ElementType; iconClass: string; badgeClass: string } => {
-  const normalized = (item.source_normalized ?? "").toLowerCase();
+  const normalized = resolveSourceLabel(item).toLowerCase();
   const group = (item.group ?? "").toLowerCase();
 
   if (normalized.includes("facebook")) {
@@ -755,7 +881,7 @@ const AcquisitionWidget = () => {
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h3 className="font-semibold flex items-center gap-2">
           <Activity className="w-5 h-5 text-primary" />
-          Aquisicoes Normalizadas
+          Origens de Trafego (normalizadas)
         </h3>
         <Select value={period} onValueChange={(value) => setPeriod(value as DashboardPeriod)}>
           <SelectTrigger className="w-[140px] h-8 text-xs">
@@ -832,13 +958,13 @@ const AcquisitionWidget = () => {
 
         {acquisitionLoading && (
           <div className="text-sm text-muted-foreground p-2">
-            Carregando aquisicoes...
+            Carregando origens de trafego...
           </div>
         )}
 
         {!acquisitionLoading && shouldFetchAcquisition && items.length === 0 && (
           <div className="text-sm text-muted-foreground p-2">
-            Nenhuma aquisicao encontrada neste periodo.
+            Nenhuma origem encontrada neste periodo.
           </div>
         )}
 
@@ -861,10 +987,10 @@ const AcquisitionWidget = () => {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs font-semibold text-muted-foreground">#{item.rank ?? index + 1}</span>
-                      <p className="text-sm font-medium truncate">{item.source_normalized || item.source_raw || "Other"}</p>
+                      <p className="text-sm font-medium truncate">{resolveSourceLabel(item)}</p>
                       {item.group && (
                         <Badge variant="outline" className="text-[10px] h-5">
-                          {item.group}
+                          {resolveGroupLabel(item)}
                         </Badge>
                       )}
                     </div>
@@ -872,7 +998,7 @@ const AcquisitionWidget = () => {
                   </div>
 
                   <p className="text-[11px] text-muted-foreground truncate">
-                    {item.channel_raw || "Canal nao identificado"} · {item.source_raw || "(not set)"}
+                    {resolveChannelLabel(item.channel_raw)} | {item.source_raw || "(not set)"}
                   </p>
 
                   <div className="h-1.5 w-full rounded-full bg-muted mt-2 overflow-hidden">
@@ -907,7 +1033,7 @@ const AcquisitionWidget = () => {
         <span>
           Fonte: {acquisitionResponse?.meta?.source === "cache" ? "Cache" : "GA4"}
           {acquisitionResponse?.meta?.stale ? " (stale)" : ""}
-          {acquisitionResponse?.meta?.generated_at ? ` · Atualizado as ${formatHourMinute(acquisitionResponse.meta.generated_at)}` : ""}
+          {acquisitionResponse?.meta?.generated_at ? ` | Atualizado as ${formatHourMinute(acquisitionResponse.meta.generated_at)}` : ""}
         </span>
       </div>
     </motion.div>

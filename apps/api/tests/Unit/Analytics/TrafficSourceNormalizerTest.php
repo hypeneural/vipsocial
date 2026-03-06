@@ -71,6 +71,7 @@ class TrafficSourceNormalizerTest extends TestCase
         );
 
         $this->assertSame('Google', $result['source_normalized']);
+        $this->assertSame('Buscas', $result['group_label']);
     }
 
     public function test_direct_none_maps_to_direct(): void
@@ -110,5 +111,20 @@ class TrafficSourceNormalizerTest extends TestCase
         $resolved = $normalizer->resolveSourceRaw('tvvip.social', 'lm.facebook.com');
 
         $this->assertSame('tvvip.social', $resolved);
+    }
+
+    public function test_internal_default_rules_are_used_when_config_is_missing(): void
+    {
+        $normalizer = new TrafficSourceNormalizer([]);
+
+        $result = $normalizer->normalize(
+            channelRaw: 'Organic Social',
+            sourceRaw: 'lm.facebook.com',
+            mediumRaw: 'referral',
+            sourceMediumRaw: 'lm.facebook.com / referral'
+        );
+
+        $this->assertSame('Facebook', $result['source_normalized']);
+        $this->assertSame('Redes Sociais', $result['group_label']);
     }
 }
