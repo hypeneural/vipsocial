@@ -27,8 +27,20 @@ class AnalyticsTimeseriesRequest extends BaseAnalyticsRequest
             ->values()
             ->all();
 
+        $keepEmptyRows = $this->input('keep_empty_rows');
+        if (is_string($keepEmptyRows)) {
+            $keepEmptyRows = strtolower(trim($keepEmptyRows));
+        }
+
+        $normalizedKeepEmptyRows = match ($keepEmptyRows) {
+            true, 1, '1', 'true', 'on', 'yes' => true,
+            false, 0, '0', 'false', 'off', 'no' => false,
+            default => $keepEmptyRows,
+        };
+
         $this->merge([
             'metrics' => $metrics,
+            'keep_empty_rows' => $normalizedKeepEmptyRows,
         ]);
     }
 
