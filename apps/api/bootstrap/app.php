@@ -2,6 +2,7 @@
 
 use App\Console\Commands\SyncWhatsAppGroupsCommand;
 use App\Console\Commands\CaptureWhatsAppGroupsOverviewDailySnapshotCommand;
+use App\Console\Commands\SyncSocialProfilesDailyCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         SyncWhatsAppGroupsCommand::class,
         CaptureWhatsAppGroupsOverviewDailySnapshotCommand::class,
+        SyncSocialProfilesDailyCommand::class,
     ])
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('whatsapp:groups-sync')
@@ -28,6 +30,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->timezone('America/Sao_Paulo')
             ->dailyAt('23:55')
             ->withoutOverlapping();
+
+        $schedule->command('social:sync-daily')
+            ->timezone((string) config('social.timezone', 'America/Sao_Paulo'))
+            ->dailyAt((string) config('social.sync_hour', '06:10'))
+            ->withoutOverlapping()
+            ->onOneServer();
     })
     ->withRouting(
         web: __DIR__ . '/../routes/web.php',

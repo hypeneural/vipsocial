@@ -5,6 +5,9 @@ namespace App\Providers;
 use App\Modules\Analytics\Clients\AnalyticsClientInterface;
 use App\Modules\Analytics\Clients\Ga4AnalyticsClient;
 use App\Modules\Analytics\Clients\NullAnalyticsClient;
+use App\Modules\Social\Clients\ApifyClient;
+use App\Modules\Social\Clients\ApifyClientInterface;
+use App\Modules\Social\Clients\NullApifyClient;
 use App\Modules\WhatsApp\Clients\NullWhatsAppClient;
 use App\Modules\WhatsApp\Clients\WhatsAppProviderInterface;
 use App\Modules\WhatsApp\Clients\ZApiClient;
@@ -39,6 +42,18 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new ZApiClient();
+        });
+
+        $this->app->bind(ApifyClientInterface::class, function () {
+            $provider = trim((string) config('social.provider', ''));
+            $baseUrl = trim((string) config('social.apify.base_url', ''));
+            $token = trim((string) config('social.apify.token', ''));
+
+            if ($provider !== 'apify' || $baseUrl === '' || $token === '') {
+                return new NullApifyClient();
+            }
+
+            return new ApifyClient();
         });
     }
 

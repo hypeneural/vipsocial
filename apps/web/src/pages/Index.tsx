@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { BirthdayWidget } from "@/components/dashboard/BirthdayWidget";
+import { SocialMetricsWidget } from "@/components/dashboard/SocialMetricsWidget";
 import { WhatsAppGroupsWidget } from "@/components/dashboard/WhatsAppGroupsWidget";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { cn } from "@/lib/utils";
@@ -481,35 +482,6 @@ const KPICard = ({ title, value, subtitle, comparison, icon: Icon, trend, color 
         </p>
       )}
     </div>
-  </motion.div>
-);
-
-interface SocialCardProps {
-  platform: string;
-  icon: ElementType;
-  followers: string;
-  change: string;
-  color: string;
-  delay?: number;
-}
-
-const SocialCard = ({ platform, icon: Icon, followers, change, color, delay = 0 }: SocialCardProps) => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay }}
-    className="bg-card rounded-xl border p-4 flex items-center gap-4"
-  >
-    <div className={cn("p-3 rounded-xl", color)}>
-      <Icon className="w-6 h-6 text-white" />
-    </div>
-    <div className="flex-1">
-      <p className="text-lg font-bold">{followers}</p>
-      <p className="text-sm text-muted-foreground">{platform}</p>
-    </div>
-    <Badge variant="outline" className="text-green-500">
-      {change}
-    </Badge>
   </motion.div>
 );
 
@@ -1270,40 +1242,9 @@ const Dashboard = () => {
         <TrafficTrendWidget />
       </Suspense>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="mb-6"
-      >
-        <h2 className="text-lg font-semibold mb-4">Redes Sociais</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SocialCard
-            platform="Instagram"
-            icon={Instagram}
-            followers="125.8k"
-            change="+2.3%"
-            color="bg-gradient-to-br from-purple-500 to-pink-500"
-            delay={0.25}
-          />
-          <SocialCard
-            platform="YouTube"
-            icon={Youtube}
-            followers="89.4k"
-            change="+1.8%"
-            color="bg-red-500"
-            delay={0.3}
-          />
-          <SocialCard
-            platform="Facebook"
-            icon={Facebook}
-            followers="234.1k"
-            change="+0.9%"
-            color="bg-blue-600"
-            delay={0.35}
-          />
-        </div>
-      </motion.div>
+      <div className="mb-6">
+        <SocialMetricsWidget />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <div className="lg:col-span-2">
