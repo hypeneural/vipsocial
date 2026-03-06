@@ -1,9 +1,11 @@
-import { useMemo, useState, type ElementType } from "react";
+import { Suspense, lazy, useMemo, useState, type ElementType } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
   TrendingUp,
   Eye,
+  MapPin,
+  ExternalLink,
   Instagram,
   Youtube,
   Facebook,
@@ -27,8 +29,16 @@ import { BirthdayWidget } from "@/components/dashboard/BirthdayWidget";
 import { ScrapingFeed } from "@/components/dashboard/ScrapingFeed";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { cn } from "@/lib/utils";
-import { useAnalyticsOverview, useAnalyticsTopPages } from "@/hooks/useAnalytics";
-import type { AnalyticsTopPagesData } from "@/services/analytics.service";
+import {
+  useAnalyticsCities,
+  useAnalyticsOverview,
+  useAnalyticsTopPages,
+} from "@/hooks/useAnalytics";
+import type {
+  AnalyticsCitiesData,
+  AnalyticsTopPageItem,
+  AnalyticsTopPagesData,
+} from "@/services/analytics.service";
 
 const compactFormatter = new Intl.NumberFormat("pt-BR", {
   notation: "compact",
@@ -58,6 +68,66 @@ const formatHourMinute = (iso?: string) => {
     minute: "2-digit",
   });
 };
+
+type DashboardPeriod = "24h" | "7d" | "30d" | "custom";
+
+const resolvePeriodQuery = (
+  period: DashboardPeriod,
+  customStart: string,
+  customEnd: string,
+) => {
+  if (period === "24h") {
+    return { date_preset: "today" as const };
+  }
+
+  if (period === "7d") {
+    return { date_preset: "last_7_days" as const };
+  }
+
+  if (period === "30d") {
+    return { date_preset: "last_30_days" as const };
+  }
+
+  return {
+    date_preset: "custom" as const,
+    start_date: customStart,
+    end_date: customEnd,
+  };
+};
+
+const normalizeUrl = (value: string): string => {
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  if (value.startsWith("//")) {
+    return `https:${value}`;
+  }
+
+  if (value.startsWith("/")) {
+    return value;
+  }
+
+  return `https://${value}`;
+};
+
+const buildArticleUrl = (article: AnalyticsTopPageItem): string | null => {
+  if (article.full_url) {
+    return normalizeUrl(article.full_url);
+  }
+
+  if (article.host_name && article.path) {
+    return normalizeUrl(`${article.host_name}${article.path}`);
+  }
+
+  if (article.path && article.path.startsWith("http")) {
+    return article.path;
+  }
+
+  return null;
+};
+
+const TrafficTrendWidget = lazy(() => import("@/components/dashboard/TrafficTrendWidget"));
 
 interface KPICardProps {
   title: string;
@@ -238,7 +308,7 @@ interface TopArticlesWidgetProps {
 }
 
 const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSource, analyticsStale = false }: TopArticlesWidgetProps) => {
-  const [period, setPeriod] = useState("24h");
+  const [period, setPeriod] = useState<DashboardPeriod>("24h");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
@@ -247,29 +317,14 @@ const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSourc
 
   const topPagesParams = useMemo(() => {
     const baseParams = { limit: 10, path_prefix: "/noticia/" };
-
-    if (period === "24h") {
-      return { ...baseParams, date_preset: "today" as const };
-    }
-
-    if (period === "7d") {
+    if (period === "custom" && !canLoadCustom) {
       return { ...baseParams, date_preset: "last_7_days" as const };
     }
 
-    if (period === "30d") {
-      return { ...baseParams, date_preset: "last_30_days" as const };
-    }
-
-    if (canLoadCustom) {
-      return {
-        ...baseParams,
-        date_preset: "custom" as const,
-        start_date: customStart,
-        end_date: customEnd,
-      };
-    }
-
-    return { ...baseParams, date_preset: "last_7_days" as const };
+    return {
+      ...baseParams,
+      ...resolvePeriodQuery(period, customStart, customEnd),
+    };
   }, [period, customStart, customEnd, canLoadCustom]);
 
   const shouldFetchTopPages = (period !== "24h" || !initialData) && (period !== "custom" || canLoadCustom);
@@ -297,7 +352,7 @@ const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSourc
           <TrendingUp className="w-5 h-5 text-primary" />
           Materias Mais Acessadas
         </h3>
-        <Select value={period} onValueChange={setPeriod}>
+        <Select value={period} onValueChange={(value) => setPeriod(value as DashboardPeriod)}>
           <SelectTrigger className="w-[140px] h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -352,23 +407,190 @@ const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSourc
           </div>
         )}
 
-        {!isLoadingArticles && articles.map((article) => (
-          <div key={article.rank} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-            <span className="text-lg font-bold text-muted-foreground w-6">{article.rank}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{article.title || article.path}</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Eye className="w-3 h-3" />
-                <span>{formatCompactNumber(article.views)} views</span>
-                <span>{article.percentage_of_total.toFixed(1)}%</span>
+        {!isLoadingArticles && articles.map((article) => {
+          const articleUrl = buildArticleUrl(article);
+
+          return (
+            <a
+              key={`${article.rank}-${article.path}`}
+              href={articleUrl ?? undefined}
+              target={articleUrl ? "_blank" : undefined}
+              rel={articleUrl ? "noopener noreferrer" : undefined}
+              onClick={(event) => {
+                if (!articleUrl) {
+                  event.preventDefault();
+                }
+              }}
+              className={cn(
+                "flex items-center gap-3 p-2 rounded-lg transition-colors",
+                articleUrl ? "hover:bg-muted/50 cursor-pointer" : "opacity-80 cursor-default",
+              )}
+            >
+              <span className="text-lg font-bold text-muted-foreground w-6">{article.rank}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{article.title || article.path}</p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Eye className="w-3 h-3" />
+                  <span>{formatCompactNumber(article.views)} views</span>
+                  <span>{article.percentage_of_total.toFixed(1)}%</span>
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
+              {articleUrl && (
+                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              )}
+            </a>
+          );
+        })}
 
         {!isLoadingArticles && articles.length > 0 && (
           <div className="pt-2 mt-2 border-t text-xs text-muted-foreground">
             Total do periodo: {formatCompactNumber(totalViews)} views
+          </div>
+        )}
+
+        {period === "24h" && !!initialData && (
+          <div className="text-[11px] text-muted-foreground">
+            Fonte: {analyticsSource === "cache" ? "Cache" : "GA4"}{analyticsStale ? " (stale)" : ""}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+interface TopCitiesWidgetProps {
+  initialData?: AnalyticsCitiesData;
+  initialLoading?: boolean;
+  analyticsSource?: "ga4" | "cache";
+  analyticsStale?: boolean;
+}
+
+const TopCitiesWidget = ({ initialData, initialLoading = false, analyticsSource, analyticsStale = false }: TopCitiesWidgetProps) => {
+  const [period, setPeriod] = useState<DashboardPeriod>("24h");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+
+  const canLoadCustom = customStart !== "" && customEnd !== "";
+  const shouldUseInitial = period === "24h" && !!initialData;
+
+  const citiesParams = useMemo(() => {
+    const baseParams = { limit: 10 };
+
+    if (period === "custom" && !canLoadCustom) {
+      return { ...baseParams, date_preset: "last_7_days" as const };
+    }
+
+    return {
+      ...baseParams,
+      ...resolvePeriodQuery(period, customStart, customEnd),
+    };
+  }, [period, customStart, customEnd, canLoadCustom]);
+
+  const shouldFetchCities = (period !== "24h" || !initialData) && (period !== "custom" || canLoadCustom);
+
+  const { data: citiesResponse, isLoading: citiesLoading } = useAnalyticsCities(
+    citiesParams,
+    shouldFetchCities,
+    { staleTime: 600000 }
+  );
+
+  const resolvedCities = shouldUseInitial ? initialData : citiesResponse?.data;
+  const cities = resolvedCities?.items ?? [];
+  const totalPageviews = resolvedCities?.total_pageviews ?? 0;
+  const isLoadingCities = shouldUseInitial ? initialLoading && !initialData : citiesLoading;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.55 }}
+      className="bg-card rounded-xl border p-4"
+    >
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <h3 className="font-semibold flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-primary" />
+          Cidades Mais Ativas
+        </h3>
+        <Select value={period} onValueChange={(value) => setPeriod(value as DashboardPeriod)}>
+          <SelectTrigger className="w-[140px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="24h">Ultimas 24h</SelectItem>
+            <SelectItem value="7d">Ultimos 7 dias</SelectItem>
+            <SelectItem value="30d">Ultimos 30 dias</SelectItem>
+            <SelectItem value="custom">Periodo especifico</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {period === "custom" && (
+        <div className="flex gap-2 mb-4">
+          <div className="flex-1">
+            <Input
+              type="date"
+              value={customStart}
+              onChange={(event) => setCustomStart(event.target.value)}
+              className="h-8 text-xs"
+              placeholder="Inicio"
+            />
+          </div>
+          <div className="flex-1">
+            <Input
+              type="date"
+              value={customEnd}
+              onChange={(event) => setCustomEnd(event.target.value)}
+              className="h-8 text-xs"
+              placeholder="Fim"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {period === "custom" && !canLoadCustom && (
+          <div className="text-sm text-muted-foreground p-2">
+            Selecione inicio e fim para carregar o historico.
+          </div>
+        )}
+
+        {isLoadingCities && (
+          <div className="text-sm text-muted-foreground p-2">
+            Carregando cidades...
+          </div>
+        )}
+
+        {!isLoadingCities && (period !== "custom" || canLoadCustom) && cities.length === 0 && (
+          <div className="text-sm text-muted-foreground p-2">
+            Nenhuma cidade encontrada neste periodo.
+          </div>
+        )}
+
+        {!isLoadingCities && cities.map((cityItem) => (
+          <div key={`${cityItem.rank}-${cityItem.city}`} className="p-2 rounded-lg hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-bold text-muted-foreground w-6">{cityItem.rank}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{cityItem.city}</p>
+                <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                  <span>{formatCompactNumber(cityItem.pageviews)} views</span>
+                  <span>{formatCompactNumber(cityItem.users)} usuarios</span>
+                  <span>{cityItem.share_pageviews_pct.toFixed(1)}%</span>
+                </div>
+              </div>
+            </div>
+            <div className="w-full h-1.5 bg-muted rounded-full mt-2 overflow-hidden">
+              <div
+                className="h-full bg-primary/80 rounded-full"
+                style={{ width: `${Math.min(cityItem.share_pageviews_pct, 100)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+
+        {!isLoadingCities && cities.length > 0 && (
+          <div className="pt-2 mt-2 border-t text-xs text-muted-foreground">
+            Total do periodo: {formatCompactNumber(totalPageviews)} views
           </div>
         )}
 
@@ -387,7 +609,7 @@ const Dashboard = () => {
     () => ({
       date_preset: "today" as const,
       compare: "previous_period" as const,
-      include: "kpis,realtime,top_pages",
+      include: "kpis,realtime,top_pages,cities",
       limit: 10,
       path_prefix: "/noticia/",
     }),
@@ -404,6 +626,7 @@ const Dashboard = () => {
   const comparison = overviewResponse?.data?.kpis?.comparison;
   const realtimeUsers = overviewResponse?.data?.realtime?.active_users_30m;
   const initialTopPages = overviewResponse?.data?.top_pages;
+  const initialCities = overviewResponse?.data?.cities;
   const overviewMeta = overviewResponse?.meta;
 
   return (
@@ -467,6 +690,16 @@ const Dashboard = () => {
         />
       </div>
 
+      <Suspense
+        fallback={(
+          <div className="bg-card rounded-xl border p-4 mb-6 h-[420px] flex items-center justify-center text-sm text-muted-foreground">
+            Carregando grafico...
+          </div>
+        )}
+      >
+        <TrafficTrendWidget />
+      </Suspense>
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -518,11 +751,21 @@ const Dashboard = () => {
           analyticsSource={overviewMeta?.source}
           analyticsStale={overviewMeta?.stale}
         />
-        <WhatsAppGroupsWidget />
+        <TopCitiesWidget
+          initialData={initialCities}
+          initialLoading={overviewLoading}
+          analyticsSource={overviewMeta?.source}
+          analyticsStale={overviewMeta?.stale}
+        />
       </div>
 
-      <div className="mb-20 md:mb-0">
-        <ScrapingFeed />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-20 md:mb-0">
+        <div className="lg:col-span-2">
+          <ScrapingFeed />
+        </div>
+        <div>
+          <WhatsAppGroupsWidget />
+        </div>
       </div>
 
       <FloatingActionButton />

@@ -66,6 +66,7 @@ export interface AnalyticsKpisData {
 export interface AnalyticsTopPageItem {
     rank: number;
     path: string;
+    host_name?: string | null;
     full_url: string | null;
     slug: string | null;
     title: string;
