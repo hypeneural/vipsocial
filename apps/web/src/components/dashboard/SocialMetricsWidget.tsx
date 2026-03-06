@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type ElementType } from "react";
+﻿import { useEffect, useId, useMemo, useState, type ElementType } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -9,6 +9,7 @@ import {
   Facebook,
   Globe,
   Instagram,
+  MessageCircle,
   RefreshCw,
   Share2,
   TrendingUp,
@@ -18,9 +19,12 @@ import {
   Youtube,
 } from "lucide-react";
 import {
+  Cell,
   CartesianGrid,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   XAxis,
   YAxis,
 } from "recharts";
@@ -36,12 +40,14 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { useSocialDashboard } from "@/hooks/useSocial";
+import { useWhatsAppGroupsDashboard } from "@/hooks/useWhatsApp";
 import { cn } from "@/lib/utils";
 import type {
   SocialDashboardCard,
   SocialDashboardSeries,
   SocialMetricsWindow,
 } from "@/services/social.service";
+import type { WhatsAppMetricsWindow } from "@/services/whatsapp.service";
 
 const compactFormatter = new Intl.NumberFormat("pt-BR", {
   notation: "compact",
@@ -80,6 +86,10 @@ const formatCurrency = (value?: number | null) => {
   if (typeof value !== "number" || Number.isNaN(value)) return "--";
   return usdFormatter.format(value);
 };
+
+const instagramGradient = "linear-gradient(135deg, #f58529 0%, #feda77 20%, #dd2a7b 48%, #8134af 72%, #515bd4 100%)";
+
+const normalizeNetwork = (network?: string | null) => (network ?? "").trim().toLowerCase();
 
 const formatHourMinute = (iso?: string | null) => {
   if (!iso) return "--:--";
@@ -157,7 +167,7 @@ const translateMetricUnit = (unit?: string | null) => {
 
 const isDirectAvatarBlocked = (card: Pick<SocialDashboardCard, "network" | "avatar_url">) => {
   const url = (card.avatar_url ?? "").toLowerCase();
-  const network = (card.network ?? "").trim().toLowerCase();
+  const network = normalizeNetwork(card.network);
 
   return network === "instagram" || url.includes("cdninstagram.com");
 };
@@ -207,6 +217,17 @@ const networkMeta = (
     };
   }
 
+  if (normalized === "whatsapp") {
+    return {
+      icon: MessageCircle,
+      color: "bg-green-600",
+      softClass: "bg-green-600/10",
+      iconClass: "text-green-600",
+      lineColor: "#16a34a",
+      label: "WhatsApp",
+    };
+  }
+
   if (normalized === "x" || normalized === "twitter") {
     return {
       icon: Twitter,
@@ -226,6 +247,42 @@ const networkMeta = (
     lineColor: "hsl(var(--primary))",
     label: network || "Rede",
   };
+};
+
+const getNetworkSwatchStyle = (network?: string | null) => {
+  const normalized = normalizeNetwork(network);
+
+  if (normalized === "instagram") {
+    return { backgroundImage: instagramGradient };
+  }
+
+  if (normalized === "facebook") {
+    return { backgroundColor: "#2563eb" };
+  }
+
+  if (normalized === "youtube") {
+    return { backgroundColor: "#dc2626" };
+  }
+
+  if (normalized === "whatsapp") {
+    return { backgroundColor: "#16a34a" };
+  }
+
+  if (normalized === "x" || normalized === "twitter") {
+    return { backgroundColor: "#18181b" };
+  }
+
+  return { backgroundColor: "hsl(var(--primary))" };
+};
+
+const getNetworkPieFill = (network: string | null | undefined, instagramGradientId: string) => {
+  const normalized = normalizeNetwork(network);
+
+  if (normalized === "instagram") {
+    return `url(#${instagramGradientId})`;
+  }
+
+  return getNetworkSwatchStyle(network).backgroundColor ?? "hsl(var(--primary))";
 };
 
 const profileHeadline = (card: Pick<SocialDashboardCard, "network" | "display_name" | "handle">) => {
@@ -356,15 +413,25 @@ const SummaryCard = ({
 
 export function SocialMetricsWidget() {
   const [window, setWindow] = useState<SocialMetricsWindow>("30d");
+  const [activeCompositionKey, setActiveCompositionKey] = useState<string | null>(null);
   const { data, isLoading, isFetching, isError, refetch } = useSocialDashboard(
     { window },
     true,
     { staleTime: 300000 }
   );
+  const whatsappWindow: WhatsAppMetricsWindow = window === "7d" ? "7d" : "30d";
+  const { data: whatsappData } = useWhatsAppGroupsDashboard(
+    { window: whatsappWindow },
+    true,
+    { staleTime: 120000 }
+  );
 
   const dashboard = data?.data;
+  const whatsappDashboard = whatsappData?.data;
+  const whatsappSummary = whatsappDashboard?.summary;
   const cards = dashboard?.cards ?? [];
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const instagramGradientId = `${useId().replace(/:/g, "")}-instagram`;
 
   useEffect(() => {
     if (!cards.length) {
@@ -382,24 +449,84 @@ export function SocialMetricsWidget() {
     return cards.find((card) => card.id === selectedProfileId) ?? cards[0];
   }, [cards, selectedProfileId]);
 
-  const totalAudience = useMemo(() => {
-    if (typeof dashboard?.summary?.total_audience_current === "number") {
-      return dashboard.summary.total_audience_current;
+  const audienceComposition = useMemo(() => {
+    const aggregated = new Map<
+      string,
+      {
+        key: string;
+        network: string;
+        label: string;
+        value: number;
+        profileCount: number;
+        groupsCount?: number;
+      }
+    >();
+
+    cards.forEach((card) => {
+      if (typeof card.current_value !== "number" || Number.isNaN(card.current_value)) {
+        return;
+      }
+
+      const network = normalizeNetwork(card.network) || "other";
+      const meta = networkMeta(card.network);
+      const existing = aggregated.get(network) ?? {
+        key: network,
+        network,
+        label: meta.label,
+        value: 0,
+        profileCount: 0,
+      };
+
+      existing.value += card.current_value;
+      existing.profileCount += 1;
+      aggregated.set(network, existing);
+    });
+
+    if (
+      typeof whatsappSummary?.unique_members_current === "number" &&
+      !Number.isNaN(whatsappSummary.unique_members_current) &&
+      whatsappSummary.unique_members_current > 0
+    ) {
+      aggregated.set("whatsapp", {
+        key: "whatsapp",
+        network: "whatsapp",
+        label: "WhatsApp",
+        value: whatsappSummary.unique_members_current,
+        profileCount: 0,
+        groupsCount: whatsappSummary.groups_count,
+      });
     }
 
-    return cards.reduce((total, card) => total + (typeof card.current_value === "number" ? card.current_value : 0), 0);
-  }, [cards, dashboard?.summary?.total_audience_current]);
+    const items = Array.from(aggregated.values()).sort((a, b) => b.value - a.value);
+    const total = items.reduce((sum, item) => sum + item.value, 0);
+
+    return {
+      total,
+      items: items.map((item) => {
+        const meta = networkMeta(item.network);
+        const percent = total > 0 ? (item.value / total) * 100 : 0;
+
+        return {
+          ...item,
+          percent,
+          icon: meta.icon,
+          iconClass: meta.iconClass,
+          softClass: meta.softClass,
+          description:
+            item.network === "whatsapp"
+              ? `${item.groupsCount ?? 0} grupo${(item.groupsCount ?? 0) === 1 ? "" : "s"} · usuários únicos`
+              : `${item.profileCount} perfil${item.profileCount === 1 ? "" : "s"} monitorado${item.profileCount === 1 ? "" : "s"}`,
+          pieFill: getNetworkPieFill(item.network, instagramGradientId),
+        };
+      }),
+    };
+  }, [cards, instagramGradientId, whatsappSummary?.groups_count, whatsappSummary?.unique_members_current]);
+
+  const totalAudience = audienceComposition.total;
 
   const trackedNetworks = useMemo(() => {
-    return Array.from(
-      new Map(
-        cards.map((card) => {
-          const meta = networkMeta(card.network);
-          return [meta.label, meta];
-        })
-      ).values()
-    );
-  }, [cards]);
+    return audienceComposition.items.map((item) => networkMeta(item.network));
+  }, [audienceComposition.items]);
 
   const chartConfig = useMemo<ChartConfig>(() => {
     return cards.reduce<ChartConfig>((config, card) => {
@@ -432,6 +559,27 @@ export function SocialMetricsWidget() {
 
     return Array.from(map.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   }, [dashboard?.series]);
+
+  const compositionChartConfig = useMemo<ChartConfig>(() => {
+    return audienceComposition.items.reduce<ChartConfig>((config, item) => {
+      config[item.key] = {
+        label: item.label,
+        icon: item.icon,
+        color:
+          item.network === "instagram"
+            ? "#dd2a7b"
+            : item.network === "facebook"
+              ? "#2563eb"
+              : item.network === "youtube"
+                ? "#dc2626"
+                : item.network === "whatsapp"
+                  ? "#16a34a"
+                  : "hsl(var(--primary))",
+      };
+
+      return config;
+    }, {});
+  }, [audienceComposition.items]);
 
   return (
     <motion.section
@@ -527,7 +675,7 @@ export function SocialMetricsWidget() {
             <SummaryCard
               title="Audiência total"
               value={formatNumber(totalAudience)}
-              subtitle="Soma da métrica principal das redes monitoradas"
+              subtitle="Redes sociais + WhatsApp grupos por usuários únicos"
               icon={Share2}
               toneClass="text-sky-600"
             />
@@ -636,6 +784,181 @@ export function SocialMetricsWidget() {
                   <Wallet className="h-3.5 w-3.5" />
                   <span>Custo do dia: {formatCurrency(dashboard.summary.cost_today_usd)}</span>
                 </div>
+
+                <div className="mt-4 rounded-[24px] border border-border/60 bg-background/70 p-4">
+                  <div className="flex flex-col gap-2 border-b border-border/50 pb-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">Distribuição atual da audiência</p>
+                      <p className="text-xs text-muted-foreground">
+                        Percentual e total por rede monitorada, somando o WhatsApp grupos por usuários únicos.
+                      </p>
+                    </div>
+                    <Badge variant="outline">Base atual: {formatNumber(totalAudience)}</Badge>
+                  </div>
+
+                  {audienceComposition.items.length === 0 ? (
+                    <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">
+                      Sem dados consolidados para compor a distribuição.
+                    </div>
+                  ) : (
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]">
+                      <div className="relative">
+                        <ChartContainer config={compositionChartConfig} className="mx-auto h-[260px] w-full max-w-[320px]">
+                          <PieChart>
+                            <defs>
+                              <linearGradient id={instagramGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#f58529" />
+                                <stop offset="22%" stopColor="#feda77" />
+                                <stop offset="52%" stopColor="#dd2a7b" />
+                                <stop offset="78%" stopColor="#8134af" />
+                                <stop offset="100%" stopColor="#515bd4" />
+                              </linearGradient>
+                            </defs>
+                            <ChartTooltip
+                              content={
+                                <ChartTooltipContent
+                                  hideLabel
+                                  formatter={(_, __, item) => {
+                                    const entry = audienceComposition.items.find(
+                                      (source) => source.key === String(item?.payload?.key ?? "")
+                                    );
+
+                                    if (!entry) {
+                                      return null;
+                                    }
+
+                                    const Icon = entry.icon;
+
+                                    return (
+                                      <div className="flex min-w-[220px] items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <Icon className={cn("h-3.5 w-3.5", entry.iconClass)} />
+                                            <span className="text-xs font-medium">{entry.label}</span>
+                                          </div>
+                                          <p className="truncate text-xs text-muted-foreground">{entry.description}</p>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="font-mono font-medium">{formatNumber(entry.value)}</p>
+                                          <p className="text-[11px] text-muted-foreground">
+                                            {entry.percent.toFixed(1)}%
+                                          </p>
+                                        </div>
+                                      </div>
+                                    );
+                                  }}
+                                />
+                              }
+                            />
+                            <Pie
+                              data={audienceComposition.items}
+                              dataKey="value"
+                              nameKey="label"
+                              innerRadius={64}
+                              outerRadius={96}
+                              paddingAngle={3}
+                              strokeWidth={2}
+                              animationDuration={900}
+                              animationBegin={100}
+                              onMouseLeave={() => setActiveCompositionKey(null)}
+                            >
+                              {audienceComposition.items.map((item) => (
+                                <Cell
+                                  key={item.key}
+                                  fill={item.pieFill}
+                                  stroke={item.key === activeCompositionKey ? "hsl(var(--foreground))" : "hsl(var(--background))"}
+                                  strokeWidth={item.key === activeCompositionKey ? 4 : 2}
+                                  fillOpacity={activeCompositionKey && item.key !== activeCompositionKey ? 0.58 : 1}
+                                  onMouseEnter={() => setActiveCompositionKey(item.key)}
+                                />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ChartContainer>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Total</span>
+                          <span className="text-2xl font-bold tracking-tight">{formatNumber(totalAudience)}</span>
+                          <span className="text-xs text-muted-foreground">Audiência monitorada</span>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {audienceComposition.items.map((item, index) => {
+                          const Icon = item.icon;
+                          const firstProfile = cards.find(
+                            (card) => normalizeNetwork(card.network) === item.network
+                          );
+                          const isActive = item.key === activeCompositionKey;
+
+                          return (
+                            <motion.button
+                              key={item.key}
+                              type="button"
+                              whileHover={{ y: -2 }}
+                              transition={{ duration: 0.18 }}
+                              onMouseEnter={() => setActiveCompositionKey(item.key)}
+                              onMouseLeave={() => setActiveCompositionKey(null)}
+                              onClick={() => {
+                                if (firstProfile) {
+                                  setSelectedProfileId(firstProfile.id);
+                                }
+                              }}
+                              className={cn(
+                                "rounded-2xl border p-4 text-left transition-colors",
+                                isActive
+                                  ? "border-primary/40 bg-primary/5"
+                                  : "border-border/60 bg-muted/20 hover:bg-muted/35"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className="flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-sm"
+                                    style={getNetworkSwatchStyle(item.network)}
+                                  >
+                                    <Icon className="h-5 w-5" />
+                                  </span>
+                                  <div>
+                                    <p className="text-sm font-semibold">{item.label}</p>
+                                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                                  </div>
+                                </div>
+                                <Badge variant="outline">#{index + 1}</Badge>
+                              </div>
+
+                              <div className="mt-4 grid grid-cols-2 gap-3">
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                    Total
+                                  </p>
+                                  <p className="mt-1 text-xl font-bold">{formatNumber(item.value)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                    Participação
+                                  </p>
+                                  <p className="mt-1 text-xl font-bold">{item.percent.toFixed(1)}%</p>
+                                </div>
+                              </div>
+
+                              <div className="mt-4">
+                                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                  <motion.div
+                                    className="h-full rounded-full"
+                                    style={getNetworkSwatchStyle(item.network)}
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${item.percent}%` }}
+                                    transition={{ duration: 0.55, delay: 0.05 }}
+                                  />
+                                </div>
+                              </div>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -676,7 +999,10 @@ export function SocialMetricsWidget() {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold">{card.display_name}</p>
+                                  <div className="flex items-center gap-2">
+                                    <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.iconClass)} />
+                                    <p className="truncate text-sm font-semibold">{card.display_name}</p>
+                                  </div>
                                   <p className="truncate text-xs text-muted-foreground">{profileSubheadline(card)}</p>
                                 </div>
                                 <Badge variant="outline" className={statusBadge.className}>
@@ -725,6 +1051,10 @@ export function SocialMetricsWidget() {
                         <SocialAvatar card={selectedCard} size="lg" />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
+                            {(() => {
+                              const Icon = networkMeta(selectedCard.network).icon;
+                              return <Icon className={cn("h-4 w-4", networkMeta(selectedCard.network).iconClass)} />;
+                            })()}
                             <h4 className="text-lg font-bold tracking-tight">{profileHeadline(selectedCard)}</h4>
                             <Badge variant="outline">{networkMeta(selectedCard.network).label}</Badge>
                           </div>
@@ -853,4 +1183,13 @@ export function SocialMetricsWidget() {
     </motion.section>
   );
 }
+
+
+
+
+
+
+
+
+
 
