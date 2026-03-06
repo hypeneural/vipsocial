@@ -12,6 +12,8 @@ use App\Support\Http\Controllers\BaseController;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 class SocialProfilesController extends BaseController
@@ -53,6 +55,33 @@ class SocialProfilesController extends BaseController
                 'to' => $paginator->lastItem(),
             ],
             'message' => '',
+        ]);
+    }
+
+    public function avatar(string $id): Response
+    {
+        $profile = SocialProfile::query()->find($id);
+        if ($profile === null || blank($profile->avatar_url)) {
+            abort(404);
+        }
+
+        $avatarUrl = trim((string) $profile->avatar_url);
+        if (!$this->shouldProxyAvatarUrl($avatarUrl)) {
+            abort(404);
+        }
+
+        $response = Http::accept('image/*')
+            ->timeout(15)
+            ->retry(2, 250, throw: false)
+            ->get($avatarUrl);
+
+        if (!$response->successful() || blank($response->body())) {
+            abort(404);
+        }
+
+        return response($response->body(), 200, [
+            'Content-Type' => $response->header('Content-Type', 'image/jpeg'),
+            'Cache-Control' => 'public, max-age=3600, stale-while-revalidate=86400',
         ]);
     }
 
@@ -171,6 +200,7 @@ class SocialProfilesController extends BaseController
             'external_profile_id' => $profile->external_profile_id,
             'url' => $profile->url,
             'avatar_url' => $profile->avatar_url,
+            'avatar_proxy_url' => $profile->avatar_url ? "/api/v1/social/profiles/{$profile->id}/avatar" : null,
             'primary_metric_code' => $profile->primary_metric_code,
             'normalizer_type' => $profile->normalizer_type,
             'normalizer_config' => $profile->normalizer_config,
@@ -181,5 +211,18 @@ class SocialProfilesController extends BaseController
             'created_at' => $profile->created_at?->toIso8601String(),
             'updated_at' => $profile->updated_at?->toIso8601String(),
         ];
+    }
+
+    private function shouldProxyAvatarUrl(string $avatarUrl): bool
+    {
+        $host = parse_url($avatarUrl, PHP_URL_HOST);
+        if (!is_string($host) || $host === '') {
+            return false;
+        }
+
+        $normalizedHost = strtolower($host);
+
+        return str_contains($normalizedHost, 'cdninstagram.com')
+            || str_ends_with($normalizedHost, 'fbcdn.net');
     }
 }

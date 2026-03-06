@@ -41,6 +41,7 @@ export interface SocialDashboardCard {
   external_profile_id: string | null;
   url: string | null;
   avatar_url: string | null;
+  avatar_proxy_url: string | null;
   primary_metric_code: string;
   primary_metric_label: string;
   current_value: number | null;
@@ -68,6 +69,7 @@ export interface SocialDashboardSeries {
 export interface SocialDashboardData {
   window: SocialMetricsWindow;
   summary: {
+    total_audience_current: number;
     profiles_count: number;
     synced_today_count: number;
     failed_today_count: number;

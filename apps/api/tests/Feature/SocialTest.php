@@ -5,6 +5,7 @@ use App\Modules\Social\Models\SocialMetricDefinition;
 use App\Modules\Social\Models\SocialProfile;
 use App\Modules\Social\Models\SocialProfileMetricValue;
 use App\Modules\Social\Models\SocialProfileSnapshot;
+use App\Modules\Social\Models\SocialSyncRun;
 use Illuminate\Http\Client\Request;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
@@ -331,6 +332,18 @@ test('social dashboard returns cards and series from persisted snapshots', funct
         'raw_key' => 'followsCount',
     ]);
 
+    SocialSyncRun::query()->create([
+        'social_profile_id' => $profile->id,
+        'metric_date' => '2026-03-06',
+        'status' => 'SUCCEEDED',
+        'apify_run_id' => 'run-dashboard-1',
+        'apify_dataset_id' => 'dataset-dashboard-1',
+        'normalizer_type' => 'path_map',
+        'normalizer_version' => '1.0.0',
+        'started_at' => '2026-03-06 06:09:00',
+        'finished_at' => '2026-03-06 06:10:00',
+    ]);
+
     $profile->forceFill([
         'display_name' => 'VipSocial',
         'external_profile_id' => '189403979',
@@ -341,11 +354,41 @@ test('social dashboard returns cards and series from persisted snapshots', funct
 
     $this->getJson('/api/v1/social/dashboard?window=30d')
         ->assertOk()
+        ->assertJsonPath('data.summary.total_audience_current', 86391)
         ->assertJsonPath('data.summary.profiles_count', 1)
         ->assertJsonPath('data.cards.0.current_value', 86391)
         ->assertJsonPath('data.cards.0.growth_day', 391)
         ->assertJsonPath('data.cards.0.primary_metric_code', 'followers_total')
+        ->assertJsonPath('data.cards.0.avatar_proxy_url', "/api/v1/social/profiles/{$profile->id}/avatar")
         ->assertJsonPath("data.series.{$profile->id}.points.1.value", 86391);
+});
+
+test('social avatar proxy returns proxied image for allowed hosts', function () {
+    Http::fake([
+        'https://assets.cdninstagram.com/*' => Http::response('fake-image-binary', 200, [
+            'Content-Type' => 'image/jpeg',
+        ]),
+    ]);
+
+    $profile = SocialProfile::query()->create([
+        'provider' => 'apify',
+        'provider_resource_type' => 'task',
+        'provider_resource_id' => 'task-instagram-vipsocial',
+        'task_input_override' => [
+            'usernames' => ['vipsocial'],
+        ],
+        'network' => 'instagram',
+        'handle' => 'vipsocial',
+        'avatar_url' => 'https://assets.cdninstagram.com/avatar.jpg',
+        'primary_metric_code' => 'followers_total',
+        'normalizer_type' => 'path_map',
+        'normalizer_config' => socialInstagramNormalizerConfig(),
+        'is_active' => true,
+    ]);
+
+    $this->get("/api/v1/social/profiles/{$profile->id}/avatar")
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/jpeg');
 });
 
 test('failed sync does not overwrite existing valid snapshot', function () {

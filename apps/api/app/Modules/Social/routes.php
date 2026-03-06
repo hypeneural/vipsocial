@@ -4,6 +4,8 @@ use App\Modules\Social\Http\Controllers\SocialMetricsController;
 use App\Modules\Social\Http\Controllers\SocialProfilesController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('social/profiles/{id}/avatar', [SocialProfilesController::class, 'avatar']);
+
 Route::middleware('auth:sanctum')->prefix('social')->group(function () {
     Route::get('/dashboard', [SocialMetricsController::class, 'dashboard']);
     Route::get('/profiles/metrics', [SocialMetricsController::class, 'profilesMetrics']);

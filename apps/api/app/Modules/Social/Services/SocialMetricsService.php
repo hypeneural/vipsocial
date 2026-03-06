@@ -93,6 +93,7 @@ class SocialMetricsService
             'external_profile_id' => $profile->external_profile_id,
             'url' => $profile->url,
             'avatar_url' => $profile->avatar_url,
+            'avatar_proxy_url' => $this->avatarProxyUrl($profile),
             'primary_metric_code' => $profile->primary_metric_code,
             'primary_metric_label' => $this->metricLabel($profile->primary_metric_code),
             'current_value' => $this->normalizeNumber($currentValue),
@@ -109,6 +110,15 @@ class SocialMetricsService
             'metrics' => $this->snapshotMetrics($currentSnapshot),
             'series' => $this->series($snapshots, $windowStart, $profile->primary_metric_code),
         ];
+    }
+
+    private function avatarProxyUrl(SocialProfile $profile): ?string
+    {
+        if (blank($profile->avatar_url)) {
+            return null;
+        }
+
+        return "/api/v1/social/profiles/{$profile->id}/avatar";
     }
 
     private function metricLabel(string $code): string

@@ -24,10 +24,13 @@ class SocialDashboardService
             $cards = collect($profilesPayload['items'] ?? []);
             $timezone = (string) config('social.timezone', config('app.timezone', 'UTC'));
             $today = CarbonImmutable::now($timezone)->toDateString();
+            $totalAudienceCurrent = (int) round((float) $cards
+                ->sum(fn(array $item) => (float) ($item['current_value'] ?? 0)));
 
             return [
                 'window' => $profilesPayload['window'] ?? $window,
                 'summary' => [
+                    'total_audience_current' => $totalAudienceCurrent,
                     'profiles_count' => $cards->count(),
                     'synced_today_count' => $cards->where('last_snapshot_date', $today)->count(),
                     'failed_today_count' => SocialSyncRun::query()
