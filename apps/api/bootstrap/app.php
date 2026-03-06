@@ -1,8 +1,10 @@
 <?php
 
+use App\Console\Commands\SyncWhatsAppGroupsCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use App\Support\Http\Middleware\InjectRequestContext;
 use App\Support\Http\Middleware\IdempotencyKey;
@@ -11,6 +13,15 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withProviders([
         App\Providers\ModuleServiceProvider::class,
     ])
+    ->withCommands([
+        SyncWhatsAppGroupsCommand::class,
+    ])
+    ->withSchedule(function (Schedule $schedule): void {
+        $schedule->command('whatsapp:groups-sync')
+            ->timezone('America/Sao_Paulo')
+            ->twiceDaily(9, 21)
+            ->withoutOverlapping();
+    })
     ->withRouting(
         web: __DIR__ . '/../routes/web.php',
         api: __DIR__ . '/../routes/api.php',

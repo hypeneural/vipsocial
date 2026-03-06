@@ -30,6 +30,7 @@ class RoleAndPermissionSeeder extends Seeder
             'config',
             'raspagem',
             'audit',
+            'whatsapp',
         ];
 
         $actions = ['view', 'create', 'edit', 'delete', 'publish'];
