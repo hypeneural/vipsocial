@@ -67,36 +67,80 @@ class WhatsAppService
         return $this->client->post('send-link', $payload);
     }
 
-    public function status(): array
+    public function status(bool $fresh = false): array
     {
         $ttl = max(1, (int) config('whatsapp.cache.status_ttl_sec', 15));
 
         return $this->rememberWithLock(
             key: 'whatsapp:zapi:status',
             ttlSec: $ttl,
+            fresh: $fresh,
             resolver: fn() => $this->client->get('status')
         );
     }
 
-    public function qrCodeImage(): array
+    public function qrCodeImage(bool $fresh = false): array
     {
         $ttl = max(1, (int) config('whatsapp.cache.qrcode_ttl_sec', 10));
 
         return $this->rememberWithLock(
             key: 'whatsapp:zapi:qrcode:image',
             ttlSec: $ttl,
+            fresh: $fresh,
             resolver: fn() => $this->client->get('qr-code/image')
         );
     }
 
-    public function deviceInfo(): array
+    public function deviceInfo(bool $fresh = false): array
     {
         $ttl = max(1, (int) config('whatsapp.cache.device_ttl_sec', 30));
 
         return $this->rememberWithLock(
             key: 'whatsapp:zapi:device',
             ttlSec: $ttl,
+            fresh: $fresh,
             resolver: fn() => $this->client->get('device')
+        );
+    }
+
+    public function connectionState(bool $fresh = false): array
+    {
+        $status = $this->status($fresh);
+        $checkedAt = now()->toIso8601String();
+
+        if ((bool) ($status['connected'] ?? false)) {
+            return $this->buildConnectedState(
+                status: $status,
+                checkedAt: $checkedAt,
+                source: 'status',
+                fresh: $fresh
+            );
+        }
+
+        $qrPayload = null;
+        $qrError = null;
+
+        try {
+            $qrPayload = $this->qrCodeImage($fresh);
+        } catch (Throwable $e) {
+            report($e);
+            $qrError = 'Nao foi possivel obter um novo QR Code no momento';
+        }
+
+        if (is_array($qrPayload) && (bool) ($qrPayload['connected'] ?? false)) {
+            return $this->buildConnectedState(
+                status: array_replace($status, ['connected' => true]),
+                checkedAt: $checkedAt,
+                source: 'qr',
+                fresh: $fresh
+            );
+        }
+
+        return $this->buildDisconnectedState(
+            status: $status,
+            qrPayload: is_array($qrPayload) ? $qrPayload : [],
+            checkedAt: $checkedAt,
+            qrError: $qrError
         );
     }
 
@@ -104,9 +148,7 @@ class WhatsAppService
     {
         $response = $this->client->get('disconnect');
 
-        Cache::forget('whatsapp:zapi:status');
-        Cache::forget('whatsapp:zapi:qrcode:image');
-        Cache::forget('whatsapp:zapi:device');
+        $this->clearConnectionCaches();
 
         return $response;
     }
@@ -183,8 +225,12 @@ class WhatsAppService
         dispatch($job);
     }
 
-    private function rememberWithLock(string $key, int $ttlSec, callable $resolver): array
+    private function rememberWithLock(string $key, int $ttlSec, callable $resolver, bool $fresh = false): array
     {
+        if ($fresh) {
+            Cache::forget($key);
+        }
+
         if (Cache::has($key)) {
             return (array) Cache::get($key);
         }
@@ -230,5 +276,146 @@ class WhatsAppService
         } catch (Throwable) {
             // Best effort.
         }
+    }
+
+    private function clearConnectionCaches(): void
+    {
+        Cache::forget('whatsapp:zapi:status');
+        Cache::forget('whatsapp:zapi:qrcode:image');
+        Cache::forget('whatsapp:zapi:device');
+    }
+
+    private function buildConnectedState(array $status, string $checkedAt, string $source, bool $fresh): array
+    {
+        $device = [];
+        $deviceError = null;
+
+        try {
+            $device = $this->deviceInfo($fresh);
+        } catch (Throwable $e) {
+            report($e);
+            $deviceError = 'Conexao ativa, mas os detalhes do aparelho nao puderam ser carregados';
+        }
+
+        $phone = $this->nullableString($device['phone'] ?? null);
+
+        return [
+            'connected' => true,
+            'checked_at' => $checkedAt,
+            'connection_source' => $source === 'qr' ? 'qr+device' : 'status+device',
+            'smartphone_connected' => $this->nullableBool($status['smartphoneConnected'] ?? null),
+            'status_message' => $this->nullableString($status['error'] ?? null),
+            'phone' => $phone,
+            'formatted_phone' => $this->formatPhoneForDisplay($phone),
+            'qr_code' => null,
+            'qr_available' => false,
+            'qr_expires_in_sec' => null,
+            'qr_error' => null,
+            'profile' => [
+                'lid' => $this->nullableString($device['lid'] ?? null),
+                'name' => $this->nullableString($device['name'] ?? null),
+                'about' => $this->nullableString($device['about'] ?? null),
+                'img_url' => $this->nullableString($device['imgUrl'] ?? null),
+                'is_business' => array_key_exists('isBusiness', $device) ? (bool) $device['isBusiness'] : null,
+            ],
+            'device' => [
+                'session_id' => $device['sessionId'] ?? null,
+                'session_name' => $this->nullableString($device['device']['sessionName'] ?? null),
+                'device_model' => $this->nullableString($device['device']['device_model'] ?? null),
+                'original_device' => $this->nullableString($device['originalDevice'] ?? null),
+            ],
+            'device_error' => $deviceError,
+        ];
+    }
+
+    private function buildDisconnectedState(array $status, array $qrPayload, string $checkedAt, ?string $qrError = null): array
+    {
+        $qrCode = $this->nullableString($qrPayload['value'] ?? null);
+
+        return [
+            'connected' => false,
+            'checked_at' => $checkedAt,
+            'connection_source' => 'status+qr',
+            'smartphone_connected' => $this->nullableBool($status['smartphoneConnected'] ?? null),
+            'status_message' => $this->nullableString($status['error'] ?? null),
+            'phone' => null,
+            'formatted_phone' => null,
+            'qr_code' => $qrCode,
+            'qr_available' => $qrCode !== null,
+            'qr_expires_in_sec' => $qrCode !== null ? 20 : null,
+            'qr_error' => $qrError ?? ($qrCode === null ? 'QR Code indisponivel no momento' : null),
+            'profile' => [
+                'lid' => null,
+                'name' => null,
+                'about' => null,
+                'img_url' => null,
+                'is_business' => null,
+            ],
+            'device' => [
+                'session_id' => null,
+                'session_name' => null,
+                'device_model' => null,
+                'original_device' => null,
+            ],
+            'device_error' => null,
+        ];
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function nullableBool(mixed $value): ?bool
+    {
+        if (!is_bool($value)) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function formatPhoneForDisplay(?string $phone): ?string
+    {
+        if ($phone === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '55') && strlen($digits) >= 12) {
+            $digits = substr($digits, 2);
+        }
+
+        if (strlen($digits) === 11) {
+            return sprintf(
+                '(%s) %s %s-%s',
+                substr($digits, 0, 2),
+                substr($digits, 2, 1),
+                substr($digits, 3, 4),
+                substr($digits, 7, 4)
+            );
+        }
+
+        if (strlen($digits) === 10) {
+            return sprintf(
+                '(%s) %s-%s',
+                substr($digits, 0, 2),
+                substr($digits, 2, 4),
+                substr($digits, 6, 4)
+            );
+        }
+
+        return $digits;
     }
 }

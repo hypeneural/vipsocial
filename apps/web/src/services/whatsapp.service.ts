@@ -15,6 +15,42 @@ export interface WhatsAppApiResponse<T> {
   message?: string;
 }
 
+export interface WhatsAppConnectionStateProfile {
+  lid: string | null;
+  name: string | null;
+  about: string | null;
+  img_url: string | null;
+  is_business: boolean | null;
+}
+
+export interface WhatsAppConnectionStateDevice {
+  session_id: number | null;
+  session_name: string | null;
+  device_model: string | null;
+  original_device: string | null;
+}
+
+export interface WhatsAppConnectionStateData {
+  connected: boolean;
+  checked_at: string;
+  connection_source: "status+device" | "qr+device" | "status+qr";
+  smartphone_connected: boolean | null;
+  status_message: string | null;
+  phone: string | null;
+  formatted_phone: string | null;
+  qr_code: string | null;
+  qr_available: boolean;
+  qr_expires_in_sec: number | null;
+  qr_error: string | null;
+  profile: WhatsAppConnectionStateProfile;
+  device: WhatsAppConnectionStateDevice;
+  device_error: string | null;
+}
+
+export interface WhatsAppConnectionStateParams {
+  fresh?: boolean;
+}
+
 export interface WhatsAppGroupsDashboardSeriesPoint {
   date: string;
   label: string;
@@ -74,6 +110,25 @@ export interface WhatsAppGroupsDashboardParams {
 }
 
 const whatsappService = {
+  getConnectionState: async (
+    params?: WhatsAppConnectionStateParams
+  ): Promise<WhatsAppApiResponse<WhatsAppConnectionStateData>> => {
+    const { data } = await api.get<WhatsAppApiResponse<WhatsAppConnectionStateData>>(
+      "/whatsapp/connection-state",
+      { params }
+    );
+
+    return data;
+  },
+
+  disconnect: async (): Promise<WhatsAppApiResponse<Record<string, unknown>>> => {
+    const { data } = await api.get<WhatsAppApiResponse<Record<string, unknown>>>(
+      "/whatsapp/disconnect"
+    );
+
+    return data;
+  },
+
   getGroupsDashboardMetrics: async (
     params?: WhatsAppGroupsDashboardParams
   ): Promise<WhatsAppApiResponse<WhatsAppGroupsDashboardData>> => {

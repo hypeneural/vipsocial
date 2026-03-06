@@ -10,6 +10,7 @@ use App\Modules\WhatsApp\Http\Requests\SendTextRequest;
 use App\Modules\WhatsApp\Services\WhatsAppService;
 use App\Support\Http\Controllers\BaseController;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use InvalidArgumentException;
 use Throwable;
 
@@ -122,19 +123,32 @@ class WhatsAppController extends BaseController
         );
     }
 
-    public function status(): JsonResponse
+    public function status(Request $request): JsonResponse
     {
-        return $this->execute(fn() => $this->service->status());
+        return $this->execute(
+            fn() => $this->service->status($request->boolean('fresh'))
+        );
     }
 
-    public function qrCodeImage(): JsonResponse
+    public function qrCodeImage(Request $request): JsonResponse
     {
-        return $this->execute(fn() => $this->service->qrCodeImage());
+        return $this->execute(
+            fn() => $this->service->qrCodeImage($request->boolean('fresh'))
+        );
     }
 
-    public function deviceInfo(): JsonResponse
+    public function deviceInfo(Request $request): JsonResponse
     {
-        return $this->execute(fn() => $this->service->deviceInfo());
+        return $this->execute(
+            fn() => $this->service->deviceInfo($request->boolean('fresh'))
+        );
+    }
+
+    public function connectionState(Request $request): JsonResponse
+    {
+        return $this->execute(
+            fn() => $this->service->connectionState($request->boolean('fresh'))
+        );
     }
 
     public function disconnect(): JsonResponse

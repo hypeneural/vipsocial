@@ -103,6 +103,106 @@ test('status uses short cache', function () {
     Http::assertSentCount(1);
 });
 
+test('status fresh query bypasses cache', function () {
+    Cache::flush();
+
+    Http::fakeSequence()
+        ->push([
+            'connected' => true,
+        ], 200)
+        ->push([
+            'connected' => false,
+        ], 200);
+
+    $user = makeAuthenticatedUser();
+    Sanctum::actingAs($user);
+
+    $this->getJson('/api/v1/whatsapp/status')
+        ->assertOk()
+        ->assertJsonPath('data.connected', true);
+
+    $this->getJson('/api/v1/whatsapp/status')
+        ->assertOk()
+        ->assertJsonPath('data.connected', true);
+
+    $this->getJson('/api/v1/whatsapp/status?fresh=1')
+        ->assertOk()
+        ->assertJsonPath('data.connected', false);
+
+    Http::assertSentCount(2);
+});
+
+test('connection state returns device details when connected', function () {
+    Cache::flush();
+
+    Http::fake([
+        'https://api.z-api.io/instances/instance-test/token/token-test/status' => Http::response([
+            'connected' => true,
+            'smartphoneConnected' => true,
+        ], 200),
+        'https://api.z-api.io/instances/instance-test/token/token-test/device' => Http::response([
+            'phone' => '554896727305',
+            'lid' => '178898423832679@lid',
+            'imgUrl' => 'https://example.com/device.jpg',
+            'about' => 'Jornalismo',
+            'name' => 'Jornalismo VipSocial',
+            'device' => [
+                'sessionName' => 'Z-API',
+                'device_model' => 'Z-API',
+            ],
+            'originalDevice' => 'iphone',
+            'sessionId' => 164,
+            'isBusiness' => false,
+        ], 200),
+    ]);
+
+    $user = makeAuthenticatedUser();
+    Sanctum::actingAs($user);
+
+    $this->getJson('/api/v1/whatsapp/connection-state')
+        ->assertOk()
+        ->assertJsonPath('data.connected', true)
+        ->assertJsonPath('data.connection_source', 'status+device')
+        ->assertJsonPath('data.phone', '554896727305')
+        ->assertJsonPath('data.formatted_phone', '(48) 9672-7305')
+        ->assertJsonPath('data.profile.name', 'Jornalismo VipSocial')
+        ->assertJsonPath('data.profile.img_url', 'https://example.com/device.jpg')
+        ->assertJsonPath('data.device.original_device', 'iphone')
+        ->assertJsonPath('data.qr_code', null);
+
+    Http::assertSentCount(2);
+});
+
+test('connection state returns qr code when disconnected', function () {
+    Cache::flush();
+
+    Http::fake([
+        'https://api.z-api.io/instances/instance-test/token/token-test/status' => Http::response([
+            'connected' => false,
+            'smartphoneConnected' => false,
+            'error' => 'You are not connected.',
+        ], 200),
+        'https://api.z-api.io/instances/instance-test/token/token-test/qr-code/image' => Http::response([
+            'value' => 'data:image/png;base64,abc123',
+        ], 200),
+    ]);
+
+    $user = makeAuthenticatedUser();
+    Sanctum::actingAs($user);
+
+    $this->getJson('/api/v1/whatsapp/connection-state')
+        ->assertOk()
+        ->assertJsonPath('data.connected', false)
+        ->assertJsonPath('data.connection_source', 'status+qr')
+        ->assertJsonPath('data.qr_available', true)
+        ->assertJsonPath('data.qr_code', 'data:image/png;base64,abc123')
+        ->assertJsonPath('data.qr_expires_in_sec', 20)
+        ->assertJsonPath('data.status_message', 'You are not connected.')
+        ->assertJsonPath('data.profile.name', null);
+
+    Http::assertSentCount(2);
+});
+
 test('provider error is returned with status and body details', function () {
     Http::fake([
         '*' => Http::response([

@@ -6,6 +6,7 @@ use App\Modules\WhatsApp\Http\Controllers\WhatsAppGroupMetricsController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->prefix('whatsapp')->group(function () {
+    Route::get('/connection-state', [WhatsAppController::class, 'connectionState'])->name('whatsapp.connectionState');
     Route::get('/status', [WhatsAppController::class, 'status'])->name('whatsapp.status');
     Route::get('/qr-code/image', [WhatsAppController::class, 'qrCodeImage'])->name('whatsapp.qrcode.image');
     Route::get('/device', [WhatsAppController::class, 'deviceInfo'])->name('whatsapp.device');
