@@ -5,12 +5,81 @@ namespace App\Modules\WhatsApp\Services;
 use App\Modules\WhatsApp\Models\WhatsAppGroup;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMemberEvent;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMembership;
+use App\Modules\WhatsApp\Models\WhatsAppGroupsOverviewDailySnapshot;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class GroupMetricsService
 {
+    public function dashboard(string $window): array
+    {
+        [$normalizedWindow, $windowStart] = $this->resolveWindow($window);
+        $ttl = max(1, (int) config('whatsapp.cache.group_metrics_ttl_sec', 120));
+        $cacheKey = "whatsapp:groups:metrics:dashboard:{$normalizedWindow}";
+
+        return Cache::remember($cacheKey, $ttl, function () use ($normalizedWindow, $windowStart) {
+            $timezone = (string) config('app.timezone', 'UTC');
+            $today = CarbonImmutable::now($timezone)->startOfDay();
+            $overview = $this->overview($normalizedWindow);
+            $groupsPayload = $this->byGroup($normalizedWindow);
+            $series = $this->dailyOverviewSeries($windowStart, $today, $overview);
+            $capturedSeries = array_values(array_filter($series, fn(array $point) => $point['captured'] === true));
+            $baselinePoint = $capturedSeries[0] ?? null;
+            $lastCapturedPoint = !empty($capturedSeries) ? $capturedSeries[array_key_last($capturedSeries)] : null;
+            $currentUniqueMembers = (int) ($overview['unique_members_current'] ?? 0);
+            $baselineUniqueMembers = (int) ($baselinePoint['unique_members_current'] ?? $currentUniqueMembers);
+            $uniqueGrowthDelta = $currentUniqueMembers - $baselineUniqueMembers;
+            $totalMembershipsCurrent = (int) ($overview['total_memberships_current'] ?? 0);
+
+            $groups = collect($groupsPayload['items'] ?? [])
+                ->map(function (array $group, int $index) use ($totalMembershipsCurrent) {
+                    $membersCurrent = (int) ($group['members_current'] ?? 0);
+
+                    return [
+                        ...$group,
+                        'rank' => $index + 1,
+                        'share_of_total_memberships_pct' => $totalMembershipsCurrent > 0
+                            ? round(($membersCurrent / $totalMembershipsCurrent) * 100, 2)
+                            : 0,
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return [
+                'window' => $normalizedWindow,
+                'summary' => [
+                    'groups_count' => (int) ($overview['groups_count'] ?? 0),
+                    'total_memberships_current' => $totalMembershipsCurrent,
+                    'unique_members_current' => $currentUniqueMembers,
+                    'multi_group_members_current' => (int) ($overview['multi_group_members_current'] ?? 0),
+                    'multi_group_ratio' => (float) ($overview['multi_group_ratio'] ?? 0),
+                    'movement' => [
+                        'joins' => (int) ($overview['movement']['joins'] ?? 0),
+                        'leaves' => (int) ($overview['movement']['leaves'] ?? 0),
+                        'net_growth' => (int) ($overview['movement']['net_growth'] ?? 0),
+                    ],
+                    'unique_growth' => [
+                        'baseline' => $baselineUniqueMembers,
+                        'current' => $currentUniqueMembers,
+                        'delta' => $uniqueGrowthDelta,
+                        'delta_pct' => $baselineUniqueMembers > 0
+                            ? round(($uniqueGrowthDelta / $baselineUniqueMembers) * 100, 2)
+                            : null,
+                        'captured_points' => count($capturedSeries),
+                        'has_history' => count($capturedSeries) >= 2,
+                        'first_snapshot_date' => $baselinePoint['date'] ?? null,
+                        'last_snapshot_date' => $lastCapturedPoint['date'] ?? null,
+                    ],
+                ],
+                'series' => $series,
+                'groups' => $groups,
+            ];
+        });
+    }
+
     public function overview(string $window): array
     {
         [$normalizedWindow, $windowStart] = $this->resolveWindow($window);
@@ -44,13 +113,16 @@ class GroupMetricsService
             $totalMembershipsCurrent = (clone $activeMemberships)->count();
             $uniqueMembersCurrent = (clone $activeMemberships)->distinct('participant_fk')->count('participant_fk');
 
-            $multiGroupMembersCurrent = (int) DB::table('whatsapp_group_memberships')
-                ->select('participant_fk')
-                ->whereIn('group_fk', $groupIds)
-                ->where('status', WhatsAppGroupMembership::STATUS_ACTIVE)
-                ->groupBy('participant_fk')
-                ->havingRaw('COUNT(*) >= 2')
-                ->get()
+            $multiGroupMembersCurrent = (int) DB::query()
+                ->fromSub(
+                    DB::table('whatsapp_group_memberships')
+                        ->select('participant_fk')
+                        ->whereIn('group_fk', $groupIds)
+                        ->where('status', WhatsAppGroupMembership::STATUS_ACTIVE)
+                        ->groupBy('participant_fk')
+                        ->havingRaw('COUNT(*) >= 2'),
+                    'multi_group_members'
+                )
                 ->count();
 
             $joins = WhatsAppGroupMemberEvent::query()
@@ -208,8 +280,80 @@ class GroupMetricsService
         };
 
         $timezone = (string) config('app.timezone', 'UTC');
-        $start = CarbonImmutable::now($timezone)->subDays($days);
+        $start = CarbonImmutable::now($timezone)->subDays($days)->startOfDay();
 
         return ["{$days}d", $start];
+    }
+
+    /**
+     * @return array<int, array{
+     *     date: string,
+     *     label: string,
+     *     source: string,
+     *     captured: bool,
+     *     groups_count: ?int,
+     *     total_memberships_current: ?int,
+     *     unique_members_current: ?int,
+     *     multi_group_members_current: ?int
+     * }>
+     */
+    private function dailyOverviewSeries(CarbonImmutable $windowStart, CarbonImmutable $today, array $currentOverview): array
+    {
+        $snapshots = WhatsAppGroupsOverviewDailySnapshot::query()
+            ->whereBetween('snapshot_date', [$windowStart->toDateString(), $today->toDateString()])
+            ->orderBy('snapshot_date')
+            ->get()
+            ->keyBy(fn(WhatsAppGroupsOverviewDailySnapshot $snapshot) => $snapshot->snapshot_date?->toDateString());
+
+        $series = [];
+        $period = CarbonPeriod::create($windowStart, '1 day', $today);
+
+        foreach ($period as $date) {
+            $pointDate = CarbonImmutable::instance($date)->setTimezone($today->getTimezone());
+            $dateKey = $pointDate->toDateString();
+            /** @var WhatsAppGroupsOverviewDailySnapshot|null $snapshot */
+            $snapshot = $snapshots->get($dateKey);
+
+            if ($snapshot !== null) {
+                $series[] = [
+                    'date' => $dateKey,
+                    'label' => $pointDate->format('d/m'),
+                    'source' => 'snapshot',
+                    'captured' => true,
+                    'groups_count' => (int) $snapshot->groups_count,
+                    'total_memberships_current' => (int) $snapshot->total_memberships_current,
+                    'unique_members_current' => (int) $snapshot->unique_members_current,
+                    'multi_group_members_current' => (int) $snapshot->multi_group_members_current,
+                ];
+                continue;
+            }
+
+            if ($dateKey === $today->toDateString()) {
+                $series[] = [
+                    'date' => $dateKey,
+                    'label' => $pointDate->format('d/m'),
+                    'source' => 'live',
+                    'captured' => false,
+                    'groups_count' => (int) ($currentOverview['groups_count'] ?? 0),
+                    'total_memberships_current' => (int) ($currentOverview['total_memberships_current'] ?? 0),
+                    'unique_members_current' => (int) ($currentOverview['unique_members_current'] ?? 0),
+                    'multi_group_members_current' => (int) ($currentOverview['multi_group_members_current'] ?? 0),
+                ];
+                continue;
+            }
+
+            $series[] = [
+                'date' => $dateKey,
+                'label' => $pointDate->format('d/m'),
+                'source' => 'missing',
+                'captured' => false,
+                'groups_count' => null,
+                'total_memberships_current' => null,
+                'unique_members_current' => null,
+                'multi_group_members_current' => null,
+            ];
+        }
+
+        return $series;
     }
 }

@@ -7,6 +7,7 @@ use App\Modules\WhatsApp\Models\WhatsAppGroupMemberEvent;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMembership;
 use App\Modules\WhatsApp\Models\WhatsAppParticipant;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,10 @@ use InvalidArgumentException;
 
 class GroupSyncService
 {
-    public function __construct(private readonly WhatsAppService $whatsAppService)
+    public function __construct(
+        private readonly WhatsAppService $whatsAppService,
+        private readonly GroupSnapshotService $snapshotService,
+    )
     {
     }
 
@@ -25,9 +29,9 @@ class GroupSyncService
             throw new InvalidArgumentException('groupId nao pode ser vazio');
         }
 
-        $syncBatchId = $syncBatchId ?: 'wpp_sync_' . str_replace('-', '', (string) \Illuminate\Support\Str::ulid());
+        $syncBatchId = $syncBatchId ?: 'wpp_sync_' . str_replace('-', '', (string) Str::ulid());
         $lockKey = 'wpp:sync:group:' . md5($normalizedGroupId);
-        $lock = Cache::lock($lockKey, 60);
+        $lock = Cache::lock($lockKey, 120);
 
         if (!is_object($lock) || !method_exists($lock, 'get') || !$lock->get()) {
             return [
@@ -63,7 +67,9 @@ class GroupSyncService
         );
 
         $payload = $this->whatsAppService->lightGroupMetadata($groupId);
-        $currentParticipants = $this->extractCurrentParticipants($payload['participants'] ?? []);
+        $extracted = $this->extractCurrentParticipants($payload['participants'] ?? []);
+        $currentParticipants = $extracted['participants'];
+        $skippedNoKeyCount = $extracted['skipped_no_key_count'];
 
         $previousMemberships = $group->memberships()
             ->active()
@@ -103,6 +109,7 @@ class GroupSyncService
                 'previous_count' => $previousCount,
                 'added_count' => 0,
                 'removed_count' => 0,
+                'skipped_no_key_count' => $skippedNoKeyCount,
             ];
         }
 
@@ -236,7 +243,7 @@ class GroupSyncService
             }
         });
 
-        return [
+        $result = [
             'group_id' => $groupId,
             'sync_batch_id' => $syncBatchId,
             'applied' => true,
@@ -245,16 +252,34 @@ class GroupSyncService
             'previous_count' => $previousCount,
             'added_count' => $addedCount,
             'removed_count' => $removedCount,
+            'skipped_no_key_count' => $skippedNoKeyCount,
         ];
+
+        try {
+            $snapshot = $this->snapshotService->captureOverviewDailySnapshot($now);
+            $result['daily_snapshot_date'] = $snapshot['snapshot_date'];
+        } catch (\Throwable $e) {
+            Log::warning('WhatsApp overview daily snapshot capture failed after sync', [
+                'group_id' => $groupId,
+                'sync_batch_id' => $syncBatchId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $result;
     }
 
     /**
      * @param array<int, mixed> $participants
-     * @return array<string, array{lid: ?string, phone: ?string, is_admin: bool, is_super_admin: bool}>
+     * @return array{
+     *     participants: array<string, array{lid: ?string, phone: ?string, is_admin: bool, is_super_admin: bool}>,
+     *     skipped_no_key_count: int
+     * }
      */
     private function extractCurrentParticipants(array $participants): array
     {
         $result = [];
+        $skippedNoKeyCount = 0;
 
         foreach ($participants as $participant) {
             if (!is_array($participant)) {
@@ -266,6 +291,7 @@ class GroupSyncService
             $key = $this->participantKey($lid, $phone);
 
             if ($key === null) {
+                $skippedNoKeyCount++;
                 continue;
             }
 
@@ -288,7 +314,10 @@ class GroupSyncService
             $result[$key]['phone'] = $result[$key]['phone'] ?? $phone;
         }
 
-        return $result;
+        return [
+            'participants' => $result,
+            'skipped_no_key_count' => $skippedNoKeyCount,
+        ];
     }
 
     private function resolveParticipant(?string $lid, ?string $phone, CarbonImmutable $now): WhatsAppParticipant
@@ -351,12 +380,13 @@ class GroupSyncService
         CarbonImmutable $eventAt,
         string $syncBatchId
     ): void {
-        WhatsAppGroupMemberEvent::query()->create([
+        WhatsAppGroupMemberEvent::query()->firstOrCreate([
             'group_fk' => $groupPk,
             'participant_fk' => $participantPk,
             'event_type' => $eventType,
-            'event_at' => $eventAt,
             'sync_batch_id' => $syncBatchId,
+        ], [
+            'event_at' => $eventAt,
         ]);
     }
 

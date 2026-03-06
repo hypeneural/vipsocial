@@ -35,6 +35,25 @@ class WhatsAppGroupMetricsController extends BaseController
         }
     }
 
+    public function dashboard(WindowRequest $request): JsonResponse
+    {
+        try {
+            $window = (string) ($request->validated()['window'] ?? '7d');
+            $data = $this->metricsService->dashboard($window);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'meta' => $this->buildMeta($data['window'] ?? $window),
+                'message' => '',
+            ]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->jsonError('Falha ao carregar o dashboard de grupos WhatsApp', 'WHATSAPP_GROUPS_METRICS_ERROR', 500);
+        }
+    }
+
     public function byGroup(WindowRequest $request): JsonResponse
     {
         try {

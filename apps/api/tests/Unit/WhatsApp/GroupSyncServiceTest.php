@@ -7,6 +7,7 @@ use App\Modules\WhatsApp\Models\WhatsAppGroupMemberEvent;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMembership;
 use App\Modules\WhatsApp\Models\WhatsAppParticipant;
 use App\Modules\WhatsApp\Services\GroupSyncService;
+use App\Modules\WhatsApp\Services\GroupSnapshotService;
 use App\Modules\WhatsApp\Services\WhatsAppService;
 use Illuminate\Support\Facades\Schema;
 use Mockery;
@@ -51,12 +52,13 @@ class GroupSyncServiceTest extends TestCase
             ],
         ]);
 
-        $service = new GroupSyncService($whatsAppService);
+        $service = new GroupSyncService($whatsAppService, new GroupSnapshotService());
         $result = $service->syncGroupById($groupId, 'batch_a', false);
 
         $this->assertTrue($result['applied']);
         $this->assertSame(2, $result['added_count']);
         $this->assertSame(0, $result['removed_count']);
+        $this->assertSame(0, $result['skipped_no_key_count']);
         $this->assertSame(2, WhatsAppParticipant::query()->count());
         $this->assertSame(2, WhatsAppGroupMembership::query()->active()->count());
         $this->assertSame(2, WhatsAppGroupMemberEvent::query()
@@ -86,17 +88,40 @@ class GroupSyncServiceTest extends TestCase
             ]
         );
 
-        $service = new GroupSyncService($whatsAppService);
+        $service = new GroupSyncService($whatsAppService, new GroupSnapshotService());
         $service->syncGroupById($groupId, 'batch_1', false);
         $result = $service->syncGroupById($groupId, 'batch_2', false);
 
         $this->assertTrue($result['applied']);
         $this->assertSame(1, $result['added_count']);
         $this->assertSame(1, $result['removed_count']);
+        $this->assertSame(0, $result['skipped_no_key_count']);
         $this->assertSame(2, WhatsAppGroupMembership::query()->active()->count());
         $this->assertSame(1, WhatsAppGroupMembership::query()->where('status', WhatsAppGroupMembership::STATUS_LEFT)->count());
         $this->assertSame(3, WhatsAppGroupMemberEvent::query()->where('event_type', WhatsAppGroupMemberEvent::TYPE_JOIN)->count());
         $this->assertSame(1, WhatsAppGroupMemberEvent::query()->where('event_type', WhatsAppGroupMemberEvent::TYPE_LEAVE)->count());
+    }
+
+    public function test_sync_counts_participants_without_lid_or_phone_as_skipped(): void
+    {
+        $groupId = '120363027392048120-group';
+
+        $whatsAppService = Mockery::mock(WhatsAppService::class);
+        $whatsAppService->shouldReceive('lightGroupMetadata')->once()->andReturn([
+            'phone' => $groupId,
+            'participants' => [
+                ['lid' => '', 'phone' => '', 'isAdmin' => false, 'isSuperAdmin' => false],
+                ['lid' => 'valid@lid', 'phone' => '', 'isAdmin' => false, 'isSuperAdmin' => false],
+            ],
+        ]);
+
+        $service = new GroupSyncService($whatsAppService, new GroupSnapshotService());
+        $result = $service->syncGroupById($groupId, 'batch_skip', false);
+
+        $this->assertTrue($result['applied']);
+        $this->assertSame(1, $result['skipped_no_key_count']);
+        $this->assertSame(1, $result['current_count']);
+        $this->assertSame(1, WhatsAppGroupMembership::query()->active()->count());
     }
 
     public function test_sync_aborts_on_guard_rail_empty_snapshot(): void
@@ -126,11 +151,12 @@ class GroupSyncServiceTest extends TestCase
             'participants' => [],
         ]);
 
-        $service = new GroupSyncService($whatsAppService);
+        $service = new GroupSyncService($whatsAppService, new GroupSnapshotService());
         $result = $service->syncGroupById($group->group_id, 'batch_guard', false);
 
         $this->assertFalse($result['applied']);
         $this->assertSame('guard_rail_empty_snapshot', $result['reason']);
+        $this->assertSame(0, $result['skipped_no_key_count']);
         $this->assertSame(60, WhatsAppGroupMembership::query()->active()->count());
     }
 
@@ -188,6 +214,19 @@ class GroupSyncServiceTest extends TestCase
             $table->string('event_type');
             $table->dateTime('event_at');
             $table->string('sync_batch_id')->nullable();
+            $table->timestamps();
+            $table->unique(['group_fk', 'participant_fk', 'event_type', 'sync_batch_id']);
+        });
+
+        Schema::create('whatsapp_groups_overview_daily_snapshots', function ($table) {
+            $table->ulid('id')->primary();
+            $table->date('snapshot_date')->unique();
+            $table->unsignedInteger('groups_count')->default(0);
+            $table->unsignedInteger('total_memberships_current')->default(0);
+            $table->unsignedInteger('unique_members_current')->default(0);
+            $table->unsignedInteger('multi_group_members_current')->default(0);
+            $table->decimal('multi_group_ratio', 8, 4)->default(0);
+            $table->dateTime('captured_at');
             $table->timestamps();
         });
     }

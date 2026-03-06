@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\SyncWhatsAppGroupsCommand;
+use App\Console\Commands\CaptureWhatsAppGroupsOverviewDailySnapshotCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,11 +16,17 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withCommands([
         SyncWhatsAppGroupsCommand::class,
+        CaptureWhatsAppGroupsOverviewDailySnapshotCommand::class,
     ])
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('whatsapp:groups-sync')
             ->timezone('America/Sao_Paulo')
             ->twiceDaily(9, 21)
+            ->withoutOverlapping();
+
+        $schedule->command('whatsapp:groups-snapshot-daily')
+            ->timezone('America/Sao_Paulo')
+            ->dailyAt('23:55')
             ->withoutOverlapping();
     })
     ->withRouting(

@@ -6,6 +6,7 @@ use App\Modules\WhatsApp\Clients\ZApiClient;
 use App\Modules\WhatsApp\Jobs\SyncGroupMetadataJob;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMembership;
 use App\Modules\WhatsApp\Services\GroupSyncService;
+use App\Modules\WhatsApp\Services\GroupSnapshotService;
 use App\Modules\WhatsApp\Services\WhatsAppService;
 use App\Modules\WhatsApp\Support\PhoneNormalizer;
 use Illuminate\Support\Facades\Http;
@@ -55,7 +56,8 @@ class SyncGroupMetadataJobTest extends TestCase
         ]);
 
         $service = new GroupSyncService(
-            new WhatsAppService(new ZApiClient(), new PhoneNormalizer())
+            new WhatsAppService(new ZApiClient(), new PhoneNormalizer()),
+            new GroupSnapshotService()
         );
 
         $job = new SyncGroupMetadataJob('120363027326371817-group', 'batch_http_fake', false);
@@ -119,6 +121,19 @@ class SyncGroupMetadataJobTest extends TestCase
             $table->string('event_type');
             $table->dateTime('event_at');
             $table->string('sync_batch_id')->nullable();
+            $table->timestamps();
+            $table->unique(['group_fk', 'participant_fk', 'event_type', 'sync_batch_id']);
+        });
+
+        Schema::create('whatsapp_groups_overview_daily_snapshots', function ($table) {
+            $table->ulid('id')->primary();
+            $table->date('snapshot_date')->unique();
+            $table->unsignedInteger('groups_count')->default(0);
+            $table->unsignedInteger('total_memberships_current')->default(0);
+            $table->unsignedInteger('unique_members_current')->default(0);
+            $table->unsignedInteger('multi_group_members_current')->default(0);
+            $table->decimal('multi_group_ratio', 8, 4)->default(0);
+            $table->dateTime('captured_at');
             $table->timestamps();
         });
     }

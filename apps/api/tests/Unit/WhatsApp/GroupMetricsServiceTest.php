@@ -5,6 +5,7 @@ namespace Tests\Unit\WhatsApp;
 use App\Modules\WhatsApp\Models\WhatsAppGroup;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMemberEvent;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMembership;
+use App\Modules\WhatsApp\Models\WhatsAppGroupsOverviewDailySnapshot;
 use App\Modules\WhatsApp\Models\WhatsAppParticipant;
 use App\Modules\WhatsApp\Services\GroupMetricsService;
 use Carbon\CarbonImmutable;
@@ -119,6 +120,85 @@ class GroupMetricsServiceTest extends TestCase
         $this->assertSame(0, $result['items'][0]['movement']['net_growth']);
     }
 
+    public function test_window_counts_events_from_start_of_day(): void
+    {
+        $timezone = (string) config('app.timezone', 'UTC');
+        $windowStart = CarbonImmutable::now($timezone)->subDays(7)->startOfDay();
+
+        $group = WhatsAppGroup::query()->create([
+            'group_id' => '554896318744-1598529471',
+            'name' => 'Grupo Janela',
+            'is_active' => true,
+        ]);
+
+        $participant = WhatsAppParticipant::query()->create(['lid' => 'window@lid']);
+        WhatsAppGroupMembership::query()->create([
+            'group_fk' => $group->id,
+            'participant_fk' => $participant->id,
+            'status' => 'active',
+        ]);
+
+        WhatsAppGroupMemberEvent::query()->create([
+            'group_fk' => $group->id,
+            'participant_fk' => $participant->id,
+            'event_type' => 'join',
+            'event_at' => $windowStart->addHours(1),
+        ]);
+
+        $service = new GroupMetricsService();
+        $metrics = $service->overview('7d');
+
+        $this->assertSame(1, $metrics['movement']['joins']);
+    }
+
+    public function test_dashboard_uses_daily_snapshots_for_unique_growth(): void
+    {
+        $timezone = (string) config('app.timezone', 'UTC');
+        $today = CarbonImmutable::now($timezone)->startOfDay();
+        $baselineDate = $today->subDays(6);
+
+        $group = WhatsAppGroup::query()->create([
+            'group_id' => '554898580333-1622125949',
+            'name' => 'Grupo Dashboard',
+            'is_active' => true,
+        ]);
+
+        $participantA = WhatsAppParticipant::query()->create(['lid' => 'dash-a@lid']);
+        $participantB = WhatsAppParticipant::query()->create(['lid' => 'dash-b@lid']);
+
+        WhatsAppGroupMembership::query()->create([
+            'group_fk' => $group->id,
+            'participant_fk' => $participantA->id,
+            'status' => 'active',
+        ]);
+        WhatsAppGroupMembership::query()->create([
+            'group_fk' => $group->id,
+            'participant_fk' => $participantB->id,
+            'status' => 'active',
+        ]);
+
+        WhatsAppGroupsOverviewDailySnapshot::query()->create([
+            'snapshot_date' => $baselineDate,
+            'groups_count' => 1,
+            'total_memberships_current' => 1,
+            'unique_members_current' => 1,
+            'multi_group_members_current' => 0,
+            'multi_group_ratio' => 0,
+            'captured_at' => $baselineDate->setTime(23, 55),
+        ]);
+
+        $service = new GroupMetricsService();
+        $dashboard = $service->dashboard('7d');
+
+        $this->assertSame('7d', $dashboard['window']);
+        $this->assertSame(2, $dashboard['summary']['unique_members_current']);
+        $this->assertSame(1, $dashboard['summary']['unique_growth']['baseline']);
+        $this->assertSame(1, $dashboard['summary']['unique_growth']['delta']);
+        $this->assertFalse($dashboard['summary']['unique_growth']['has_history']);
+        $this->assertNotEmpty($dashboard['series']);
+        $this->assertSame($baselineDate->toDateString(), $dashboard['summary']['unique_growth']['first_snapshot_date']);
+    }
+
     private function createSchema(): void
     {
         Schema::dropAllTables();
@@ -173,6 +253,19 @@ class GroupMetricsServiceTest extends TestCase
             $table->string('event_type');
             $table->dateTime('event_at');
             $table->string('sync_batch_id')->nullable();
+            $table->timestamps();
+            $table->unique(['group_fk', 'participant_fk', 'event_type', 'sync_batch_id']);
+        });
+
+        Schema::create('whatsapp_groups_overview_daily_snapshots', function ($table) {
+            $table->ulid('id')->primary();
+            $table->date('snapshot_date')->unique();
+            $table->unsignedInteger('groups_count')->default(0);
+            $table->unsignedInteger('total_memberships_current')->default(0);
+            $table->unsignedInteger('unique_members_current')->default(0);
+            $table->unsignedInteger('multi_group_members_current')->default(0);
+            $table->decimal('multi_group_ratio', 8, 4)->default(0);
+            $table->dateTime('captured_at');
             $table->timestamps();
         });
     }

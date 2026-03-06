@@ -3,6 +3,7 @@
 use App\Modules\WhatsApp\Models\WhatsAppGroup;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMemberEvent;
 use App\Modules\WhatsApp\Models\WhatsAppGroupMembership;
+use App\Modules\WhatsApp\Models\WhatsAppGroupsOverviewDailySnapshot;
 use App\Modules\WhatsApp\Models\WhatsAppParticipant;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -63,6 +64,19 @@ beforeEach(function () {
         $table->dateTime('event_at');
         $table->string('sync_batch_id')->nullable();
         $table->timestamps();
+        $table->unique(['group_fk', 'participant_fk', 'event_type', 'sync_batch_id']);
+    });
+
+    Schema::create('whatsapp_groups_overview_daily_snapshots', function ($table) {
+        $table->ulid('id')->primary();
+        $table->date('snapshot_date')->unique();
+        $table->unsignedInteger('groups_count')->default(0);
+        $table->unsignedInteger('total_memberships_current')->default(0);
+        $table->unsignedInteger('unique_members_current')->default(0);
+        $table->unsignedInteger('multi_group_members_current')->default(0);
+        $table->decimal('multi_group_ratio', 8, 4)->default(0);
+        $table->dateTime('captured_at');
+        $table->timestamps();
     });
 });
 
@@ -118,4 +132,56 @@ test('by-group endpoint returns list with movement', function () {
         ->assertJsonPath('data.0.group_id', '554896318744-1598529471')
         ->assertJsonPath('data.0.members_current', 1)
         ->assertJsonPath('data.0.movement.joins', 1);
+});
+
+test('dashboard endpoint returns summary series and group shares', function () {
+    $group = WhatsAppGroup::query()->create([
+        'group_id' => '120363027392048120-group',
+        'name' => 'Grupo Dashboard',
+        'is_active' => true,
+    ]);
+
+    $participant = WhatsAppParticipant::query()->create(['lid' => 'dash-feature@lid']);
+    WhatsAppGroupMembership::query()->create([
+        'group_fk' => $group->id,
+        'participant_fk' => $participant->id,
+        'status' => 'active',
+    ]);
+
+    WhatsAppGroupsOverviewDailySnapshot::query()->create([
+        'snapshot_date' => CarbonImmutable::now()->subDay()->startOfDay(),
+        'groups_count' => 1,
+        'total_memberships_current' => 1,
+        'unique_members_current' => 1,
+        'multi_group_members_current' => 0,
+        'multi_group_ratio' => 0,
+        'captured_at' => CarbonImmutable::now()->subDay()->setTime(23, 55),
+    ]);
+
+    $this->actingAs(User::factory()->make(['role' => 'admin']))
+        ->getJson('/api/v1/whatsapp/groups/metrics/dashboard?window=7d')
+        ->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('data.summary.groups_count', 1)
+        ->assertJsonPath('data.summary.unique_members_current', 1)
+        ->assertJsonPath('data.groups.0.share_of_total_memberships_pct', 100)
+        ->assertJsonStructure([
+            'success',
+            'data' => [
+                'window',
+                'summary' => [
+                    'groups_count',
+                    'total_memberships_current',
+                    'unique_members_current',
+                    'multi_group_members_current',
+                    'multi_group_ratio',
+                    'movement',
+                    'unique_growth',
+                ],
+                'series',
+                'groups',
+            ],
+            'meta',
+            'message',
+        ]);
 });

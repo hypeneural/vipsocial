@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { BirthdayWidget } from "@/components/dashboard/BirthdayWidget";
-import { ScrapingFeed } from "@/components/dashboard/ScrapingFeed";
+import { WhatsAppGroupsWidget } from "@/components/dashboard/WhatsAppGroupsWidget";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { cn } from "@/lib/utils";
 import {
@@ -510,40 +510,6 @@ const SocialCard = ({ platform, icon: Icon, followers, change, color, delay = 0 
     <Badge variant="outline" className="text-green-500">
       {change}
     </Badge>
-  </motion.div>
-);
-
-const whatsappGroups = [
-  { name: "TV Jornal Principal", members: 256 },
-  { name: "Comercial VIP", members: 189 },
-  { name: "Redacao Urgente", members: 45 },
-  { name: "Parceiros Imprensa", members: 312 },
-  { name: "Plantao Noticias", members: 128 },
-  { name: "Equipe Externa", members: 34 },
-];
-
-const WhatsAppGroupsWidget = () => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.4 }}
-    className="bg-card rounded-xl border p-4"
-  >
-    <div className="flex items-center justify-between mb-4">
-      <h3 className="font-semibold flex items-center gap-2">
-        <MessageCircle className="w-5 h-5 text-green-500" />
-        Grupos WhatsApp
-      </h3>
-      <Badge variant="outline">{whatsappGroups.length} grupos</Badge>
-    </div>
-    <div className="space-y-2">
-      {whatsappGroups.map((group, index) => (
-        <div key={index} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
-          <span className="text-sm font-medium">{group.name}</span>
-          <span className="text-xs text-muted-foreground">{group.members} membros</span>
-        </div>
-      ))}
-    </div>
   </motion.div>
 );
 
@@ -1367,13 +1333,8 @@ const Dashboard = () => {
         <AcquisitionWidget />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-20 md:mb-0">
-        <div className="lg:col-span-2">
-          <ScrapingFeed />
-        </div>
-        <div>
-          <WhatsAppGroupsWidget />
-        </div>
+      <div className="mb-20 md:mb-0">
+        <WhatsAppGroupsWidget />
       </div>
 
       <FloatingActionButton />

@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->prefix('whatsapp')->group(function () {
 
     Route::get('/contacts', [WhatsAppController::class, 'contacts'])->name('whatsapp.contacts');
     Route::get('/chats', [WhatsAppController::class, 'chats'])->name('whatsapp.chats');
+    Route::get('/groups/metrics/dashboard', [WhatsAppGroupMetricsController::class, 'dashboard'])->name('whatsapp.groups.metrics.dashboard');
     Route::get('/groups/metrics/overview', [WhatsAppGroupMetricsController::class, 'overview'])->name('whatsapp.groups.metrics.overview');
     Route::get('/groups/metrics/by-group', [WhatsAppGroupMetricsController::class, 'byGroup'])->name('whatsapp.groups.metrics.byGroup');
     Route::get('/groups/{groupId}/metrics', [WhatsAppGroupMetricsController::class, 'show'])->name('whatsapp.groups.metrics.show');
