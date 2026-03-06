@@ -24,7 +24,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LineChart as LineChartIcon } from "lucide-react";
+import { CalendarDays, Eye, LineChart as LineChartIcon, Users } from "lucide-react";
 import { motion } from "framer-motion";
 
 const compactFormatter = new Intl.NumberFormat("pt-BR", {
@@ -37,14 +37,39 @@ const formatCompactNumber = (value?: number) => {
   return compactFormatter.format(value);
 };
 
+const formatShortDateLabel = (value?: string) => {
+  if (!value) return "--";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-");
+    return `${day}/${month}/${year.slice(2)}`;
+  }
+
+  if (/^\d{8}$/.test(value)) {
+    const year = value.slice(0, 4);
+    const month = value.slice(4, 6);
+    const day = value.slice(6, 8);
+    return `${day}/${month}/${year.slice(2)}`;
+  }
+
+  return value;
+};
+
+const metricMeta: Record<string, { label: string; icon?: typeof Eye }> = {
+  pageviews: { label: "Visualizacoes de pagina", icon: Eye },
+  users: { label: "Visitantes unicos", icon: Users },
+};
+
 const trafficChartConfig = {
   pageviews: {
-    label: "Pageviews",
+    label: metricMeta.pageviews.label,
     color: "hsl(var(--primary))",
+    icon: metricMeta.pageviews.icon,
   },
   users: {
-    label: "Visitantes Unicos",
+    label: metricMeta.users.label,
     color: "#06b6d4",
+    icon: metricMeta.users.icon,
   },
 } satisfies ChartConfig;
 
@@ -63,7 +88,7 @@ const TrafficTrendWidget = () => {
         end_date: new Date().toISOString().slice(0, 10),
         metrics: ["pageviews", "users"],
         granularity: "day" as const,
-        keep_empty_rows: true,
+        keep_empty_rows: 1,
       };
     }
 
@@ -74,7 +99,7 @@ const TrafficTrendWidget = () => {
         end_date: customEnd,
         metrics: ["pageviews", "users"],
         granularity: "day" as const,
-        keep_empty_rows: true,
+        keep_empty_rows: 1,
       };
     }
 
@@ -82,7 +107,7 @@ const TrafficTrendWidget = () => {
       date_preset: "last_30_days" as const,
       metrics: ["pageviews", "users"],
       granularity: "day" as const,
-      keep_empty_rows: true,
+      keep_empty_rows: 1,
     };
   }, [period, customStart, customEnd, canLoadCustom]);
 
@@ -115,6 +140,16 @@ const TrafficTrendWidget = () => {
     );
   }, [chartData]);
 
+  const dateRangeLabel = useMemo(() => {
+    if (chartData.length === 0) {
+      return "--";
+    }
+
+    const firstDate = chartData[0].date;
+    const lastDate = chartData[chartData.length - 1].date;
+    return `${formatShortDateLabel(firstDate)} a ${formatShortDateLabel(lastDate)}`;
+  }, [chartData]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -129,7 +164,7 @@ const TrafficTrendWidget = () => {
             Tendencia de Trafego
           </h3>
           <p className="text-xs text-muted-foreground">
-            Comparativo diario entre pageviews e visitantes unicos.
+            Comparativo diario entre visualizacoes de pagina e visitantes unicos.
           </p>
         </div>
         <Select value={period} onValueChange={(value) => setPeriod(value as "30d" | "90d" | "custom")}>
@@ -164,8 +199,18 @@ const TrafficTrendWidget = () => {
       )}
 
       <div className="flex flex-wrap gap-2 mb-4 text-xs">
-        <Badge variant="outline">Pageviews: {formatCompactNumber(totals.pageviews)}</Badge>
-        <Badge variant="outline">Usuarios unicos: {formatCompactNumber(totals.users)}</Badge>
+        <Badge variant="outline" className="gap-1">
+          <Eye className="w-3 h-3 text-primary" />
+          Visualizacoes de pagina: {formatCompactNumber(totals.pageviews)}
+        </Badge>
+        <Badge variant="outline" className="gap-1">
+          <Users className="w-3 h-3 text-cyan-600" />
+          Visitantes unicos: {formatCompactNumber(totals.users)}
+        </Badge>
+        <Badge variant="outline" className="gap-1">
+          <CalendarDays className="w-3 h-3 text-muted-foreground" />
+          Periodo: {dateRangeLabel}
+        </Badge>
       </div>
 
       {period === "custom" && !canLoadCustom && (
@@ -195,6 +240,7 @@ const TrafficTrendWidget = () => {
               tickLine={false}
               axisLine={false}
               minTickGap={28}
+              tickFormatter={(value) => formatShortDateLabel(String(value))}
             />
             <YAxis
               tickLine={false}
@@ -205,9 +251,17 @@ const TrafficTrendWidget = () => {
             <ChartTooltip
               content={(
                 <ChartTooltipContent
+                  labelFormatter={(value) => formatShortDateLabel(String(value))}
                   formatter={(value, name) => (
                     <div className="flex items-center justify-between w-full min-w-[160px] gap-3">
-                      <span>{name}</span>
+                      <span className="inline-flex items-center gap-1">
+                        {(() => {
+                          const meta = metricMeta[String(name)];
+                          const Icon = meta?.icon;
+                          return Icon ? <Icon className="w-3 h-3" /> : null;
+                        })()}
+                        {metricMeta[String(name)]?.label ?? String(name)}
+                      </span>
                       <span className="font-mono font-medium">{formatCompactNumber(Number(value))}</span>
                     </div>
                   )}

@@ -34,6 +34,7 @@ class NullAnalyticsClient implements AnalyticsClientInterface
         return [
             'items' => [],
             'total_views' => 0,
+            'total_unique_users' => 0,
         ];
     }
 

@@ -106,6 +106,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             ],
             'metrics' => [
                 new Metric(['name' => 'screenPageViews']),
+                new Metric(['name' => 'totalUsers']),
             ],
             'order_bys' => [
                 new OrderBy([
@@ -126,14 +127,18 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
 
         $items = [];
         $totalViews = 0;
+        $totalUniqueUsers = 0;
         foreach ($rows as $row) {
             $values = $this->metricValues($row);
             $totalViews += (int) ($values[0] ?? 0);
+            $totalUniqueUsers += (int) ($values[1] ?? 0);
         }
 
         foreach ($rows as $index => $row) {
             $dimensionValues = $this->dimensionValues($row);
-            $views = (int) ($this->metricValues($row)[0] ?? 0);
+            $values = $this->metricValues($row);
+            $views = (int) ($values[0] ?? 0);
+            $uniqueUsers = (int) ($values[1] ?? 0);
             $path = $dimensionValues[0] ?? '';
             $title = $dimensionValues[1] ?? '';
             $hostName = $dimensionValues[2] ?? null;
@@ -147,6 +152,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
                 'slug' => $this->extractSlug($path),
                 'title' => $title,
                 'views' => $views,
+                'unique_users' => $uniqueUsers,
                 'percentage_of_total' => $totalViews > 0 ? round(($views / $totalViews) * 100, 2) : 0,
             ];
         }
@@ -154,6 +160,7 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
         return $this->withQuota([
             'items' => $items,
             'total_views' => $totalViews,
+            'total_unique_users' => $totalUniqueUsers,
         ], $response, $query);
     }
 

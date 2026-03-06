@@ -71,12 +71,14 @@ export interface AnalyticsTopPageItem {
     slug: string | null;
     title: string;
     views: number;
+    unique_users: number;
     percentage_of_total: number;
 }
 
 export interface AnalyticsTopPagesData {
     items: AnalyticsTopPageItem[];
     total_views: number;
+    total_unique_users: number;
 }
 
 export interface AnalyticsCityItem {
@@ -170,7 +172,7 @@ export interface AnalyticsTimeseriesParams extends AnalyticsQueryBase {
     metric?: string;
     metrics?: string[];
     granularity: "day" | "week" | "month";
-    keep_empty_rows?: boolean;
+    keep_empty_rows?: boolean | 0 | 1;
 }
 
 export const analyticsService = {

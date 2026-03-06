@@ -308,7 +308,7 @@ interface TopArticlesWidgetProps {
 }
 
 const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSource, analyticsStale = false }: TopArticlesWidgetProps) => {
-  const [period, setPeriod] = useState<DashboardPeriod>("24h");
+  const [period, setPeriod] = useState<DashboardPeriod>("30d");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
@@ -338,6 +338,7 @@ const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSourc
   const resolvedTopPages = shouldUseInitial ? initialData : topPagesResponse?.data;
   const articles = resolvedTopPages?.items ?? [];
   const totalViews = resolvedTopPages?.total_views ?? 0;
+  const totalUniqueUsers = resolvedTopPages?.total_unique_users ?? 0;
   const isLoadingArticles = shouldUseInitial ? initialLoading && !initialData : topPagesLoading;
 
   return (
@@ -397,7 +398,7 @@ const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSourc
 
         {isLoadingArticles && (
           <div className="text-sm text-muted-foreground p-2">
-            Carregando materias...
+            Carregando materias mais acessadas...
           </div>
         )}
 
@@ -429,9 +430,15 @@ const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSourc
               <span className="text-lg font-bold text-muted-foreground w-6">{article.rank}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{article.title || article.path}</p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Eye className="w-3 h-3" />
-                  <span>{formatCompactNumber(article.views)} views</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5">
+                    <Eye className="w-3 h-3" />
+                    {formatCompactNumber(article.views)} visualizacoes
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5">
+                    <Users className="w-3 h-3" />
+                    {formatCompactNumber(Number(article.unique_users ?? 0))} visitantes unicos
+                  </span>
                   <span>{article.percentage_of_total.toFixed(1)}%</span>
                 </div>
               </div>
@@ -444,7 +451,7 @@ const TopArticlesWidget = ({ initialData, initialLoading = false, analyticsSourc
 
         {!isLoadingArticles && articles.length > 0 && (
           <div className="pt-2 mt-2 border-t text-xs text-muted-foreground">
-            Total do periodo: {formatCompactNumber(totalViews)} views
+            Total do periodo: {formatCompactNumber(totalViews)} visualizacoes | {formatCompactNumber(totalUniqueUsers)} visitantes unicos
           </div>
         )}
 
@@ -466,7 +473,7 @@ interface TopCitiesWidgetProps {
 }
 
 const TopCitiesWidget = ({ initialData, initialLoading = false, analyticsSource, analyticsStale = false }: TopCitiesWidgetProps) => {
-  const [period, setPeriod] = useState<DashboardPeriod>("24h");
+  const [period, setPeriod] = useState<DashboardPeriod>("30d");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
@@ -556,7 +563,7 @@ const TopCitiesWidget = ({ initialData, initialLoading = false, analyticsSource,
 
         {isLoadingCities && (
           <div className="text-sm text-muted-foreground p-2">
-            Carregando cidades...
+            Carregando cidades mais ativas...
           </div>
         )}
 
@@ -573,8 +580,8 @@ const TopCitiesWidget = ({ initialData, initialLoading = false, analyticsSource,
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{cityItem.city}</p>
                 <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                  <span>{formatCompactNumber(cityItem.pageviews)} views</span>
-                  <span>{formatCompactNumber(cityItem.users)} usuarios</span>
+                  <span>{formatCompactNumber(cityItem.pageviews)} visualizacoes</span>
+                  <span>{formatCompactNumber(cityItem.users)} visitantes unicos</span>
                   <span>{cityItem.share_pageviews_pct.toFixed(1)}%</span>
                 </div>
               </div>
@@ -590,7 +597,7 @@ const TopCitiesWidget = ({ initialData, initialLoading = false, analyticsSource,
 
         {!isLoadingCities && cities.length > 0 && (
           <div className="pt-2 mt-2 border-t text-xs text-muted-foreground">
-            Total do periodo: {formatCompactNumber(totalPageviews)} views
+            Total do periodo: {formatCompactNumber(totalPageviews)} visualizacoes
           </div>
         )}
 
@@ -667,7 +674,7 @@ const Dashboard = () => {
           delay={0}
         />
         <KPICard
-          title="Pageviews"
+          title="Visualizacoes"
           value={overviewLoading ? "..." : formatCompactNumber(totals?.pageviews)}
           subtitle="Hoje"
           icon={Eye}
