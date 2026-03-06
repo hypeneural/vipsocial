@@ -469,6 +469,8 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
 
     private function fetchAcquisitionBySession(array $query, int $limit): array
     {
+        $fetchLimit = min(max($limit * 20, 200), 2000);
+
         $request = new RunReportRequest([
             'property' => $this->propertyName(),
             'date_ranges' => [
@@ -479,6 +481,10 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
             ],
             'dimensions' => [
                 new Dimension(['name' => 'sessionDefaultChannelGroup']),
+                new Dimension(['name' => 'sessionSource']),
+                new Dimension(['name' => 'sessionMedium']),
+                new Dimension(['name' => 'sessionSourceMedium']),
+                new Dimension(['name' => 'sessionManualSource']),
             ],
             'metrics' => [
                 new Metric(['name' => 'sessions']),
@@ -491,45 +497,33 @@ class Ga4AnalyticsClient implements AnalyticsClientInterface
                     'desc' => true,
                 ]),
             ],
-            'limit' => $limit,
+            'limit' => $fetchLimit,
         ]);
 
         $response = $this->runCoreReport($query, $request);
         $rows = iterator_to_array($response->getRows());
 
-        $totals = [
-            'sessions' => 0,
-            'users' => 0,
-            'pageviews' => 0,
-        ];
-
-        foreach ($rows as $row) {
-            $values = $this->metricValues($row);
-            $totals['sessions'] += (int) ($values[0] ?? 0);
-            $totals['users'] += (int) ($values[1] ?? 0);
-            $totals['pageviews'] += (int) ($values[2] ?? 0);
-        }
-
-        $items = [];
+        $rawRows = [];
         foreach ($rows as $index => $row) {
             $dimensions = $this->dimensionValues($row);
             $values = $this->metricValues($row);
-            $sessions = (int) ($values[0] ?? 0);
 
-            $items[] = [
-                'rank' => $index + 1,
-                'origin' => $dimensions[0] ?? '(not set)',
-                'sessions' => $sessions,
+            $rawRows[] = [
+                'row_rank' => $index + 1,
+                'channel_raw' => $dimensions[0] ?? '(not set)',
+                'session_source' => $dimensions[1] ?? '(not set)',
+                'session_medium' => $dimensions[2] ?? '(not set)',
+                'session_source_medium' => $dimensions[3] ?? '(not set)',
+                'session_manual_source' => $dimensions[4] ?? '(not set)',
+                'sessions' => (int) ($values[0] ?? 0),
                 'users' => (int) ($values[1] ?? 0),
                 'pageviews' => (int) ($values[2] ?? 0),
-                'share_sessions_pct' => $totals['sessions'] > 0 ? round(($sessions / $totals['sessions']) * 100, 2) : 0,
             ];
         }
 
         return $this->withQuota([
             'mode' => 'session',
-            'items' => $items,
-            'totals' => $totals,
+            'rows' => $rawRows,
         ], $response, $query);
     }
 

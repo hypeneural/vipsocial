@@ -50,6 +50,13 @@ class NullAnalyticsClient implements AnalyticsClientInterface
     {
         $mode = $query['mode'] ?? 'session';
 
+        if ($mode === 'session') {
+            return [
+                'mode' => 'session',
+                'rows' => [],
+            ];
+        }
+
         return [
             'mode' => $mode,
             'items' => [],

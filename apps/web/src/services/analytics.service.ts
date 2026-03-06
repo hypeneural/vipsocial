@@ -98,11 +98,18 @@ export type AnalyticsAcquisitionMode = "session" | "first_user";
 
 export interface AnalyticsAcquisitionItem {
     rank: number;
-    origin: string;
+    origin?: string;
+    source_key?: string;
+    channel_raw?: string;
+    source_raw?: string;
+    source_normalized?: string;
+    group?: string;
+    confidence?: "high" | "medium" | "low";
     sessions?: number;
     users: number;
     pageviews?: number;
     share_sessions_pct?: number;
+    share_pageviews_pct?: number;
     share_users_pct?: number;
 }
 

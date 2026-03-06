@@ -6,6 +6,7 @@ use App\Modules\Analytics\Clients\AnalyticsClientInterface;
 use App\Modules\Analytics\Exceptions\AnalyticsUnavailableException;
 use App\Modules\Analytics\Support\CacheKeyBuilder;
 use App\Modules\Analytics\Support\DateRangeResolver;
+use App\Modules\Analytics\Support\TrafficSourceNormalizer;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
@@ -15,7 +16,10 @@ class AnalyticsService
     private readonly string $propertyId;
     private readonly string $timezone;
 
-    public function __construct(private readonly AnalyticsClientInterface $client)
+    public function __construct(
+        private readonly AnalyticsClientInterface $client,
+        private readonly TrafficSourceNormalizer $trafficSourceNormalizer
+    )
     {
         $this->propertyId = (string) config('analytics.property_id', 'unknown');
         $this->timezone = (string) env('ANALYTICS_TIMEZONE', (string) config('app.timezone', 'UTC'));
@@ -104,13 +108,17 @@ class AnalyticsService
     public function acquisition(array $query): array
     {
         $dateContext = DateRangeResolver::resolve($query, $this->timezone);
-        $payload = array_merge($query, ['date_context' => $dateContext]);
+        $payload = array_merge($query, [
+            'date_context' => $dateContext,
+            'normalization_version' => 'acquisition_v2',
+        ]);
+        $limit = (int) ($payload['limit'] ?? 10);
 
         return $this->withCache(
             endpoint: 'acquisition',
             query: $payload,
             ttlSec: (int) env('ANALYTICS_CACHE_TTL_ACQUISITION', 1800),
-            resolver: fn() => $this->client->fetchAcquisition($payload)
+            resolver: fn() => $this->normalizeAcquisitionPayload($this->client->fetchAcquisition($payload), $limit)
         );
     }
 
@@ -300,5 +308,132 @@ class AnalyticsService
             'generated_at' => Carbon::now($this->timezone)->toIso8601String(),
             'cache_ttl_sec' => $ttlSec,
         ];
+    }
+
+    private function normalizeAcquisitionPayload(array $payload, int $limit): array
+    {
+        $mode = (string) ($payload['mode'] ?? 'session');
+        if ($mode !== 'session') {
+            return $payload;
+        }
+
+        $rows = $payload['rows'] ?? [];
+        if (!is_array($rows)) {
+            $rows = [];
+        }
+
+        return $this->normalizeSessionAcquisition($rows, $limit);
+    }
+
+    private function normalizeSessionAcquisition(array $rows, int $limit): array
+    {
+        $groups = [];
+        $totals = [
+            'sessions' => 0,
+            'users' => 0,
+            'pageviews' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $sessions = (int) ($row['sessions'] ?? 0);
+            $users = (int) ($row['users'] ?? 0);
+            $pageviews = (int) ($row['pageviews'] ?? 0);
+            $channelRaw = trim((string) ($row['channel_raw'] ?? '(not set)'));
+            $sourceRaw = $this->trafficSourceNormalizer->resolveSourceRaw(
+                $row['session_manual_source'] ?? null,
+                $row['session_source'] ?? null
+            );
+            $normalized = $this->trafficSourceNormalizer->normalize(
+                $channelRaw,
+                $sourceRaw,
+                (string) ($row['session_medium'] ?? ''),
+                (string) ($row['session_source_medium'] ?? '')
+            );
+
+            $sourceNormalized = (string) ($normalized['source_normalized'] ?? 'Other');
+            $sourceKey = (string) ($normalized['source_key'] ?? 'other');
+            $group = (string) ($normalized['group'] ?? 'Referral');
+            $confidence = (string) ($normalized['confidence'] ?? 'low');
+            $key = strtolower("{$sourceNormalized}|{$group}");
+
+            if (!array_key_exists($key, $groups)) {
+                $groups[$key] = [
+                    'source_key' => $sourceKey,
+                    'channel_raw' => $channelRaw,
+                    'source_raw' => $sourceRaw,
+                    'source_normalized' => $sourceNormalized,
+                    'group' => $group,
+                    'confidence' => $confidence,
+                    'sessions' => 0,
+                    'users' => 0,
+                    'pageviews' => 0,
+                    '_best_sessions' => $sessions,
+                    '_confidence_rank' => $this->confidenceRank($confidence),
+                ];
+            }
+
+            $groups[$key]['sessions'] += $sessions;
+            $groups[$key]['users'] += $users;
+            $groups[$key]['pageviews'] += $pageviews;
+
+            if ($sessions > $groups[$key]['_best_sessions']) {
+                $groups[$key]['_best_sessions'] = $sessions;
+                $groups[$key]['channel_raw'] = $channelRaw;
+                $groups[$key]['source_raw'] = $sourceRaw;
+            }
+
+            $currentConfidenceRank = $this->confidenceRank($confidence);
+            if ($currentConfidenceRank > $groups[$key]['_confidence_rank']) {
+                $groups[$key]['_confidence_rank'] = $currentConfidenceRank;
+                $groups[$key]['confidence'] = $confidence;
+            }
+
+            $totals['sessions'] += $sessions;
+            $totals['users'] += $users;
+            $totals['pageviews'] += $pageviews;
+        }
+
+        $items = array_values($groups);
+        usort($items, static function (array $a, array $b): int {
+            if ($a['sessions'] === $b['sessions']) {
+                return $b['pageviews'] <=> $a['pageviews'];
+            }
+
+            return $b['sessions'] <=> $a['sessions'];
+        });
+
+        $items = array_slice($items, 0, max(1, $limit));
+        $rank = 1;
+        foreach ($items as &$item) {
+            $item['rank'] = $rank++;
+            $item['share_sessions_pct'] = $totals['sessions'] > 0
+                ? round(($item['sessions'] / $totals['sessions']) * 100, 2)
+                : 0;
+            $item['share_pageviews_pct'] = $totals['pageviews'] > 0
+                ? round(($item['pageviews'] / $totals['pageviews']) * 100, 2)
+                : 0;
+
+            unset($item['_best_sessions'], $item['_confidence_rank']);
+        }
+        unset($item);
+
+        return [
+            'mode' => 'session',
+            'items' => $items,
+            'totals' => $totals,
+        ];
+    }
+
+    private function confidenceRank(string $confidence): int
+    {
+        return match (strtolower($confidence)) {
+            'high' => 3,
+            'medium' => 2,
+            default => 1,
+        };
     }
 }
