@@ -103,6 +103,58 @@ const formatShortDate = (date?: string | null) => {
   });
 };
 
+const metricLabelMap: Record<string, string> = {
+  followers_total: "Seguidores",
+  following_total: "Seguindo",
+  likes_total: "Curtidas",
+  subscribers_total: "Inscritos",
+  posts_total: "Posts",
+  videos_total: "Vídeos",
+  views_total: "Visualizações",
+  rating_overall: "Avaliação",
+  rating_count: "Quantidade de avaliações",
+};
+
+const metricGroupMap: Record<string, string> = {
+  audience: "Audiência",
+  content: "Conteúdo",
+  engagement: "Engajamento",
+  account: "Conta",
+  general: "Geral",
+};
+
+const translateMetricLabel = (code?: string | null, fallback?: string | null) => {
+  if (code && metricLabelMap[code]) {
+    return metricLabelMap[code];
+  }
+
+  return fallback || "Métrica";
+};
+
+const translateMetricGroup = (group?: string | null) => {
+  if (!group) {
+    return "Geral";
+  }
+
+  return metricGroupMap[group] || group;
+};
+
+const translateMetricUnit = (unit?: string | null) => {
+  if (!unit) {
+    return null;
+  }
+
+  if (unit === "count") {
+    return "Contagem monitorada";
+  }
+
+  if (unit === "percent") {
+    return "Percentual monitorado";
+  }
+
+  return unit;
+};
+
 const isDirectAvatarBlocked = (card: Pick<SocialDashboardCard, "network" | "avatar_url">) => {
   const url = (card.avatar_url ?? "").toLowerCase();
   const network = (card.network ?? "").trim().toLowerCase();
@@ -703,7 +755,7 @@ export function SocialMetricsWidget() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
                           <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                             Atual
@@ -753,27 +805,31 @@ export function SocialMetricsWidget() {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {selectedCard.metrics.map((metric) => (
                           <div
                             key={`${selectedCard.id}-${metric.code}`}
-                            className="rounded-2xl border border-border/60 bg-muted/20 p-3"
+                            className="overflow-hidden rounded-2xl border border-border/60 bg-muted/20 p-3"
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-medium">{metric.label}</p>
+                            <div className="flex min-w-0 flex-col gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">
+                                  {translateMetricLabel(metric.code, metric.label)}
+                                </p>
                                 <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                                  {metric.group || "geral"}
+                                  {translateMetricGroup(metric.group)}
                                 </p>
                               </div>
-                              <div className="text-right">
+                              <div className="min-w-0">
                                 <p className="text-lg font-bold">
                                   {metric.value_number !== null
                                     ? formatNumber(metric.value_number)
                                     : metric.value_text || "--"}
                                 </p>
-                                {metric.raw_key && (
-                                  <p className="text-[11px] text-muted-foreground">{metric.raw_key}</p>
+                                {metric.unit && (
+                                  <p className="truncate text-[11px] text-muted-foreground">
+                                    {translateMetricUnit(metric.unit)}
+                                  </p>
                                 )}
                               </div>
                             </div>
