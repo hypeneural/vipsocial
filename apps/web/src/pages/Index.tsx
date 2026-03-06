@@ -1,11 +1,17 @@
 import { Suspense, lazy, useMemo, useState, type ElementType } from "react";
 import { motion } from "framer-motion";
 import {
+  Activity,
   Users,
   TrendingUp,
   Eye,
   MapPin,
   ExternalLink,
+  Search,
+  Mail,
+  Bot,
+  Video,
+  Link,
   Instagram,
   Youtube,
   Facebook,
@@ -30,11 +36,14 @@ import { ScrapingFeed } from "@/components/dashboard/ScrapingFeed";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { cn } from "@/lib/utils";
 import {
+  useAnalyticsAcquisition,
   useAnalyticsCities,
   useAnalyticsOverview,
   useAnalyticsTopPages,
 } from "@/hooks/useAnalytics";
 import type {
+  AnalyticsAcquisitionData,
+  AnalyticsAcquisitionItem,
   AnalyticsCitiesData,
   AnalyticsTopPageItem,
   AnalyticsTopPagesData,
@@ -125,6 +134,96 @@ const buildArticleUrl = (article: AnalyticsTopPageItem): string | null => {
   }
 
   return null;
+};
+
+type AcquisitionMetric = "sessions" | "users" | "pageviews";
+
+const acquisitionMetricLabels: Record<AcquisitionMetric, string> = {
+  sessions: "Sessoes",
+  users: "Visitantes unicos",
+  pageviews: "Visualizacoes de pagina",
+};
+
+const getAcquisitionMetricValue = (item: AnalyticsAcquisitionItem, metric: AcquisitionMetric): number => {
+  if (metric === "sessions") {
+    return Number(item.sessions ?? 0);
+  }
+
+  if (metric === "users") {
+    return Number(item.users ?? 0);
+  }
+
+  return Number(item.pageviews ?? 0);
+};
+
+const getAcquisitionMetricShare = (
+  item: AnalyticsAcquisitionItem,
+  totals: AnalyticsAcquisitionData["totals"] | undefined,
+  metric: AcquisitionMetric,
+): number => {
+  if (metric === "sessions") {
+    if (typeof item.share_sessions_pct === "number") {
+      return item.share_sessions_pct;
+    }
+
+    const denominator = Number(totals?.sessions ?? 0);
+    return denominator > 0 ? (Number(item.sessions ?? 0) / denominator) * 100 : 0;
+  }
+
+  if (metric === "pageviews") {
+    if (typeof item.share_pageviews_pct === "number") {
+      return item.share_pageviews_pct;
+    }
+
+    const denominator = Number(totals?.pageviews ?? 0);
+    return denominator > 0 ? (Number(item.pageviews ?? 0) / denominator) * 100 : 0;
+  }
+
+  const denominator = Number(totals?.users ?? 0);
+  return denominator > 0 ? (Number(item.users ?? 0) / denominator) * 100 : 0;
+};
+
+const resolveAcquisitionVisual = (item: AnalyticsAcquisitionItem): { icon: ElementType; iconClass: string; badgeClass: string } => {
+  const normalized = (item.source_normalized ?? "").toLowerCase();
+  const group = (item.group ?? "").toLowerCase();
+
+  if (normalized.includes("facebook")) {
+    return { icon: Facebook, iconClass: "text-blue-600", badgeClass: "bg-blue-600/10" };
+  }
+
+  if (normalized.includes("instagram")) {
+    return { icon: Instagram, iconClass: "text-pink-600", badgeClass: "bg-pink-600/10" };
+  }
+
+  if (normalized.includes("whatsapp")) {
+    return { icon: MessageCircle, iconClass: "text-emerald-600", badgeClass: "bg-emerald-600/10" };
+  }
+
+  if (normalized.includes("youtube")) {
+    return { icon: Youtube, iconClass: "text-red-600", badgeClass: "bg-red-600/10" };
+  }
+
+  if (normalized.includes("google") || normalized.includes("bing") || normalized.includes("duckduckgo") || normalized.includes("yahoo")) {
+    return { icon: Search, iconClass: "text-sky-600", badgeClass: "bg-sky-600/10" };
+  }
+
+  if (group === "email") {
+    return { icon: Mail, iconClass: "text-amber-600", badgeClass: "bg-amber-600/10" };
+  }
+
+  if (group === "ai") {
+    return { icon: Bot, iconClass: "text-violet-600", badgeClass: "bg-violet-600/10" };
+  }
+
+  if (group === "video") {
+    return { icon: Video, iconClass: "text-red-500", badgeClass: "bg-red-500/10" };
+  }
+
+  if (group === "direct") {
+    return { icon: Link, iconClass: "text-zinc-600", badgeClass: "bg-zinc-500/10" };
+  }
+
+  return { icon: MapPin, iconClass: "text-primary", badgeClass: "bg-primary/10" };
 };
 
 const TrafficTrendWidget = lazy(() => import("@/components/dashboard/TrafficTrendWidget"));
@@ -611,6 +710,210 @@ const TopCitiesWidget = ({ initialData, initialLoading = false, analyticsSource,
   );
 };
 
+const AcquisitionWidget = () => {
+  const [period, setPeriod] = useState<DashboardPeriod>("30d");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [activeMetric, setActiveMetric] = useState<AcquisitionMetric>("sessions");
+
+  const canLoadCustom = customStart !== "" && customEnd !== "";
+
+  const acquisitionParams = useMemo(() => {
+    const baseParams = { mode: "session" as const, limit: 10 };
+    if (period === "custom" && !canLoadCustom) {
+      return { ...baseParams, date_preset: "last_30_days" as const };
+    }
+
+    return {
+      ...baseParams,
+      ...resolvePeriodQuery(period, customStart, customEnd),
+    };
+  }, [period, customStart, customEnd, canLoadCustom]);
+
+  const shouldFetchAcquisition = period !== "custom" || canLoadCustom;
+
+  const { data: acquisitionResponse, isLoading: acquisitionLoading } = useAnalyticsAcquisition(
+    acquisitionParams,
+    shouldFetchAcquisition,
+    { staleTime: 600000 }
+  );
+
+  const acquisitionData = acquisitionResponse?.data;
+  const items = acquisitionData?.items ?? [];
+  const totals = acquisitionData?.totals;
+  const maxMetricValue = useMemo(() => {
+    return items.reduce((max, item) => Math.max(max, getAcquisitionMetricValue(item, activeMetric)), 0);
+  }, [items, activeMetric]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.6 }}
+      className="bg-card rounded-xl border p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Activity className="w-5 h-5 text-primary" />
+          Aquisicoes Normalizadas
+        </h3>
+        <Select value={period} onValueChange={(value) => setPeriod(value as DashboardPeriod)}>
+          <SelectTrigger className="w-[140px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="24h">Ultimas 24h</SelectItem>
+            <SelectItem value="7d">Ultimos 7 dias</SelectItem>
+            <SelectItem value="30d">Ultimos 30 dias</SelectItem>
+            <SelectItem value="custom">Periodo especifico</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {period === "custom" && (
+        <div className="flex gap-2 mb-4">
+          <div className="flex-1">
+            <Input
+              type="date"
+              value={customStart}
+              onChange={(event) => setCustomStart(event.target.value)}
+              className="h-8 text-xs"
+              placeholder="Inicio"
+            />
+          </div>
+          <div className="flex-1">
+            <Input
+              type="date"
+              value={customEnd}
+              onChange={(event) => setCustomEnd(event.target.value)}
+              className="h-8 text-xs"
+              placeholder="Fim"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+        <div className="rounded-lg bg-muted/40 p-2">
+          <p className="text-[11px] text-muted-foreground">Sessoes totais</p>
+          <p className="text-sm font-semibold">{formatCompactNumber(Number(totals?.sessions ?? 0))}</p>
+        </div>
+        <div className="rounded-lg bg-muted/40 p-2">
+          <p className="text-[11px] text-muted-foreground">Visitantes unicos</p>
+          <p className="text-sm font-semibold">{formatCompactNumber(Number(totals?.users ?? 0))}</p>
+        </div>
+        <div className="rounded-lg bg-muted/40 p-2">
+          <p className="text-[11px] text-muted-foreground">Visualizacoes de pagina</p>
+          <p className="text-sm font-semibold">{formatCompactNumber(Number(totals?.pageviews ?? 0))}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {(Object.keys(acquisitionMetricLabels) as AcquisitionMetric[]).map((metric) => (
+          <Button
+            key={metric}
+            size="sm"
+            variant={activeMetric === metric ? "default" : "outline"}
+            className="h-7 text-xs"
+            onClick={() => setActiveMetric(metric)}
+            type="button"
+          >
+            {acquisitionMetricLabels[metric]}
+          </Button>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {period === "custom" && !canLoadCustom && (
+          <div className="text-sm text-muted-foreground p-2">
+            Selecione inicio e fim para carregar o historico.
+          </div>
+        )}
+
+        {acquisitionLoading && (
+          <div className="text-sm text-muted-foreground p-2">
+            Carregando aquisicoes...
+          </div>
+        )}
+
+        {!acquisitionLoading && shouldFetchAcquisition && items.length === 0 && (
+          <div className="text-sm text-muted-foreground p-2">
+            Nenhuma aquisicao encontrada neste periodo.
+          </div>
+        )}
+
+        {!acquisitionLoading && items.map((item, index) => {
+          const metricValue = getAcquisitionMetricValue(item, activeMetric);
+          const metricShare = getAcquisitionMetricShare(item, totals, activeMetric);
+          const visual = resolveAcquisitionVisual(item);
+          const Icon = visual.icon;
+          const width = maxMetricValue > 0
+            ? Math.min(100, Math.max(4, (metricValue / maxMetricValue) * 100))
+            : 0;
+
+          return (
+            <div key={`${item.source_key ?? item.source_normalized ?? "other"}-${index}`} className="rounded-lg p-3 hover:bg-muted/30 transition-colors">
+              <div className="flex items-start gap-3">
+                <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", visual.badgeClass)}>
+                  <Icon className={cn("w-4 h-4", visual.iconClass)} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-semibold text-muted-foreground">#{item.rank ?? index + 1}</span>
+                      <p className="text-sm font-medium truncate">{item.source_normalized || item.source_raw || "Other"}</p>
+                      {item.group && (
+                        <Badge variant="outline" className="text-[10px] h-5">
+                          {item.group}
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{metricShare.toFixed(1)}%</span>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {item.channel_raw || "Canal nao identificado"} · {item.source_raw || "(not set)"}
+                  </p>
+
+                  <div className="h-1.5 w-full rounded-full bg-muted mt-2 overflow-hidden">
+                    <div className="h-full rounded-full bg-primary/80 transition-all duration-300" style={{ width: `${width}%` }} />
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5">
+                      <Activity className="w-3 h-3" />
+                      {formatCompactNumber(Number(item.sessions ?? 0))} sessoes
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5">
+                      <Users className="w-3 h-3" />
+                      {formatCompactNumber(Number(item.users ?? 0))} unicos
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5">
+                      <Eye className="w-3 h-3" />
+                      {formatCompactNumber(Number(item.pageviews ?? 0))} visualizacoes
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="pt-3 mt-3 border-t text-[11px] text-muted-foreground flex flex-wrap items-center gap-2 justify-between">
+        <span>
+          Medindo por: <strong>{acquisitionMetricLabels[activeMetric]}</strong>
+        </span>
+        <span>
+          Fonte: {acquisitionResponse?.meta?.source === "cache" ? "Cache" : "GA4"}
+          {acquisitionResponse?.meta?.stale ? " (stale)" : ""}
+          {acquisitionResponse?.meta?.generated_at ? ` · Atualizado as ${formatHourMinute(acquisitionResponse.meta.generated_at)}` : ""}
+        </span>
+      </div>
+    </motion.div>
+  );
+};
+
 const Dashboard = () => {
   const overviewParams = useMemo(
     () => ({
@@ -764,6 +1067,10 @@ const Dashboard = () => {
           analyticsSource={overviewMeta?.source}
           analyticsStale={overviewMeta?.stale}
         />
+      </div>
+
+      <div className="mb-6">
+        <AcquisitionWidget />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-20 md:mb-0">
