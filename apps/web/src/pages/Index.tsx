@@ -18,6 +18,9 @@ import {
   MessageCircle,
   Calendar,
   ChevronRight,
+  Loader2,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
@@ -41,6 +44,7 @@ import {
   useAnalyticsOverview,
   useAnalyticsTopPages,
 } from "@/hooks/useAnalytics";
+import { useUpcomingExternas } from "@/hooks/useExternas";
 import type {
   AnalyticsAcquisitionData,
   AnalyticsAcquisitionItem,
@@ -48,6 +52,7 @@ import type {
   AnalyticsTopPageItem,
   AnalyticsTopPagesData,
 } from "@/services/analytics.service";
+import type { ExternalEvent } from "@/types/externas";
 
 const compactFormatter = new Intl.NumberFormat("pt-BR", {
   notation: "compact",
@@ -76,6 +81,89 @@ const formatHourMinute = (iso?: string) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+type UpcomingDaysFilter = "3" | "7" | "15" | "30";
+
+const upcomingDaysLabels: Record<UpcomingDaysFilter, string> = {
+  "3": "3 dias",
+  "7": "7 dias",
+  "15": "15 dias",
+  "30": "30 dias",
+};
+
+const getEventEffectiveEnd = (event: ExternalEvent): Date => {
+  if (event.data_hora_fim) {
+    return new Date(event.data_hora_fim);
+  }
+
+  const start = new Date(event.data_hora);
+  return new Date(start.getTime() + 2 * 60 * 60 * 1000);
+};
+
+const formatEventDateTime = (iso?: string): string => {
+  if (!iso) {
+    return "Data nao informada";
+  }
+
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Data invalida";
+  }
+
+  return parsed.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getDaysUntilEvent = (iso?: string): number | null => {
+  if (!iso) {
+    return null;
+  }
+
+  const targetDate = new Date(iso);
+  if (Number.isNaN(targetDate.getTime())) {
+    return null;
+  }
+
+  const now = new Date();
+  const targetDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  const currentDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffMs = targetDay.getTime() - currentDay.getTime();
+
+  return Math.round(diffMs / (24 * 60 * 60 * 1000));
+};
+
+const formatEventTimingLabel = (event: ExternalEvent): string => {
+  const now = new Date();
+  const start = new Date(event.data_hora);
+  const end = getEventEffectiveEnd(event);
+
+  if (start <= now && end >= now) {
+    return "Em andamento";
+  }
+
+  const daysUntil = getDaysUntilEvent(event.data_hora);
+  if (daysUntil === null) {
+    return "Sem data";
+  }
+
+  if (daysUntil < 0) {
+    return "Encerrado";
+  }
+
+  if (daysUntil === 0) {
+    return "Hoje";
+  }
+
+  if (daysUntil === 1) {
+    return "Amanha";
+  }
+
+  return `Em ${daysUntil} dias`;
 };
 
 type DashboardPeriod = "24h" | "7d" | "30d" | "custom";
@@ -459,29 +547,28 @@ const WhatsAppGroupsWidget = () => (
   </motion.div>
 );
 
-const upcomingEvents = [
-  {
-    title: "Cobertura Casamento Silva",
-    date: "25/01 14:00",
-    category: "Evento Social",
-    team: ["Maria Santos", "Joao Silva"],
-  },
-  {
-    title: "Entrevista Secretario Saude",
-    date: "22/01 09:00",
-    category: "Entrevista",
-    team: ["Carlos Oliveira"],
-  },
-  {
-    title: "Reportagem Obras BR-101",
-    date: "23/01 08:00",
-    category: "Reportagem",
-    team: ["Carlos Oliveira", "Joao Silva"],
-  },
-];
-
 const UpcomingEventsWidget = () => {
   const navigate = useNavigate();
+  const [daysFilter, setDaysFilter] = useState<UpcomingDaysFilter>("7");
+  const selectedDays = Number(daysFilter);
+
+  const {
+    data: upcomingResponse,
+    isLoading: upcomingLoading,
+    isFetching: upcomingFetching,
+    isError: upcomingError,
+    refetch: refetchUpcomingEvents,
+  } = useUpcomingExternas(selectedDays);
+
+  const upcomingEvents = useMemo(() => {
+    const now = new Date();
+    const raw = upcomingResponse?.data ?? [];
+
+    return raw
+      .filter((event) => getEventEffectiveEnd(event) >= now)
+      .sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
+      .slice(0, 4);
+  }, [upcomingResponse]);
 
   return (
     <motion.div
@@ -490,36 +577,117 @@ const UpcomingEventsWidget = () => {
       transition={{ delay: 0.3 }}
       className="bg-card rounded-xl border p-4"
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h3 className="font-semibold flex items-center gap-2">
           <Calendar className="w-5 h-5 text-primary" />
           Proximos Eventos
         </h3>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/externas")}>
-          Ver todos
-          <ChevronRight className="w-4 h-4 ml-1" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={daysFilter} onValueChange={(value) => setDaysFilter(value as UpcomingDaysFilter)}>
+            <SelectTrigger className="w-[120px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="3">3 dias</SelectItem>
+              <SelectItem value="7">7 dias</SelectItem>
+              <SelectItem value="15">15 dias</SelectItem>
+              <SelectItem value="30">30 dias</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => refetchUpcomingEvents()}
+            title="Atualizar eventos"
+          >
+            <RefreshCw className={cn("w-4 h-4", upcomingFetching && "animate-spin")} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/externas")}>
+            Ver agenda
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
       </div>
       <div className="space-y-3">
-        {upcomingEvents.map((event, index) => (
-          <div
-            key={index}
-            className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-            onClick={() => navigate("/externas")}
-          >
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <p className="text-sm font-medium">{event.title}</p>
-                <p className="text-xs text-muted-foreground">{event.category}</p>
+        {upcomingLoading && (
+          <div className="space-y-2">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="p-3 rounded-lg bg-muted/30 animate-pulse">
+                <div className="h-3.5 w-2/3 bg-muted rounded mb-2" />
+                <div className="h-3 w-1/2 bg-muted rounded mb-2" />
+                <div className="h-3 w-1/3 bg-muted rounded" />
               </div>
-              <Badge variant="outline">{event.date}</Badge>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">{event.team.join(", ")}</span>
-            </div>
+            ))}
           </div>
-        ))}
+        )}
+
+        {!upcomingLoading && upcomingError && (
+          <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+            <p className="text-sm font-medium text-destructive flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Nao foi possivel carregar os eventos.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => refetchUpcomingEvents()}
+            >
+              Tentar novamente
+            </Button>
+          </div>
+        )}
+
+        {!upcomingLoading && !upcomingError && upcomingEvents.length === 0 && (
+          <div className="p-3 rounded-lg bg-muted/30 text-sm text-muted-foreground">
+            Nenhum evento encontrado para os proximos {upcomingDaysLabels[daysFilter]}.
+          </div>
+        )}
+
+        {!upcomingLoading && !upcomingError && upcomingEvents.map((event) => {
+          const collaborators = event.collaborators ?? [];
+
+          return (
+            <div
+              key={event.id}
+              className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+              onClick={() => navigate(`/externas/${event.id}`)}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{event.titulo}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {event.category?.name ?? "Sem categoria"} | {event.status?.name ?? "Sem status"}
+                  </p>
+                </div>
+                <Badge variant="outline" className="shrink-0">
+                  {formatEventTimingLabel(event)}
+                </Badge>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5">
+                  <Calendar className="w-3 h-3" />
+                  {formatEventDateTime(event.data_hora)}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 max-w-full">
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{event.local || "Local nao informado"}</span>
+                </span>
+              </div>
+
+              <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="w-3 h-3" />
+                <span>
+                  {collaborators.length > 0
+                    ? collaborators.map((collaborator) => collaborator.name).join(", ")
+                    : "Sem colaboradores vinculados"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </motion.div>
   );
