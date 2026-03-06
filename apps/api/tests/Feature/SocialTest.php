@@ -134,6 +134,36 @@ beforeEach(function () {
         'is_primary_candidate' => false,
         'sort_order' => 20,
     ]);
+
+    SocialMetricDefinition::query()->create([
+        'code' => 'subscribers_total',
+        'label' => 'Inscritos',
+        'value_type' => 'integer',
+        'unit' => 'count',
+        'metric_group' => 'audience',
+        'is_primary_candidate' => true,
+        'sort_order' => 40,
+    ]);
+
+    SocialMetricDefinition::query()->create([
+        'code' => 'videos_total',
+        'label' => 'Videos',
+        'value_type' => 'integer',
+        'unit' => 'count',
+        'metric_group' => 'content',
+        'is_primary_candidate' => false,
+        'sort_order' => 60,
+    ]);
+
+    SocialMetricDefinition::query()->create([
+        'code' => 'views_total',
+        'label' => 'Visualizacoes',
+        'value_type' => 'integer',
+        'unit' => 'count',
+        'metric_group' => 'content',
+        'is_primary_candidate' => false,
+        'sort_order' => 70,
+    ]);
 });
 
 function makeAuthenticatedSocialUser(): User
@@ -177,6 +207,48 @@ function createSocialInstagramProfile(): SocialProfile
         'primary_metric_code' => 'followers_total',
         'normalizer_type' => 'path_map',
         'normalizer_config' => socialInstagramNormalizerConfig(),
+        'is_active' => true,
+    ]);
+}
+
+function socialYoutubeNormalizerConfig(): array
+{
+    return [
+        'item_index' => 0,
+        'identity_paths' => [
+            'external_id' => ['aboutChannelInfo.channelId', 'channelId'],
+            'handle' => ['aboutChannelInfo.channelUsername', 'channelUsername'],
+            'display_name' => ['aboutChannelInfo.channelName', 'channelName'],
+            'profile_url' => ['aboutChannelInfo.channelUrl', 'channelUrl'],
+            'avatar_url' => ['aboutChannelInfo.channelAvatarUrl', 'channelAvatarUrl'],
+        ],
+        'metric_paths' => [
+            'subscribers_total' => ['aboutChannelInfo.numberOfSubscribers', 'numberOfSubscribers'],
+            'videos_total' => ['aboutChannelInfo.channelTotalVideos', 'channelTotalVideos'],
+            'views_total' => ['aboutChannelInfo.channelTotalViews', 'channelTotalViews'],
+        ],
+    ];
+}
+
+function createSocialYoutubeProfile(): SocialProfile
+{
+    return SocialProfile::query()->create([
+        'provider' => 'apify',
+        'provider_resource_type' => 'task',
+        'provider_resource_id' => 'clean_quicksand~vipsocial-youtube',
+        'task_input_override' => [
+            'maxResultStreams' => 0,
+            'maxResults' => 10,
+            'maxResultsShorts' => 0,
+            'startUrls' => [
+                ['url' => 'https://www.youtube.com/@tvvipsocial'],
+            ],
+        ],
+        'network' => 'youtube',
+        'handle' => 'tvvipsocial',
+        'primary_metric_code' => 'subscribers_total',
+        'normalizer_type' => 'path_map',
+        'normalizer_config' => socialYoutubeNormalizerConfig(),
         'is_active' => true,
     ]);
 }
@@ -285,6 +357,104 @@ test('social profile sync persists snapshot and metrics from apify task run', fu
     });
 });
 
+test('social youtube profile sync persists channel metrics from apify task run', function () {
+    Http::fake([
+        'https://api.apify.com/v2/actor-tasks/clean_quicksand~vipsocial-youtube/runs*' => Http::response([
+            'data' => [
+                'id' => 'run-youtube-1',
+                'status' => 'RUNNING',
+                'defaultDatasetId' => 'dataset-youtube-1',
+                'startedAt' => '2026-03-06T12:00:00.000Z',
+            ],
+        ], 200),
+        'https://api.apify.com/v2/actor-runs/run-youtube-1/dataset/items*' => Http::response([
+            [
+                'channelName' => 'Tv Vip',
+                'channelUsername' => 'tvvipsocial',
+                'channelUrl' => 'https://www.youtube.com/channel/UCxoHPeJxknyW4IVFyrpSewg',
+                'channelAvatarUrl' => 'https://yt3.googleusercontent.com/avatar=s68-c-k-c0x00ffffff-no-rj',
+                'channelTotalVideos' => 24573,
+                'channelTotalViews' => 7745115,
+                'numberOfSubscribers' => 21600,
+                'channelId' => 'UCxoHPeJxknyW4IVFyrpSewg',
+                'aboutChannelInfo' => [
+                    'channelName' => 'Tv Vip',
+                    'channelUsername' => 'tvvipsocial',
+                    'channelUrl' => 'https://www.youtube.com/channel/UCxoHPeJxknyW4IVFyrpSewg',
+                    'channelAvatarUrl' => 'https://yt3.googleusercontent.com/avatar=s68-c-k-c0x00ffffff-no-rj',
+                    'channelTotalVideos' => 24573,
+                    'channelTotalViews' => 7745115,
+                    'numberOfSubscribers' => 21600,
+                    'channelId' => 'UCxoHPeJxknyW4IVFyrpSewg',
+                ],
+            ],
+        ], 200),
+        'https://api.apify.com/v2/actor-runs/run-youtube-1*' => Http::response([
+            'data' => [
+                'id' => 'run-youtube-1',
+                'status' => 'SUCCEEDED',
+                'defaultDatasetId' => 'dataset-youtube-1',
+                'startedAt' => '2026-03-06T12:00:00.000Z',
+                'finishedAt' => '2026-03-06T12:00:40.000Z',
+                'usageTotalUsd' => 0.02,
+                'stats' => [
+                    'computeUnits' => 0.05,
+                ],
+                'pricingInfo' => [
+                    'pricingModel' => 'PAY_PER_EVENT',
+                ],
+            ],
+        ], 200),
+    ]);
+
+    Sanctum::actingAs(makeAuthenticatedSocialUser());
+    $profile = createSocialYoutubeProfile();
+
+    $this->postJson("/api/v1/social/profiles/{$profile->id}/sync")
+        ->assertOk()
+        ->assertJsonPath('data.sync.apify_run_id', 'run-youtube-1')
+        ->assertJsonPath('data.sync.primary_metric_value', 21600)
+        ->assertJsonPath('data.profile.external_profile_id', 'UCxoHPeJxknyW4IVFyrpSewg')
+        ->assertJsonPath('data.profile.handle', 'tvvipsocial');
+
+    $snapshot = SocialProfileSnapshot::query()
+        ->where('social_profile_id', $profile->id)
+        ->first();
+
+    expect($snapshot)->not->toBeNull();
+
+    $subscribersDefinition = SocialMetricDefinition::query()->where('code', 'subscribers_total')->firstOrFail();
+    $videosDefinition = SocialMetricDefinition::query()->where('code', 'videos_total')->firstOrFail();
+    $viewsDefinition = SocialMetricDefinition::query()->where('code', 'views_total')->firstOrFail();
+
+    $this->assertDatabaseHas('social_profile_metric_values', [
+        'social_profile_snapshot_id' => $snapshot->id,
+        'social_metric_definition_id' => $subscribersDefinition->id,
+        'value_number' => 21600,
+        'raw_key' => 'aboutChannelInfo.numberOfSubscribers',
+    ]);
+
+    $this->assertDatabaseHas('social_profile_metric_values', [
+        'social_profile_snapshot_id' => $snapshot->id,
+        'social_metric_definition_id' => $videosDefinition->id,
+        'value_number' => 24573,
+        'raw_key' => 'aboutChannelInfo.channelTotalVideos',
+    ]);
+
+    $this->assertDatabaseHas('social_profile_metric_values', [
+        'social_profile_snapshot_id' => $snapshot->id,
+        'social_metric_definition_id' => $viewsDefinition->id,
+        'value_number' => 7745115,
+        'raw_key' => 'aboutChannelInfo.channelTotalViews',
+    ]);
+
+    Http::assertSent(function (Request $request) {
+        return str_contains($request->url(), '/actor-tasks/clean_quicksand~vipsocial-youtube/runs?')
+            && $request->hasHeader('Authorization', 'Bearer apify-token-test')
+            && data_get($request->data(), 'startUrls.0.url') === 'https://www.youtube.com/@tvvipsocial';
+    });
+});
+
 test('social dashboard returns cards and series from persisted snapshots', function () {
     Sanctum::actingAs(makeAuthenticatedSocialUser());
     $profile = createSocialInstagramProfile();
@@ -389,6 +559,36 @@ test('social avatar proxy returns proxied image for allowed hosts', function () 
     $this->get("/api/v1/social/profiles/{$profile->id}/avatar")
         ->assertOk()
         ->assertHeader('Content-Type', 'image/jpeg');
+});
+
+test('social avatar proxy returns proxied image for youtube hosts', function () {
+    Http::fake([
+        'https://yt3.googleusercontent.com/*' => Http::response('fake-youtube-avatar', 200, [
+            'Content-Type' => 'image/webp',
+        ]),
+    ]);
+
+    $profile = SocialProfile::query()->create([
+        'provider' => 'apify',
+        'provider_resource_type' => 'task',
+        'provider_resource_id' => 'clean_quicksand~vipsocial-youtube',
+        'task_input_override' => [
+            'startUrls' => [
+                ['url' => 'https://www.youtube.com/@tvvipsocial'],
+            ],
+        ],
+        'network' => 'youtube',
+        'handle' => 'tvvipsocial',
+        'avatar_url' => 'https://yt3.googleusercontent.com/channel-avatar=s68-c-k-c0x00ffffff-no-rj',
+        'primary_metric_code' => 'subscribers_total',
+        'normalizer_type' => 'path_map',
+        'normalizer_config' => socialYoutubeNormalizerConfig(),
+        'is_active' => true,
+    ]);
+
+    $this->get("/api/v1/social/profiles/{$profile->id}/avatar")
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/webp');
 });
 
 test('failed sync does not overwrite existing valid snapshot', function () {

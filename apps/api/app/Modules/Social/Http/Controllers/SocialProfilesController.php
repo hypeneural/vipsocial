@@ -223,6 +223,8 @@ class SocialProfilesController extends BaseController
         $normalizedHost = strtolower($host);
 
         return str_contains($normalizedHost, 'cdninstagram.com')
-            || str_ends_with($normalizedHost, 'fbcdn.net');
+            || str_ends_with($normalizedHost, 'fbcdn.net')
+            || str_ends_with($normalizedHost, 'googleusercontent.com')
+            || str_ends_with($normalizedHost, 'ggpht.com');
     }
 }
