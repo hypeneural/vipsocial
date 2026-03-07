@@ -102,7 +102,7 @@ const EnqueteForm = () => {
   const [voteCooldownMinutes, setVoteCooldownMinutes] = useState("");
   const [resultsVisibility, setResultsVisibility] = useState<PollResultsVisibility>("live");
   const [afterEndBehavior, setAfterEndBehavior] = useState<PollAfterEndBehavior>("show_results_only");
-  const [widgetTemplate, setWidgetTemplate] = useState<PollWidgetTemplate>("editorial_card");
+  const [widgetTemplate, setWidgetTemplate] = useState<PollWidgetTemplate>("clean_white");
   const [resultValueMode, setResultValueMode] = useState<PollResultValueMode>("both");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
@@ -640,54 +640,56 @@ const EnqueteForm = () => {
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="rounded-2xl border border-border/50 bg-card p-6"
-        >
-          <h2 className="mb-4 text-lg font-semibold">Agendamento</h2>
+        {status === "scheduled" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="rounded-2xl border border-border/50 bg-card p-6"
+          >
+            <h2 className="mb-4 text-lg font-semibold">Agendamento</h2>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="startsAt" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Inicia em
-              </Label>
-              <Input
-                id="startsAt"
-                type="datetime-local"
-                value={startsAt}
-                onChange={(event) => setStartsAt(event.target.value)}
-                className="rounded-xl"
-              />
-            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="startsAt" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Inicia em
+                </Label>
+                <Input
+                  id="startsAt"
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(event) => setStartsAt(event.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="endsAt" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Termina em
-              </Label>
-              <Input
-                id="endsAt"
-                type="datetime-local"
-                value={endsAt}
-                onChange={(event) => setEndsAt(event.target.value)}
-                className="rounded-xl"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="endsAt" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Termina em
+                </Label>
+                <Input
+                  id="endsAt"
+                  type="datetime-local"
+                  value={endsAt}
+                  onChange={(event) => setEndsAt(event.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="timezone">Timezone</Label>
-              <Input
-                id="timezone"
-                value={timezone}
-                onChange={(event) => setTimezone(event.target.value)}
-                className="rounded-xl"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Input
+                  id="timezone"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
         {isEditing ? (
           <>

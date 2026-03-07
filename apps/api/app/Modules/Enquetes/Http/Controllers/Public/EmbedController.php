@@ -26,7 +26,7 @@ class EmbedController
         $pollSettings = is_array($poll->settings) ? $poll->settings : [];
         $widgetTemplate = in_array(($pollSettings['widget_template'] ?? null), ['editorial_card', 'clean_white'], true)
             ? (string) $pollSettings['widget_template']
-            : 'editorial_card';
+            : 'clean_white';
         $config = [
             'placementPublicId' => $placement->public_id,
             'pollPublicId' => $poll->public_id,
@@ -171,7 +171,6 @@ class EmbedController
     .option-text { min-width: 0; }
     .option-title { display: block; font-size: 15px; font-weight: 700; line-height: 1.2; }
     .option-description { margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.35; }
-    .vote-count { font-size: 12px; color: var(--muted); }
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -215,12 +214,12 @@ class EmbedController
       justify-content: space-between;
       gap: 12px;
       align-items: baseline;
-      font-size: 14px;
+      font-size: 15px;
     }
-    .result-label { font-weight: 700; }
+    .result-label { font-weight: 700; font-size: 16px; }
     .result-track {
       width: 100%;
-      height: 10px;
+      height: 12px;
       border-radius: 999px;
       overflow: hidden;
       background: rgba(35, 24, 14, 0.08);
@@ -392,13 +391,13 @@ class EmbedController
 
     function currentPollSettings() {
       if (!state.boot || !state.boot.poll) {
-        return { widget_template: 'editorial_card', result_value_mode: 'both' };
+        return { widget_template: 'clean_white', result_value_mode: 'both' };
       }
 
       const settings = state.boot.poll.settings || {};
 
       return {
-        widget_template: settings.widget_template === 'clean_white' ? 'clean_white' : 'editorial_card',
+        widget_template: settings.widget_template === 'editorial_card' ? 'editorial_card' : 'clean_white',
         result_value_mode: ['percentage', 'votes', 'both'].indexOf(settings.result_value_mode) !== -1
           ? settings.result_value_mode
           : 'both',
@@ -701,7 +700,6 @@ class EmbedController
           + '<div class="option-text"><span class="option-title">' + option.label + '</span>'
           + description + '</div>'
           + '</div>'
-          + '<span class="vote-count">' + (multiple ? 'Multipla escolha' : 'Escolha unica') + '</span>'
           + '</button>';
       }).join('');
 
@@ -713,8 +711,12 @@ class EmbedController
           }
 
           if (state.boot.poll.selection_type === 'single') {
+            // Instant visual toggle – no full re-render
+            optionsEl.querySelectorAll('.option.is-selected').forEach((el) => el.classList.remove('is-selected'));
+            this.classList.add('is-selected');
             state.selected = [optionPublicId];
           } else if (isSelected(optionPublicId)) {
+            this.classList.remove('is-selected');
             state.selected = state.selected.filter((item) => item !== optionPublicId);
           } else {
             const maxChoices = Number(state.boot.poll.max_choices || 0);
@@ -722,14 +724,13 @@ class EmbedController
               setMessage('Voce pode selecionar no maximo ' + maxChoices + ' opcoes.', 'error');
               return;
             }
-
+            this.classList.add('is-selected');
             state.selected = state.selected.concat(optionPublicId);
           }
 
           setMessage('', '');
           voteButtonEl.disabled = state.selected.length === 0;
-          renderOptions();
-          await trackEvent('option_selected', { optionPublicId: optionPublicId });
+          trackEvent('option_selected', { optionPublicId: optionPublicId });
         });
       });
 
