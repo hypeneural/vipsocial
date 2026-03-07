@@ -33,10 +33,12 @@ import type {
   CreatePollDTO,
   PollAfterEndBehavior,
   PollOption as PollOptionResource,
+  PollResultValueMode,
   PollResultsVisibility,
   PollSelectionType,
   PollStatus,
   PollVoteLimitMode,
+  PollWidgetTemplate,
   UpdatePollDTO,
 } from "@/services/enquete.service";
 import showToast from "@/lib/toast";
@@ -100,6 +102,8 @@ const EnqueteForm = () => {
   const [voteCooldownMinutes, setVoteCooldownMinutes] = useState("");
   const [resultsVisibility, setResultsVisibility] = useState<PollResultsVisibility>("live");
   const [afterEndBehavior, setAfterEndBehavior] = useState<PollAfterEndBehavior>("show_results_only");
+  const [widgetTemplate, setWidgetTemplate] = useState<PollWidgetTemplate>("editorial_card");
+  const [resultValueMode, setResultValueMode] = useState<PollResultValueMode>("both");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
@@ -124,6 +128,14 @@ const EnqueteForm = () => {
     setVoteCooldownMinutes(poll.vote_cooldown_minutes ? String(poll.vote_cooldown_minutes) : "");
     setResultsVisibility(poll.results_visibility);
     setAfterEndBehavior(poll.after_end_behavior);
+    setWidgetTemplate(
+      poll.settings?.widget_template === "clean_white" ? "clean_white" : "editorial_card"
+    );
+    setResultValueMode(
+      poll.settings?.result_value_mode === "percentage" || poll.settings?.result_value_mode === "votes"
+        ? poll.settings.result_value_mode
+        : "both"
+    );
     setStartsAt(toDateTimeLocal(poll.starts_at));
     setEndsAt(toDateTimeLocal(poll.ends_at));
     setTimezone(poll.timezone || DEFAULT_TIMEZONE);
@@ -242,6 +254,10 @@ const EnqueteForm = () => {
       starts_at: normalizeDateTimeLocal(startsAt),
       ends_at: normalizeDateTimeLocal(endsAt),
       timezone,
+      settings: {
+        widget_template: widgetTemplate,
+        result_value_mode: resultValueMode,
+      },
       options: cleanedOptions,
     };
   };
@@ -573,6 +589,56 @@ const EnqueteForm = () => {
             </div>
           </motion.div>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          className="rounded-2xl border border-border/50 bg-card p-6"
+        >
+          <h2 className="mb-4 text-lg font-semibold">Widget e incorporacao</h2>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Template do widget</Label>
+              <Select
+                value={widgetTemplate}
+                onValueChange={(value) => setWidgetTemplate(value as PollWidgetTemplate)}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="editorial_card">Editorial com destaque</SelectItem>
+                  <SelectItem value="clean_white">Branco nativo do site</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Use o template branco para embed mais discreto e integrado ao layout do portal.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Exibicao do valor nos resultados</Label>
+              <Select
+                value={resultValueMode}
+                onValueChange={(value) => setResultValueMode(value as PollResultValueMode)}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Somente porcentagem</SelectItem>
+                  <SelectItem value="votes">Somente quantidade de votos</SelectItem>
+                  <SelectItem value="both">Quantidade + porcentagem</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Quando a visibilidade estiver em <span className="font-medium">Depois do voto</span>, o widget passa a exibir apenas o resultado apos voto aceito ou bloqueio por repeticao.
+              </p>
+            </div>
+          </div>
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 10 }}

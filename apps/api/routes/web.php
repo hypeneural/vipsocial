@@ -32,4 +32,4 @@ Route::get('/{any}', function () {
     return response()->json([
         'message' => 'Frontend not built. Run: cd apps/web && pnpm build',
     ], 404);
-})->where('any', '^(?!api).*$');
+})->where('any', '^(?!api|embed|media).*$');

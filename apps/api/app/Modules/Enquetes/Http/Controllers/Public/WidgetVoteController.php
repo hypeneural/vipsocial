@@ -26,6 +26,8 @@ class WidgetVoteController extends BaseController
                     'data' => [
                         'accepted' => false,
                         'block_reason' => $result['block_reason'],
+                        'results_available' => $result['results_available'] ?? false,
+                        'results' => $result['results'] ?? null,
                     ],
                     'message' => $result['message'],
                 ], (int) ($result['http_status'] ?? 409));

@@ -23,8 +23,13 @@ class EmbedController
 
         $poll = $placement->poll;
         $state = $this->stateResolver->resolveWidgetState($poll);
+        $pollSettings = is_array($poll->settings) ? $poll->settings : [];
+        $widgetTemplate = in_array(($pollSettings['widget_template'] ?? null), ['editorial_card', 'clean_white'], true)
+            ? (string) $pollSettings['widget_template']
+            : 'editorial_card';
         $config = [
             'placementPublicId' => $placement->public_id,
+            'pollPublicId' => $poll->public_id,
             'bootUrl' => url('/api/v1/public/enquetes/placements/' . $placement->public_id . '/boot'),
             'sessionUrl' => url('/api/v1/public/enquetes/widget-sessions'),
             'voteUrl' => url('/api/v1/public/enquetes/' . $poll->public_id . '/vote'),
@@ -234,9 +239,85 @@ class EmbedController
       .option { grid-template-columns: auto 1fr; }
       .vote-count { grid-column: 1 / -1; margin-left: 36px; }
     }
+    body[data-template="clean_white"] {
+      padding: 0;
+      background: #ffffff;
+      color: #222222;
+      font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    }
+    body[data-template="clean_white"] .card {
+      max-width: none;
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: #ffffff;
+    }
+    body[data-template="clean_white"] .hero {
+      padding: 20px 16px 10px;
+      border-bottom: none;
+      background: #ffffff;
+      text-align: center;
+    }
+    body[data-template="clean_white"] .eyebrow {
+      display: none;
+    }
+    body[data-template="clean_white"] h1 {
+      margin-bottom: 10px;
+      color: #2b2b2b;
+      font-size: clamp(24px, 4vw, 32px);
+    }
+    body[data-template="clean_white"] h1::after {
+      content: "";
+      display: block;
+      width: 64px;
+      height: 3px;
+      margin: 10px auto 0;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+    body[data-template="clean_white"] .subhead {
+      text-align: center;
+      font-size: 13px;
+    }
+    body[data-template="clean_white"] .body {
+      padding: 0 16px 20px;
+    }
+    body[data-template="clean_white"] .option {
+      border-radius: 10px;
+      background: #ffffff;
+      border-color: #ececec;
+      box-shadow: none;
+    }
+    body[data-template="clean_white"] .option:hover {
+      background: #faf7f3;
+      border-color: rgba(255, 128, 0, 0.28);
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+      transform: scale(1.005);
+    }
+    body[data-template="clean_white"] .option.is-selected {
+      background: #fff7eb;
+      border-color: rgba(255, 128, 0, 0.42);
+    }
+    body[data-template="clean_white"] .button-primary {
+      width: 100%;
+      border-radius: 10px;
+    }
+    body[data-template="clean_white"] .actions {
+      display: block;
+    }
+    body[data-template="clean_white"] .hint {
+      display: block;
+      margin-top: 10px;
+      text-align: center;
+    }
+    body[data-template="clean_white"] .section {
+      margin-top: 18px;
+      padding-top: 16px;
+    }
   </style>
 </head>
-<body>
+<body data-template="{$widgetTemplate}">
   <main class="card" data-placement="{$placement->public_id}">
     <header class="hero">
       <span class="eyebrow">Enquete TV VIP Social</span>
@@ -246,7 +327,7 @@ class EmbedController
     <section class="body">
       <div id="widget-message" class="message"></div>
       <div id="widget-options" class="stack" aria-live="polite"></div>
-      <div class="actions">
+      <div id="widget-actions" class="actions">
         <button id="vote-button" class="button button-primary" type="button" disabled>Registrar voto</button>
         <span id="selection-hint" class="hint"></span>
       </div>
@@ -264,18 +345,21 @@ class EmbedController
       sessionToken: null,
       selected: [],
       hasAcceptedVote: false,
+      showingResultsOnly: false,
     };
 
     const questionEl = document.getElementById('poll-question');
     const subheadEl = document.getElementById('poll-subhead');
     const messageEl = document.getElementById('widget-message');
     const optionsEl = document.getElementById('widget-options');
+    const actionsEl = document.getElementById('widget-actions');
     const voteButtonEl = document.getElementById('vote-button');
     const selectionHintEl = document.getElementById('selection-hint');
     const resultsSectionEl = document.getElementById('results-section');
     const resultsContentEl = document.getElementById('results-content');
 
     const storageKey = 'tvvip:enquetes:session:' + EMBED_CONFIG.placementPublicId;
+    const afterVoteStorageKey = 'tvvip:enquetes:after-vote:' + EMBED_CONFIG.pollPublicId + ':' + EMBED_CONFIG.placementPublicId;
 
     function resizeHost() {
       const height = Math.max(
@@ -304,6 +388,133 @@ class EmbedController
       messageEl.className = 'message' + (variant ? ' ' + variant : '');
       messageEl.textContent = text;
       resizeHost();
+    }
+
+    function currentPollSettings() {
+      if (!state.boot || !state.boot.poll) {
+        return { widget_template: 'editorial_card', result_value_mode: 'both' };
+      }
+
+      const settings = state.boot.poll.settings || {};
+
+      return {
+        widget_template: settings.widget_template === 'clean_white' ? 'clean_white' : 'editorial_card',
+        result_value_mode: ['percentage', 'votes', 'both'].indexOf(settings.result_value_mode) !== -1
+          ? settings.result_value_mode
+          : 'both',
+      };
+    }
+
+    function formatPercentageValue(value) {
+      return Number(value || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }) + '%';
+    }
+
+    function formatVotesValue(value) {
+      var votes = Number(value || 0);
+      return votes + ' ' + (votes === 1 ? 'voto' : 'votos');
+    }
+
+    function formatResultValue(option) {
+      var mode = currentPollSettings().result_value_mode;
+      var votesText = formatVotesValue(option && option.votes);
+      var percentageText = formatPercentageValue(option && option.percentage);
+
+      if (mode === 'percentage') {
+        return percentageText;
+      }
+
+      if (mode === 'votes') {
+        return votesText;
+      }
+
+      return votesText + ' (' + percentageText + ')';
+    }
+
+    function setVotingVisibility(showVoting) {
+      state.showingResultsOnly = !showVoting;
+      optionsEl.style.display = showVoting ? '' : 'none';
+      actionsEl.style.display = showVoting ? '' : 'none';
+
+      if (!showVoting) {
+        state.selected = [];
+      }
+
+      resizeHost();
+    }
+
+    function resolveAfterVoteCacheExpiry() {
+      if (!state.boot || !state.boot.poll) {
+        return null;
+      }
+
+      var poll = state.boot.poll;
+
+      if (poll.vote_limit_mode === 'once_ever') {
+        return null;
+      }
+
+      if (poll.vote_limit_mode === 'once_per_window') {
+        var minutes = Number(poll.vote_cooldown_minutes || 0);
+        if (minutes <= 0) {
+          return null;
+        }
+
+        return new Date(Date.now() + minutes * 60000).toISOString();
+      }
+
+      if (poll.vote_limit_mode === 'once_per_day') {
+        var expiresAt = new Date();
+        expiresAt.setHours(23, 59, 59, 999);
+        return expiresAt.toISOString();
+      }
+
+      return null;
+    }
+
+    function saveAfterVoteCache(results) {
+      if (!state.boot || state.boot.poll.results_visibility !== 'after_vote' || !results) {
+        return;
+      }
+
+      try {
+        window.localStorage.setItem(afterVoteStorageKey, JSON.stringify({
+          placement_public_id: EMBED_CONFIG.placementPublicId,
+          poll_public_id: EMBED_CONFIG.pollPublicId,
+          expires_at: resolveAfterVoteCacheExpiry(),
+          saved_at: new Date().toISOString(),
+          results: results,
+        }));
+      } catch (error) {
+        // Cache local e opcional.
+      }
+    }
+
+    function readAfterVoteCache() {
+      try {
+        var raw = window.localStorage.getItem(afterVoteStorageKey);
+        if (!raw) {
+          return null;
+        }
+
+        var parsed = JSON.parse(raw);
+        if (!parsed || parsed.poll_public_id !== EMBED_CONFIG.pollPublicId || parsed.placement_public_id !== EMBED_CONFIG.placementPublicId) {
+          window.localStorage.removeItem(afterVoteStorageKey);
+          return null;
+        }
+
+        if (parsed.expires_at && new Date(parsed.expires_at).getTime() <= Date.now()) {
+          window.localStorage.removeItem(afterVoteStorageKey);
+          return null;
+        }
+
+        return parsed.results || null;
+      } catch (error) {
+        window.localStorage.removeItem(afterVoteStorageKey);
+        return null;
+      }
     }
 
     function buildFingerprint() {
@@ -407,7 +618,7 @@ class EmbedController
           : '';
 
         return '<div class="result-row">'
-          + '<div class="result-head"><div><span class="result-label">' + option.label + '</span>' + badge + '</div><div>' + option.votes + ' votos (' + Number(option.percentage || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + '%)</div></div>'
+          + '<div class="result-head"><div><span class="result-label">' + option.label + '</span>' + badge + '</div><div>' + formatResultValue(option) + '</div></div>'
           + '<div class="result-track"><div class="result-fill" style="width:' + Number(option.percentage || 0) + '%"></div></div>'
           + '</div>';
       }).join('');
@@ -463,6 +674,11 @@ class EmbedController
 
     function renderOptions() {
       if (!state.boot) return;
+      if (state.showingResultsOnly) {
+        optionsEl.innerHTML = '';
+        voteButtonEl.disabled = true;
+        return;
+      }
 
       const poll = state.boot.poll;
       const options = poll.options || [];
@@ -534,6 +750,41 @@ class EmbedController
       await trackEvent('results_viewed', { meta: { source: 'auto' } });
     }
 
+    function showResultsOnly(results, message, variant, persist) {
+      if (persist && results) {
+        saveAfterVoteCache(results);
+      }
+
+      setVotingVisibility(false);
+
+      if (message) {
+        setMessage(message, variant || '');
+      }
+
+      renderResults(results);
+    }
+
+    async function restoreAfterVoteResultsIfNeeded() {
+      if (!state.boot || state.boot.poll.results_visibility !== 'after_vote') {
+        return false;
+      }
+
+      var cachedResults = readAfterVoteCache();
+      if (!cachedResults) {
+        return false;
+      }
+
+      showResultsOnly(
+        cachedResults,
+        'Seu voto ja foi registrado neste navegador. Exibindo o resultado salvo.',
+        'success',
+        false
+      );
+      await trackEvent('results_viewed', { meta: { source: 'cached_after_vote' } });
+
+      return true;
+    }
+
     async function submitVote() {
       if (!state.boot || state.selected.length === 0) {
         return;
@@ -560,14 +811,30 @@ class EmbedController
         setMessage(response.message || 'Voto registrado com sucesso.', 'success');
 
         if (response.results_available && response.results) {
-          renderResults(response.results);
+          if (state.boot.poll.results_visibility === 'after_vote') {
+            showResultsOnly(response.results, response.message || 'Voto registrado com sucesso.', 'success', true);
+          } else {
+            renderResults(response.results);
+          }
           await trackEvent('results_viewed', { meta: { source: 'after_vote' } });
         }
       } catch (error) {
+        var blockedPayload = error && error.payload && error.payload.data ? error.payload.data : null;
+        if (blockedPayload && blockedPayload.results_available && blockedPayload.results) {
+          showResultsOnly(
+            blockedPayload.results,
+            blockedPayload.message || 'Voce ja votou nesta enquete.',
+            'success',
+            true
+          );
+          await trackEvent('results_viewed', { meta: { source: 'blocked_after_vote' } });
+          return;
+        }
+
         const message = error && error.message ? error.message : 'Falha ao registrar voto.';
         setMessage(message, 'error');
       } finally {
-        voteButtonEl.disabled = state.selected.length === 0;
+        voteButtonEl.disabled = state.showingResultsOnly || state.selected.length === 0;
       }
     }
 
@@ -586,6 +853,9 @@ class EmbedController
         window.setTimeout(function () {
           trackEvent('widget_visible', { meta: { state: state.boot.state } });
         }, 250);
+        if (await restoreAfterVoteResultsIfNeeded()) {
+          return;
+        }
         await loadResultsIfAllowed();
       } catch (error) {
         questionEl.textContent = 'Enquete indisponivel';
@@ -617,7 +887,7 @@ class EmbedController
 </html>
 HTML;
 
-        return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+        return $this->embedResponse($html, 'text/html; charset=UTF-8');
     }
 
     public function loader(string $placementPublicId): Response
@@ -693,11 +963,30 @@ HTML;
 })();
 JAVASCRIPT;
 
-        return response($script, 200, ['Content-Type' => 'application/javascript; charset=UTF-8']);
+        return $this->embedResponse($script, 'application/javascript; charset=UTF-8');
     }
 
     private function jsonLiteral(string $value): string
     {
         return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '""';
+    }
+
+    private function embedResponse(string $content, string $contentType): Response
+    {
+        $response = response($content, 200, ['Content-Type' => $contentType]);
+        $frameAncestors = trim((string) config('enquetes.embed.frame_ancestors', ''));
+
+        $response->headers->remove('X-Frame-Options');
+        $response->headers->set('Content-Security-Policy', $this->embedCsp($frameAncestors));
+        $response->headers->set('Cross-Origin-Resource-Policy', 'cross-origin');
+
+        return $response;
+    }
+
+    private function embedCsp(string $frameAncestors): string
+    {
+        $allowed = $frameAncestors !== '' ? $frameAncestors : '*';
+
+        return "frame-ancestors {$allowed}; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:;";
     }
 }

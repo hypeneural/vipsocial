@@ -37,6 +37,8 @@ class StorePollRequest extends BaseEnquetesRequest
             'ends_at' => ['nullable', 'date'],
             'timezone' => ['required', 'string', 'max:100'],
             'settings' => ['nullable', 'array'],
+            'settings.widget_template' => ['nullable', 'string', 'in:editorial_card,clean_white'],
+            'settings.result_value_mode' => ['nullable', 'string', 'in:percentage,votes,both'],
             'options' => ['required', 'array', 'min:2'],
             'options.*.id' => ['nullable', 'integer', 'min:1'],
             'options.*.label' => ['required', 'string', 'max:191'],

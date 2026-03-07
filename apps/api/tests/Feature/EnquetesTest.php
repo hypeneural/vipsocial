@@ -297,6 +297,10 @@ test('placement can be created toggled and embed routes return html and loader s
         'results_visibility' => 'live',
         'after_end_behavior' => 'show_results_only',
         'timezone' => 'America/Sao_Paulo',
+        'settings' => [
+            'widget_template' => 'clean_white',
+            'result_value_mode' => 'percentage',
+        ],
     ]);
 
     $site = PollSite::query()->create([
@@ -333,7 +337,9 @@ test('placement can be created toggled and embed routes return html and loader s
     $this->get("/embed/enquetes/{$placementPublicId}")
         ->assertOk()
         ->assertSee('Enquete TV VIP Social')
-        ->assertSee('Carregando enquete');
+        ->assertSee('Carregando enquete')
+        ->assertSee('data-template="clean_white"', false)
+        ->assertHeader('content-security-policy', "frame-ancestors https://vipsocial.com.br https://*.vipsocial.com.br https://tvvip.social https://*.tvvip.social; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:;");
 
     $this->get("/embed/enquetes/{$placementPublicId}/loader.js")
         ->assertOk()
@@ -425,6 +431,10 @@ test('public boot and widget session return payload and persist hashed session c
         'results_visibility' => 'live',
         'after_end_behavior' => 'show_results_only',
         'timezone' => 'America/Sao_Paulo',
+        'settings' => [
+            'widget_template' => 'clean_white',
+            'result_value_mode' => 'votes',
+        ],
     ]);
 
     $option = PollOption::query()->create([
@@ -444,7 +454,9 @@ test('public boot and widget session return payload and persist hashed session c
         ->assertOk()
         ->assertJsonPath('data.poll.public_id', $poll->public_id)
         ->assertJsonPath('data.poll.options.0.public_id', $option->public_id)
-        ->assertJsonPath('data.state', 'accepting_votes');
+        ->assertJsonPath('data.state', 'accepting_votes')
+        ->assertJsonPath('data.poll.settings.widget_template', 'clean_white')
+        ->assertJsonPath('data.poll.settings.result_value_mode', 'votes');
 
     $sessionResponse = $this->postJson('/api/v1/public/enquetes/widget-sessions', [
         'placement_public_id' => $placement->public_id,
@@ -580,8 +592,8 @@ test('public vote accepts first vote and blocks repeated vote for once ever poli
 
     $this->postJson("/api/v1/public/enquetes/{$poll->public_id}/vote", [
         'placement_public_id' => $placement->public_id,
-        'session_token' => 'vote-session-1',
-        'fingerprint' => 'fp-1',
+        'session_token' => 'vote-session-2',
+        'fingerprint' => 'fp-2',
         'option_public_ids' => [$option->public_id],
     ], [
         'Origin' => 'https://tvvip.social',
@@ -590,7 +602,9 @@ test('public vote accepts first vote and blocks repeated vote for once ever poli
     ])
         ->assertStatus(409)
         ->assertJsonPath('data.accepted', false)
-        ->assertJsonPath('data.block_reason', 'ALREADY_VOTED');
+        ->assertJsonPath('data.block_reason', 'ALREADY_VOTED')
+        ->assertJsonPath('data.results_available', true)
+        ->assertJsonPath('data.results.total_votes', 1);
 });
 
 test('public results stay hidden when poll is configured to hide widget after end', function () {

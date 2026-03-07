@@ -93,12 +93,14 @@ class PollVoteService
                     'created_at' => now(),
                 ]);
 
+                $resultsAvailable = $this->shouldExposeResultsForBlockedVote($poll, $fraudResult['block_reason']);
+
                 return [
                     'accepted' => false,
                     'block_reason' => $fraudResult['block_reason'],
                     'message' => $this->blockedMessage($fraudResult['block_reason']),
-                    'results_available' => false,
-                    'results' => null,
+                    'results_available' => $resultsAvailable,
+                    'results' => $resultsAvailable ? $this->metricsService->publicResults($poll->fresh('options')) : null,
                     'http_status' => 409,
                 ];
             }
@@ -174,5 +176,14 @@ class PollVoteService
             'ALREADY_VOTED_IN_WINDOW' => 'Voce ja votou nesta enquete recentemente.',
             default => 'Voce ja votou nesta enquete.',
         };
+    }
+
+    private function shouldExposeResultsForBlockedVote(Poll $poll, string $blockReason): bool
+    {
+        if (!in_array($blockReason, ['ALREADY_VOTED', 'ALREADY_VOTED_TODAY', 'ALREADY_VOTED_IN_WINDOW'], true)) {
+            return false;
+        }
+
+        return in_array($poll->results_visibility, [Poll::RESULTS_LIVE, Poll::RESULTS_AFTER_VOTE], true);
     }
 }

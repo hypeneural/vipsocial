@@ -18,4 +18,10 @@ return [
         'vote' => (int) env('ENQUETES_RATE_LIMIT_VOTE', 20),
         'events' => (int) env('ENQUETES_RATE_LIMIT_EVENTS', 120),
     ],
+    'embed' => [
+        'frame_ancestors' => env(
+            'ENQUETES_EMBED_FRAME_ANCESTORS',
+            'https://vipsocial.com.br https://*.vipsocial.com.br https://tvvip.social https://*.tvvip.social'
+        ),
+    ],
 ];

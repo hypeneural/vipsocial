@@ -56,11 +56,9 @@ Options -Indexes
 
 # Security headers
 <IfModule mod_headers.c>
-    SetEnvIf Request_URI "^/embed/enquetes/" TVVIP_ENQUETE_EMBED=1
-
     Header set X-Content-Type-Options "nosniff"
     Header set X-XSS-Protection "1; mode=block"
-    Header always unset X-Frame-Options env=TVVIP_ENQUETE_EMBED
-    Header always set Content-Security-Policy "frame-ancestors *" env=TVVIP_ENQUETE_EMBED
-    Header set X-Frame-Options "SAMEORIGIN" env=!TVVIP_ENQUETE_EMBED
+    Header always unset X-Frame-Options "expr=%{REQUEST_URI} =~ m#^/embed/enquetes/#"
+    Header always set Content-Security-Policy "frame-ancestors https://vipsocial.com.br https://*.vipsocial.com.br https://tvvip.social https://*.tvvip.social" "expr=%{REQUEST_URI} =~ m#^/embed/enquetes/#"
+    Header set X-Frame-Options "SAMEORIGIN" "expr=%{REQUEST_URI} !~ m#^/embed/enquetes/#"
 </IfModule>

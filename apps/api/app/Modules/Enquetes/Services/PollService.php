@@ -134,6 +134,7 @@ class PollService
     public function serialize(Poll $poll): array
     {
         $poll->loadMissing(['options', 'placements.site']);
+        $settings = $this->normalizePollSettings($poll->settings ?? []);
 
         return [
             'id' => $poll->id,
@@ -151,7 +152,7 @@ class PollService
             'starts_at' => optional($poll->starts_at)?->toIso8601String(),
             'ends_at' => optional($poll->ends_at)?->toIso8601String(),
             'timezone' => $poll->timezone,
-            'settings' => $poll->settings ?? [],
+            'settings' => $settings,
             'options' => $poll->options
                 ->sortBy('sort_order')
                 ->values()
@@ -180,6 +181,7 @@ class PollService
     public function serializePublic(Poll $poll): array
     {
         $poll->loadMissing('options');
+        $settings = $this->normalizePollSettings($poll->settings ?? []);
 
         return [
             'public_id' => $poll->public_id,
@@ -193,6 +195,7 @@ class PollService
             'starts_at' => optional($poll->starts_at)?->toIso8601String(),
             'ends_at' => optional($poll->ends_at)?->toIso8601String(),
             'timezone' => $poll->timezone,
+            'settings' => $settings,
             'options' => $poll->options
                 ->where('is_active', true)
                 ->sortBy('sort_order')
@@ -264,7 +267,7 @@ class PollService
             'starts_at' => $validated['starts_at'] ?? null,
             'ends_at' => $validated['ends_at'] ?? null,
             'timezone' => $validated['timezone'],
-            'settings' => $validated['settings'] ?? [],
+            'settings' => $this->normalizePollSettings($validated['settings'] ?? []),
             'updated_by' => $userId,
         ]);
 
@@ -297,5 +300,20 @@ class PollService
             ]);
             $option->save();
         }
+    }
+
+    private function normalizePollSettings(array $settings): array
+    {
+        $widgetTemplate = (string) ($settings['widget_template'] ?? '');
+        $resultValueMode = (string) ($settings['result_value_mode'] ?? '');
+
+        return array_merge($settings, [
+            'widget_template' => in_array($widgetTemplate, ['editorial_card', 'clean_white'], true)
+                ? $widgetTemplate
+                : 'editorial_card',
+            'result_value_mode' => in_array($resultValueMode, ['percentage', 'votes', 'both'], true)
+                ? $resultValueMode
+                : 'both',
+        ]);
     }
 }

@@ -16,6 +16,14 @@ export type PollAfterEndBehavior =
   | "hide_widget"
   | "show_closed_message"
   | "show_results_only";
+export type PollWidgetTemplate = "editorial_card" | "clean_white";
+export type PollResultValueMode = "percentage" | "votes" | "both";
+
+export interface PollSettings {
+  widget_template: PollWidgetTemplate;
+  result_value_mode: PollResultValueMode;
+  [key: string]: unknown;
+}
 
 export interface PollOption {
   id: number;
@@ -104,7 +112,7 @@ export interface Poll {
   starts_at: string | null;
   ends_at: string | null;
   timezone: string;
-  settings: Record<string, unknown>;
+  settings: PollSettings;
   options: PollOption[];
   placements: PollPlacementSummary[];
   placements_count: number;
@@ -167,7 +175,7 @@ export interface CreatePollDTO {
   starts_at?: string | null;
   ends_at?: string | null;
   timezone?: string;
-  settings?: Record<string, unknown>;
+  settings?: Partial<PollSettings> & Record<string, unknown>;
   options: PollOptionInput[];
 }
 
