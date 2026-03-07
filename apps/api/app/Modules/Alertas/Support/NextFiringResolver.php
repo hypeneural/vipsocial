@@ -68,4 +68,50 @@ class NextFiringResolver
             default => false,
         };
     }
+
+    public function latestDueForRule(AlertScheduleRule $rule, ?CarbonImmutable $reference = null): ?CarbonImmutable
+    {
+        if (!$rule->active) {
+            return null;
+        }
+
+        $timezone = (string) config('alertas.timezone', config('app.timezone', 'UTC'));
+        $reference ??= CarbonImmutable::now($timezone);
+        $reference = $reference->setTimezone($timezone)->startOfMinute();
+
+        if ($rule->schedule_type === AlertScheduleRule::TYPE_SPECIFIC_DATE) {
+            if ($rule->specific_date === null) {
+                return null;
+            }
+
+            $candidate = CarbonImmutable::parse(
+                $rule->specific_date->format('Y-m-d') . ' ' . $rule->time_hhmm,
+                $timezone
+            );
+
+            return $candidate->lessThanOrEqualTo($reference) ? $candidate : null;
+        }
+
+        if ($rule->schedule_type !== AlertScheduleRule::TYPE_WEEKLY || $rule->day_of_week === null) {
+            return null;
+        }
+
+        for ($offset = 0; $offset <= 7; $offset++) {
+            $candidateDay = $reference->subDays($offset);
+            if ($candidateDay->dayOfWeek !== (int) $rule->day_of_week) {
+                continue;
+            }
+
+            $candidate = CarbonImmutable::parse(
+                $candidateDay->format('Y-m-d') . ' ' . $rule->time_hhmm,
+                $timezone
+            );
+
+            if ($candidate->lessThanOrEqualTo($reference)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
 }

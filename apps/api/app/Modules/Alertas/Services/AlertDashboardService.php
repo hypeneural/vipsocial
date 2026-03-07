@@ -10,8 +10,10 @@ use Carbon\CarbonImmutable;
 
 class AlertDashboardService
 {
-    public function __construct(private readonly NextFiringResolver $nextFiringResolver)
-    {
+    public function __construct(
+        private readonly NextFiringResolver $nextFiringResolver,
+        private readonly AlertMonitoringService $monitoringService
+    ) {
     }
 
     public function stats(): array
@@ -21,12 +23,25 @@ class AlertDashboardService
         $startOfDay = $now->startOfDay();
         $last7Days = $now->subDays(6)->startOfDay();
         $nextFirings = $this->collectNextFirings();
+        $overdueAlerts = Alert::query()
+            ->active()
+            ->with([
+                'scheduleRules' => fn($query) => $query->active(),
+                'destinations' => fn($query) => $query->active(),
+                'latestScheduledRun',
+            ])
+            ->get();
+        $monitoring = $this->monitoringService->evaluateMany($overdueAlerts, $now);
+        $overdueCount = $monitoring
+            ->filter(fn(array $state) => in_array($state['state'], ['missed', 'delayed', 'sent_late'], true))
+            ->count();
 
         return [
             'total_destinations' => AlertDestination::query()->whereNull('archived_at')->count(),
             'active_destinations' => AlertDestination::query()->active()->count(),
             'total_alerts' => Alert::query()->whereNull('archived_at')->count(),
             'active_alerts' => Alert::query()->active()->count(),
+            'overdue_alerts' => $overdueCount,
             'next_firings_count' => $nextFirings->count(),
             'today_sent' => AlertDispatchLog::query()
                 ->where('status', AlertDispatchLog::STATUS_SUCCESS)
@@ -143,6 +158,22 @@ class AlertDashboardService
         $hours = intdiv($diffMinutes, 60);
         $minutes = $diffMinutes % 60;
 
-        return sprintf('Em %dh %02dmin', $hours, $minutes);
+        if ($hours < 24) {
+            return sprintf('Em %dh %02dmin', $hours, $minutes);
+        }
+
+        $days = intdiv($hours, 24);
+        $remainingHours = $hours % 24;
+
+        if ($remainingHours === 0) {
+            return sprintf('Em %d dia%s', $days, $days === 1 ? '' : 's');
+        }
+
+        return sprintf(
+            'Em %d dia%s e %dh',
+            $days,
+            $days === 1 ? '' : 's',
+            $remainingHours
+        );
     }
 }

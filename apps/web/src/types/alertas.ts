@@ -34,6 +34,35 @@ export interface AlertSchedule {
     schedule_active: boolean;
 }
 
+export interface AlertMonitoring {
+    state:
+        | "no_schedule"
+        | "no_active_destinations"
+        | "upcoming"
+        | "pending"
+        | "delayed"
+        | "missed"
+        | "success"
+        | "sent_late"
+        | "partial"
+        | "failed"
+        | "unknown";
+    label: string;
+    next_fire_at: string | null;
+    scheduled_for: string | null;
+    delay_minutes: number;
+    last_run_status:
+        | "pending"
+        | "processing"
+        | "partial"
+        | "success"
+        | "failed"
+        | "cancelled"
+        | null;
+    last_run_created_at: string | null;
+    last_run_finished_at: string | null;
+}
+
 export interface Alert {
     alert_id: number;
     title: string;
@@ -41,6 +70,8 @@ export interface Alert {
     active: boolean;
     archived_at?: string | null;
     destination_count: number;
+    next_fire_at?: string | null;
+    monitoring: AlertMonitoring;
     destinations: Destination[];
     schedule_rules: AlertScheduleRule[];
     schedules: AlertSchedule[];
@@ -98,6 +129,7 @@ export interface AlertsStats {
     active_destinations: number;
     total_alerts: number;
     active_alerts: number;
+    overdue_alerts: number;
     next_firings_count: number;
     today_sent: number;
     today_failed: number;
@@ -181,7 +213,10 @@ export const calculateTimeUntil = (
         display = `Em ${diffHours}h ${remainingMins}min`;
     } else {
         const days = Math.floor(diffHours / 24);
-        display = `Em ${days} dia${days !== 1 ? "s" : ""}`;
+        const remainingHours = diffHours % 24;
+        display = remainingHours > 0
+            ? `Em ${days} dia${days !== 1 ? "s" : ""} e ${remainingHours}h`
+            : `Em ${days} dia${days !== 1 ? "s" : ""}`;
     }
 
     return { display, ms: diffMs };
@@ -236,6 +271,26 @@ export const formatLogStatusLabel = (status: AlertLog["status"]): string => {
             return "Ignorado";
         default:
             return status;
+    }
+};
+
+export const getAlertMonitoringTone = (state: AlertMonitoring["state"]): string => {
+    switch (state) {
+        case "missed":
+        case "delayed":
+        case "failed":
+            return "bg-destructive/10 text-destructive border-destructive/20";
+        case "sent_late":
+        case "partial":
+        case "pending":
+            return "bg-warning/10 text-warning border-warning/20";
+        case "no_active_destinations":
+            return "bg-muted text-muted-foreground border-border/50";
+        case "success":
+        case "upcoming":
+            return "bg-success/10 text-success border-success/20";
+        default:
+            return "bg-muted/50 text-muted-foreground border-border/50";
     }
 };
 

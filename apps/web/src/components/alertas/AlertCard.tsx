@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
-import { BarChart3, Bell, Calendar, Copy, Edit, Pause, Play, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Calendar, Copy, Edit, Pause, Play, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, formatScheduleRuleLabel } from "@/types/alertas";
+import { Alert, formatScheduleRuleLabel, getAlertMonitoringTone } from "@/types/alertas";
 import { cn } from "@/lib/utils";
 
 interface AlertCardProps {
@@ -11,6 +11,7 @@ interface AlertCardProps {
     onDuplicate?: (id: number) => void;
     onViewLogs?: (id: number) => void;
     onToggle?: (id: number) => void;
+    onDelete?: (id: number) => void;
 }
 
 export const AlertCard = ({
@@ -19,12 +20,17 @@ export const AlertCard = ({
     onDuplicate,
     onViewLogs,
     onToggle,
+    onDelete,
 }: AlertCardProps) => {
     const rules = alert.schedule_rules ?? [];
     const primaryRule = rules[0];
     const moreRulesCount = Math.max(0, rules.length - 1);
     const truncatedMessage =
         alert.message.length > 100 ? `${alert.message.slice(0, 100)}...` : alert.message;
+    const monitoring = alert.monitoring;
+    const showAttention = ["missed", "delayed", "failed", "sent_late", "partial", "pending"].includes(
+        monitoring.state
+    );
 
     return (
         <motion.div
@@ -52,9 +58,20 @@ export const AlertCard = ({
                     </div>
                     <div>
                         <h3 className="font-semibold text-base">{alert.title}</h3>
-                        <Badge variant={alert.active ? "default" : "secondary"} className="text-xs">
-                            {alert.active ? "Ativo" : "Pausado"}
-                        </Badge>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <Badge variant={alert.active ? "default" : "secondary"} className="text-xs">
+                                {alert.active ? "Ativo" : "Pausado"}
+                            </Badge>
+                            <span
+                                className={cn(
+                                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                                    getAlertMonitoringTone(monitoring.state)
+                                )}
+                            >
+                                {showAttention ? <AlertTriangle className="h-3 w-3" /> : null}
+                                {monitoring.label}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -82,6 +99,25 @@ export const AlertCard = ({
             <div className="bg-muted/50 rounded-lg p-3 mb-4">
                 <p className="text-sm text-muted-foreground line-clamp-2">"{truncatedMessage}"</p>
             </div>
+
+            {showAttention && monitoring.scheduled_for ? (
+                <div className="mb-4 rounded-lg border border-warning/20 bg-warning/5 p-3 text-xs text-warning">
+                    <p className="font-medium">
+                        Referencia:{" "}
+                        {new Date(monitoring.scheduled_for).toLocaleString("pt-BR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        })}
+                    </p>
+                    {monitoring.delay_minutes > 0 ? (
+                        <p className="mt-1 text-warning/90">
+                            Atraso atual: {monitoring.delay_minutes} minuto{monitoring.delay_minutes === 1 ? "" : "s"}.
+                        </p>
+                    ) : null}
+                </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
                 {onEdit ? (
@@ -138,6 +174,18 @@ export const AlertCard = ({
                                 Ativar
                             </>
                         )}
+                    </Button>
+                ) : null}
+
+                {!alert.active && onDelete ? (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onDelete(alert.alert_id)}
+                        className="rounded-lg border-destructive/30 text-destructive hover:bg-destructive/10"
+                    >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Excluir
                     </Button>
                 ) : null}
             </div>

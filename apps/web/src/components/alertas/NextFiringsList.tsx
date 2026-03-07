@@ -58,7 +58,7 @@ export const NextFiringsList = ({
 
                     {/* Time Until */}
                     <div className={cn(
-                        "text-sm font-medium px-3 py-1 rounded-full flex-shrink-0",
+                        "max-w-[12rem] text-right text-sm font-medium px-3 py-1 rounded-full flex-shrink-0",
                         firing.time_until_ms < 15 * 60 * 1000
                             ? "bg-warning/20 text-warning"
                             : "bg-primary/10 text-primary"

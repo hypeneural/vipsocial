@@ -305,7 +305,7 @@ test('manual send creates dispatch run and logs provider ids preserving group ta
 });
 
 test('dashboard stats and next firings return operational data', function () {
-    CarbonImmutable::setTestNow('2026-03-06 10:00:00');
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-03-06 10:00:00', 'America/Sao_Paulo'));
 
     Sanctum::actingAs(makeAuthenticatedAlertUser());
     $destination = createAlertDestination();
@@ -350,6 +350,7 @@ test('dashboard stats and next firings return operational data', function () {
         ->assertJsonPath('data.active_destinations', 1)
         ->assertJsonPath('data.total_alerts', 1)
         ->assertJsonPath('data.active_alerts', 1)
+        ->assertJsonPath('data.overdue_alerts', 0)
         ->assertJsonPath('data.today_sent', 1)
         ->assertJsonPath('data.failed_last_7_days', 0);
 
@@ -358,6 +359,35 @@ test('dashboard stats and next firings return operational data', function () {
         ->assertJsonPath('data.0.alert_id', $alert->id)
         ->assertJsonPath('data.0.scheduled_time', '11:45')
         ->assertJsonPath('data.0.destination_count', 1);
+});
+
+test('alert list and dashboard expose overdue scheduler gap when a due alert has no run', function () {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-03-06 10:00:00', 'America/Sao_Paulo'));
+
+    Sanctum::actingAs(makeAuthenticatedAlertUser());
+    $destination = createAlertDestination();
+    $alert = createAlertWithRule([], [
+        'day_of_week' => 5,
+        'time_hhmm' => '09:45',
+        'rule_key' => 'weekly:5:09:45',
+    ]);
+    Alert::query()->whereKey($alert->id)->update([
+        'created_at' => '2026-03-06 08:00:00',
+        'updated_at' => '2026-03-06 08:00:00',
+    ]);
+    $alert->refresh();
+    $alert->destinations()->sync([$destination->id]);
+
+    $this->getJson('/api/v1/alertas?per_page=10&include_inactive=1')
+        ->assertOk()
+        ->assertJsonPath('data.0.alert_id', $alert->id)
+        ->assertJsonPath('data.0.monitoring.state', 'missed')
+        ->assertJsonPath('data.0.monitoring.delay_minutes', 15)
+        ->assertJsonPath('data.0.monitoring.label', 'Disparo atrasado');
+
+    $this->getJson('/api/v1/alertas/dashboard/stats')
+        ->assertOk()
+        ->assertJsonPath('data.overdue_alerts', 1);
 });
 
 test('retry endpoint creates a new retry run for original destination', function () {

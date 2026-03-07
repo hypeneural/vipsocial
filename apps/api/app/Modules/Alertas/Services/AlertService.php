@@ -13,8 +13,10 @@ use RuntimeException;
 
 class AlertService
 {
-    public function __construct(private readonly NextFiringResolver $nextFiringResolver)
-    {
+    public function __construct(
+        private readonly NextFiringResolver $nextFiringResolver,
+        private readonly AlertMonitoringService $monitoringService
+    ) {
     }
 
     public function paginate(array $filters = []): LengthAwarePaginator
@@ -26,7 +28,7 @@ class AlertService
         $destinationId = $filters['destination_id'] ?? null;
 
         $query = Alert::query()
-            ->with(['destinations', 'scheduleRules'])
+            ->with(['destinations', 'scheduleRules', 'latestScheduledRun'])
             ->withCount('destinations')
             ->orderByDesc('active')
             ->orderByDesc('id');
@@ -161,13 +163,15 @@ class AlertService
 
     public function serialize(Alert $alert): array
     {
-        $alert->loadMissing(['destinations', 'scheduleRules']);
+        $alert->loadMissing(['destinations', 'scheduleRules', 'latestScheduledRun']);
         $rules = $alert->scheduleRules->sortBy([
             ['schedule_type', 'asc'],
             ['specific_date', 'asc'],
             ['day_of_week', 'asc'],
             ['time_hhmm', 'asc'],
         ])->values();
+        $monitoring = $this->monitoringService->evaluate($alert);
+        $nextFireAt = $monitoring['next_fire_at'];
 
         return [
             'alert_id' => $alert->id,
@@ -176,6 +180,8 @@ class AlertService
             'active' => (bool) $alert->active,
             'archived_at' => $alert->archived_at?->toIso8601String(),
             'destination_count' => (int) ($alert->destinations_count ?? $alert->destinations->count()),
+            'next_fire_at' => $nextFireAt,
+            'monitoring' => $monitoring,
             'destinations' => $alert->destinations->map(fn($destination) => [
                 'destination_id' => $destination->id,
                 'name' => $destination->name,

@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, Plus, Search } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Bell, Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertCard } from "@/components/alertas/AlertCard";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Alert } from "@/types/alertas";
 import {
     useAlerts,
+    useDeleteAlert,
     useDuplicateAlert,
     useToggleAlert,
 } from "@/hooks/useAlertas";
@@ -15,7 +18,8 @@ import {
 const AlertsList = () => {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
-    const [filterStatus, setFilterStatus] = useState<"all" | "active" | "paused">("all");
+    const [filterStatus, setFilterStatus] = useState<"all" | "active" | "paused" | "attention">("all");
+    const [alertPendingDelete, setAlertPendingDelete] = useState<Alert | null>(null);
 
     const alertsQuery = useAlerts({
         per_page: 100,
@@ -23,13 +27,17 @@ const AlertsList = () => {
         include_inactive: true,
         include_archived: false,
     });
+    const deleteMutation = useDeleteAlert();
     const duplicateMutation = useDuplicateAlert();
     const toggleMutation = useToggleAlert();
 
     const alerts = alertsQuery.data?.data ?? [];
+    const attentionStates = new Set(["missed", "delayed", "failed", "sent_late", "partial", "pending"]);
+    const attentionAlertsCount = alerts.filter((alert) => attentionStates.has(alert.monitoring.state)).length;
     const filteredAlerts = alerts.filter((alert) => {
         if (filterStatus === "active" && !alert.active) return false;
         if (filterStatus === "paused" && alert.active) return false;
+        if (filterStatus === "attention" && !attentionStates.has(alert.monitoring.state)) return false;
         return true;
     });
 
@@ -52,6 +60,19 @@ const AlertsList = () => {
     const handleToggle = async (id: number) => {
         try {
             await toggleMutation.mutateAsync(id);
+        } catch {
+            return;
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!alertPendingDelete) {
+            return;
+        }
+
+        try {
+            await deleteMutation.mutateAsync(alertPendingDelete.alert_id);
+            setAlertPendingDelete(null);
         } catch {
             return;
         }
@@ -106,14 +127,38 @@ const AlertsList = () => {
                 </div>
                 <select
                     value={filterStatus}
-                    onChange={(event) => setFilterStatus(event.target.value as "all" | "active" | "paused")}
+                    onChange={(event) => setFilterStatus(event.target.value as "all" | "active" | "paused" | "attention")}
                     className="px-4 py-2 border rounded-xl bg-background text-sm"
                 >
                     <option value="all">Todos os status</option>
                     <option value="active">Ativos</option>
                     <option value="paused">Pausados</option>
+                    <option value="attention">Com atencao</option>
                 </select>
             </motion.div>
+
+            {attentionAlertsCount > 0 ? (
+                <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 rounded-2xl border border-destructive/20 bg-destructive/5 p-4"
+                >
+                    <div className="flex items-start gap-3">
+                        <div className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-destructive/10">
+                            <AlertTriangle className="h-5 w-5 text-destructive" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="font-semibold text-destructive">
+                                {attentionAlertsCount} alerta{attentionAlertsCount === 1 ? "" : "s"} exige
+                                acompanhamento
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                Existem alertas com fila atrasada, horario vencido ou envio com atraso.
+                            </p>
+                        </div>
+                    </div>
+                </motion.div>
+            ) : null}
 
             {alertsQuery.isLoading ? (
                 <div className="rounded-2xl border border-border/50 bg-card p-6 text-sm text-muted-foreground">
@@ -139,6 +184,7 @@ const AlertsList = () => {
                                 onDuplicate={handleDuplicate}
                                 onViewLogs={handleViewLogs}
                                 onToggle={handleToggle}
+                                onDelete={(id) => setAlertPendingDelete(alerts.find((item) => item.alert_id === id) ?? null)}
                             />
                         </motion.div>
                     ))}
@@ -157,6 +203,30 @@ const AlertsList = () => {
                     ) : null}
                 </motion.div>
             )}
+
+            <ConfirmDialog
+                open={alertPendingDelete !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setAlertPendingDelete(null);
+                    }
+                }}
+                title="Arquivar alerta?"
+                description={
+                    alertPendingDelete ? (
+                        <>
+                            O alerta <strong>"{alertPendingDelete.title}"</strong> sera arquivado e saira da operacao
+                            ativa. O historico de disparos sera preservado.
+                        </>
+                    ) : (
+                        ""
+                    )
+                }
+                confirmText="Arquivar alerta"
+                variant="danger"
+                loading={deleteMutation.isPending}
+                onConfirm={handleDelete}
+            />
         </AppShell>
     );
 };

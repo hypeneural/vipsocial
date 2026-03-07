@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
+    AlertTriangle,
     ArrowRight,
     Bell,
     CheckCircle,
@@ -85,7 +86,7 @@ const AlertsDashboard = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.1 }}
-                className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"
+                className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6"
             >
                 <Link to="/alertas/destinos" className="block">
                     <div className="bg-card rounded-2xl border border-border/50 p-4 text-center hover:shadow-md transition-shadow">
@@ -115,6 +116,16 @@ const AlertsDashboard = () => {
                     <p className="text-xs text-muted-foreground">Proximos Disparos</p>
                 </div>
 
+                <Link to="/alertas/lista" className="block">
+                    <div className="bg-card rounded-2xl border border-border/50 p-4 text-center hover:shadow-md transition-shadow">
+                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-destructive/10 mb-2">
+                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                        </div>
+                        <p className="text-2xl font-bold">{stats?.overdue_alerts ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Com Atraso</p>
+                    </div>
+                </Link>
+
                 <Link to="/alertas/logs" className="block">
                     <div className="bg-card rounded-2xl border border-border/50 p-4 text-center hover:shadow-md transition-shadow">
                         <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-success/10 mb-2">
@@ -135,6 +146,30 @@ const AlertsDashboard = () => {
                     </div>
                 </Link>
             </motion.div>
+
+            {(stats?.overdue_alerts ?? 0) > 0 ? (
+                <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className="mb-6 rounded-2xl border border-destructive/20 bg-destructive/5 p-4"
+                >
+                    <div className="flex items-start gap-3">
+                        <div className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-destructive/10">
+                            <AlertTriangle className="h-5 w-5 text-destructive" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="font-semibold text-destructive">
+                                Ha alerta{(stats?.overdue_alerts ?? 0) === 1 ? "" : "s"} com atraso operacional
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                Existe horario vencido sem conclusao no tempo esperado ou envio concluido com atraso.
+                                Revise a fila e a lista de alertas para localizar o item afetado.
+                            </p>
+                        </div>
+                    </div>
+                </motion.div>
+            ) : null}
 
             <div className="grid lg:grid-cols-2 gap-6">
                 <motion.div

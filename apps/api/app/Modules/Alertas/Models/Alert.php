@@ -4,6 +4,7 @@ namespace App\Modules\Alertas\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Alert extends Model
@@ -42,6 +43,13 @@ class Alert extends Model
     public function dispatchRuns(): HasMany
     {
         return $this->hasMany(AlertDispatchRun::class);
+    }
+
+    public function latestScheduledRun(): HasOne
+    {
+        return $this->hasOne(AlertDispatchRun::class)
+            ->where('trigger_type', AlertDispatchRun::TRIGGER_SCHEDULER)
+            ->latestOfMany('scheduled_for');
     }
 
     public function scopeNotArchived($query)
