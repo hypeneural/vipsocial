@@ -4,6 +4,7 @@
     </IfModule>
 
     RewriteEngine On
+    RewriteBase /
 
     # Keep auth headers for Laravel/Sanctum
     RewriteCond %{HTTP:Authorization} .
@@ -22,10 +23,44 @@
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]
 
-    # API/backend routes must go to Laravel front controller
-    RewriteCond %{REQUEST_URI} ^/(api|sanctum|broadcasting) [NC]
+    # Routes handled by Laravel before the SPA catch-all
+    RewriteCond %{REQUEST_URI} ^/(api|sanctum|broadcasting|embed/enquetes|media/enquetes) [NC]
     RewriteRule ^ index.php [L]
 
     # SPA fallback for frontend routes
     RewriteRule ^ index.html [L]
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+
+# Enable GZIP compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css application/json
+    AddOutputFilterByType DEFLATE application/javascript text/javascript
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    SetEnvIf Request_URI "^/embed/enquetes/" TVVIP_ENQUETE_EMBED=1
+
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header always unset X-Frame-Options env=TVVIP_ENQUETE_EMBED
+    Header always set Content-Security-Policy "frame-ancestors *" env=TVVIP_ENQUETE_EMBED
+    Header set X-Frame-Options "SAMEORIGIN" env=!TVVIP_ENQUETE_EMBED
 </IfModule>

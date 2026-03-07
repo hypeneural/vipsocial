@@ -754,10 +754,10 @@ const EnqueteResultados = () => {
                               variant="outline"
                               size="sm"
                               className="rounded-lg text-xs"
-                              onClick={() => handleCopyEmbed(fullPlacement.embed_url)}
+                              onClick={() => setEmbedDialogPlacementId(fullPlacement.id)}
                             >
                               <Copy className="mr-1 h-3 w-3" />
-                              Copiar embed
+                              Codigos
                             </Button>
                           ) : null}
                         </div>
