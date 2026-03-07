@@ -19,6 +19,14 @@ class PollStateResolver
             return 'ended_hide';
         }
 
+        if ($poll->status === Poll::STATUS_CLOSED) {
+            return match ($poll->after_end_behavior) {
+                Poll::END_HIDE_WIDGET => 'ended_hide',
+                Poll::END_SHOW_CLOSED_MESSAGE => 'ended_closed_message',
+                default => 'ended_results_only',
+            };
+        }
+
         if ($poll->starts_at !== null && $current->lt(CarbonImmutable::instance($poll->starts_at)->setTimezone($current->getTimezone()))) {
             return 'not_started';
         }

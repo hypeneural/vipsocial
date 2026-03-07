@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Copy, ExternalLink } from "lucide-react";
 import {
   Dialog,
@@ -20,18 +20,18 @@ interface PollEmbedCodeDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-function buildLoaderSnippet(placement: PollPlacement) {
-  return `<script src="${placement.embed_loader_url}" data-min-height="640" data-max-width="720px" async></script>`;
+function buildLoaderSnippet(placement: PollPlacement, minHeight: number) {
+  return `<script src="${placement.embed_loader_url}" data-min-height="${minHeight}" data-max-width="720px" async></script>`;
 }
 
-function buildIframeSnippet(placement: PollPlacement) {
+function buildIframeSnippet(placement: PollPlacement, minHeight: number) {
   return [
     "<div style=\"width: 100%; max-width: 720px; margin: 0 auto; overflow: hidden;\">",
     `  <iframe src="${placement.embed_url}"`,
     "    loading=\"lazy\"",
     "    frameborder=\"0\"",
     "    scrolling=\"no\"",
-    "    style=\"width: 100%; min-height: 640px; border: none; overflow: hidden; display: block; background: transparent;\">",
+    `    style="width: 100%; min-height: ${minHeight}px; border: none; overflow: hidden; display: block; background: transparent;">`,
     "  </iframe>",
     "</div>",
   ].join("\n");
@@ -42,16 +42,18 @@ export function PollEmbedCodeDialog({
   open,
   onOpenChange,
 }: PollEmbedCodeDialogProps) {
+  const [minHeight, setMinHeight] = useState(640);
+
   const snippets = useMemo(() => {
     if (!placement) {
       return { loader: "", iframe: "" };
     }
 
     return {
-      loader: buildLoaderSnippet(placement),
-      iframe: buildIframeSnippet(placement),
+      loader: buildLoaderSnippet(placement, minHeight),
+      iframe: buildIframeSnippet(placement, minHeight),
     };
-  }, [placement]);
+  }, [placement, minHeight]);
 
   const copySnippet = async (content: string, successMessage: string) => {
     if (!content) {
@@ -79,57 +81,73 @@ export function PollEmbedCodeDialog({
 
         {!placement ? (
           <div className="rounded-xl border border-border/50 bg-secondary/20 p-4 text-sm text-muted-foreground">
-            Nenhum placement selecionado para gerar o codigo.
+            Nenhuma incorporação selecionada para gerar o código.
           </div>
         ) : (
-          <Tabs defaultValue="loader" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="loader">Responsivo Automatico (JS)</TabsTrigger>
-              <TabsTrigger value="iframe">Iframe Responsivo Simples</TabsTrigger>
-            </TabsList>
+          <>
+            <div className="mb-4 flex items-center gap-3">
+              <label className="text-sm font-medium whitespace-nowrap">Altura mínima (px)</label>
+              <input
+                type="number"
+                min={300}
+                max={2000}
+                step={10}
+                value={minHeight}
+                onChange={(e) => setMinHeight(Math.max(300, Number(e.target.value) || 640))}
+                className="w-24 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-sm"
+              />
+              <span className="text-xs text-muted-foreground">Aumente se as opções ficam cortadas</span>
+            </div>
 
-            <TabsContent value="loader" className="space-y-3">
-              <div className="rounded-xl border border-border/50 bg-secondary/20 p-4">
-                <p className="mb-3 text-sm text-muted-foreground">
-                  Recomendado. O loader injeta o iframe e ajusta a altura automaticamente.
-                </p>
-                <Textarea readOnly value={snippets.loader} className="min-h-[160px] rounded-xl font-mono text-xs" />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" className="rounded-xl" onClick={() => copySnippet(snippets.loader, "Snippet JS copiado")}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar JS
-                </Button>
-                <Button type="button" variant="outline" className="rounded-xl" asChild>
-                  <a href={placement.embed_loader_url} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir loader.js
-                  </a>
-                </Button>
-              </div>
-            </TabsContent>
+            <Tabs defaultValue="loader" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="loader">Responsivo Automatico (JS)</TabsTrigger>
+                <TabsTrigger value="iframe">Iframe Responsivo Simples</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="iframe" className="space-y-3">
-              <div className="rounded-xl border border-border/50 bg-secondary/20 p-4">
-                <p className="mb-3 text-sm text-muted-foreground">
-                  Alternativa simples. Mantem controle direto do container no site host.
-                </p>
-                <Textarea readOnly value={snippets.iframe} className="min-h-[220px] rounded-xl font-mono text-xs" />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" className="rounded-xl" onClick={() => copySnippet(snippets.iframe, "Snippet iframe copiado")}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar iframe
-                </Button>
-                <Button type="button" variant="outline" className="rounded-xl" asChild>
-                  <a href={placement.embed_url} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir iframe
-                  </a>
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="loader" className="space-y-3">
+                <div className="rounded-xl border border-border/50 bg-secondary/20 p-4">
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Recomendado. O loader injeta o iframe e ajusta a altura automaticamente.
+                  </p>
+                  <Textarea readOnly value={snippets.loader} className="min-h-[160px] rounded-xl font-mono text-xs" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" className="rounded-xl" onClick={() => copySnippet(snippets.loader, "Snippet JS copiado")}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar JS
+                  </Button>
+                  <Button type="button" variant="outline" className="rounded-xl" asChild>
+                    <a href={placement.embed_loader_url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Abrir loader.js
+                    </a>
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="iframe" className="space-y-3">
+                <div className="rounded-xl border border-border/50 bg-secondary/20 p-4">
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Alternativa simples. Mantem controle direto do container no site host.
+                  </p>
+                  <Textarea readOnly value={snippets.iframe} className="min-h-[220px] rounded-xl font-mono text-xs" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" className="rounded-xl" onClick={() => copySnippet(snippets.iframe, "Snippet iframe copiado")}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar iframe
+                  </Button>
+                  <Button type="button" variant="outline" className="rounded-xl" asChild>
+                    <a href={placement.embed_url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Abrir iframe
+                    </a>
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </>
         )}
 
         <DialogFooter>

@@ -278,6 +278,8 @@ class PollService
 
     private function syncOptions(Poll $poll, array $optionsPayload): void
     {
+        $submittedIds = [];
+
         foreach ($optionsPayload as $index => $optionData) {
             $option = null;
 
@@ -299,7 +301,11 @@ class PollService
                     : true,
             ]);
             $option->save();
+
+            $submittedIds[] = $option->id;
         }
+
+        $poll->options()->whereNotIn('id', $submittedIds)->delete();
     }
 
     private function normalizePollSettings(array $settings): array

@@ -38,10 +38,10 @@ const EnquetePlacements = () => {
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm text-primary">
               <Link2 className="h-4 w-4" />
-              Placements e embed
+              Incorporações
             </div>
             <h1 className="text-xl font-bold md:text-2xl">
-              {poll ? `Placements de ${poll.title}` : "Placements da enquete"}
+              {poll ? `Incorporações de ${poll.title}` : "Incorporações da enquete"}
             </h1>
             <p className="text-sm text-muted-foreground">
               Cadastre paginas, artigos e URLs canonicas onde o widget sera incorporado.
@@ -67,7 +67,7 @@ const EnquetePlacements = () => {
         </div>
       ) : pollQuery.isError ? (
         <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
-          Nao foi possivel carregar a enquete para gerenciar placements.
+          Nao foi possivel carregar a enquete para gerenciar incorporações.
         </div>
       ) : (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>

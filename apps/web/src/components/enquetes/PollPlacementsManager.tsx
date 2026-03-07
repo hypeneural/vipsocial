@@ -136,7 +136,7 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
       <div className="rounded-2xl border border-border/50 bg-card p-6">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Placements e embed</h2>
+            <h2 className="text-lg font-semibold">Incorporações</h2>
             <p className="text-sm text-muted-foreground">
               Vincule a enquete a artigos, paginas e parceiros externos.
             </p>
@@ -144,17 +144,17 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
 
           <Button type="button" variant="outline" className="rounded-xl" onClick={openCreateDialog}>
             <Plus className="mr-2 h-4 w-4" />
-            Novo placement
+            Nova incorporação
           </Button>
         </div>
 
         {placementsQuery.isLoading ? (
           <div className="rounded-xl border border-dashed border-border/60 bg-background/60 p-4 text-sm text-muted-foreground">
-            Carregando placements...
+            Carregando incorporações...
           </div>
         ) : placements.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/60 bg-background/60 p-4 text-sm text-muted-foreground">
-            Nenhum placement cadastrado para esta enquete.
+            Nenhuma incorporação cadastrada para esta enquete.
           </div>
         ) : (
           <div className="space-y-4">
@@ -237,15 +237,15 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="rounded-2xl sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{form.id ? "Editar placement" : "Novo placement"}</DialogTitle>
+            <DialogTitle>{form.id ? "Editar incorporação" : "Nova incorporação"}</DialogTitle>
             <DialogDescription>
-              Use placements para medir artigo, URL e origem do embed.
+              Vincule a enquete a artigos, URLs e páginas onde o widget será incorporado.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="placement-name">Nome do placement *</Label>
+              <Label htmlFor="placement-name">Nome da incorporação *</Label>
               <Input
                 id="placement-name"
                 value={form.placement_name}
@@ -329,9 +329,9 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
             <div className="rounded-xl border border-border/60 bg-background/60 px-4 py-3 md:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Placement ativo</p>
+                  <p className="text-sm font-medium">Incorporação ativa</p>
                   <p className="text-xs text-muted-foreground">
-                    Placements inativos nao devem aceitar boot nem voto.
+                    Incorporações inativas não aceitam boot nem voto.
                   </p>
                 </div>
                 <Switch

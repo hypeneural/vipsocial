@@ -204,10 +204,10 @@ const EnqueteForm = () => {
       current.map((option) =>
         option.local_id === localId
           ? {
-              ...option,
-              image_url: updatedOption.image_url,
-              image_thumb_url: updatedOption.image_thumb_url,
-            }
+            ...option,
+            image_url: updatedOption.image_url,
+            image_thumb_url: updatedOption.image_thumb_url,
+          }
           : option
       )
     );
@@ -701,7 +701,7 @@ const EnqueteForm = () => {
               <div className="mb-3 flex flex-wrap gap-2">
                 <Link to={`/engajamento/enquetes/${pollId}/placements`}>
                   <Button variant="outline" className="rounded-xl">
-                    Abrir pagina de placements
+                    Gerenciar incorporações
                   </Button>
                 </Link>
                 <Link to={`/engajamento/enquetes/${pollId}/resultados`}>

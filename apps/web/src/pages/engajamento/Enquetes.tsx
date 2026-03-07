@@ -192,7 +192,7 @@ const Enquetes = () => {
           <div>
             <h1 className="text-xl font-bold md:text-2xl">Enquetes</h1>
             <p className="text-sm text-muted-foreground">
-              Gerencie enquetes, placements e acompanhe resultados reais.
+              Gerencie enquetes, incorporações e acompanhe resultados reais.
             </p>
           </div>
 
@@ -354,7 +354,7 @@ const Enquetes = () => {
                             </span>
                             <span className="flex items-center gap-1">
                               <BarChart3 className="h-3 w-3" />
-                              {poll.placements_count} placements
+                              {poll.placements_count} incorporações
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
@@ -377,7 +377,9 @@ const Enquetes = () => {
                         </div>
                         <div className="rounded-xl border border-border/50 bg-secondary/30 p-3">
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">Visibilidade</p>
-                          <p className="mt-1 text-sm font-semibold">{poll.results_visibility}</p>
+                          <p className="mt-1 text-sm font-semibold">
+                            {{ live: "Ao vivo", after_vote: "Após o voto", after_end: "Após encerrar", never: "Nunca" }[poll.results_visibility] ?? poll.results_visibility}
+                          </p>
                         </div>
                       </div>
 
@@ -404,7 +406,7 @@ const Enquetes = () => {
                           className="h-8 rounded-lg text-xs"
                           onClick={() => navigate(`/engajamento/enquetes/${poll.id}/placements`)}
                         >
-                          Placements
+                          Incorporações
                         </Button>
 
                         <DropdownMenu>
