@@ -5,6 +5,7 @@ namespace App\Modules\Alertas\Services;
 use App\Modules\Alertas\Models\Alert;
 use App\Modules\Alertas\Models\AlertDestination;
 use App\Modules\Alertas\Models\AlertDispatchLog;
+use App\Modules\Alertas\Support\AlertDatePresenter;
 use App\Modules\Alertas\Support\NextFiringResolver;
 use Carbon\CarbonImmutable;
 
@@ -33,7 +34,7 @@ class AlertDashboardService
             ->get();
         $monitoring = $this->monitoringService->evaluateMany($overdueAlerts, $now);
         $overdueCount = $monitoring
-            ->filter(fn(array $state) => in_array($state['state'], ['missed', 'delayed', 'sent_late'], true))
+            ->filter(fn(array $state) => in_array($state['state'], ['missed', 'delayed'], true))
             ->count();
 
         return [
@@ -121,6 +122,7 @@ class AlertDashboardService
     public function recentLogs(int $limit = 10): array
     {
         return AlertDispatchLog::query()
+            ->with('run')
             ->latest('created_at')
             ->limit($limit)
             ->get()
@@ -132,11 +134,12 @@ class AlertDashboardService
                     'destination_id' => $log->destination_id,
                     'destination_name' => $log->destination_name_snapshot,
                     'status' => $log->status,
+                    'trigger_type' => $log->run?->trigger_type,
                     'target_kind' => $log->target_kind,
                     'target_value' => $log->target_value,
                     'provider' => $log->provider,
-                    'sent_at' => $log->sent_at?->toIso8601String(),
-                    'created_at' => $log->created_at?->toIso8601String(),
+                    'sent_at' => AlertDatePresenter::isoFromStored($log, 'sent_at'),
+                    'created_at' => AlertDatePresenter::isoFromValue($log->created_at),
                     'success' => $log->status === AlertDispatchLog::STATUS_SUCCESS,
                     'response_message_id' => $log->provider_message_id,
                     'response_zaap_id' => $log->provider_zaap_id,

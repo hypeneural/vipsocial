@@ -6,6 +6,7 @@ use App\Modules\Alertas\Http\Requests\AlertListRequest;
 use App\Modules\Alertas\Http\Requests\StoreAlertRequest;
 use App\Modules\Alertas\Http\Requests\UpdateAlertRequest;
 use App\Modules\Alertas\Models\Alert;
+use App\Modules\Alertas\Support\AlertDatePresenter;
 use App\Modules\Alertas\Services\AlertDispatchService;
 use App\Modules\Alertas\Services\AlertService;
 use App\Support\Http\Controllers\BaseController;
@@ -206,13 +207,13 @@ class AlertController extends BaseController
             'alert_id' => $run->alert_id,
             'trigger_type' => $run->trigger_type,
             'status' => $run->status,
-            'scheduled_for' => $run->scheduled_for?->toIso8601String(),
+            'scheduled_for' => AlertDatePresenter::isoFromStored($run, 'scheduled_for'),
             'destinations_total' => (int) $run->destinations_total,
             'destinations_success' => (int) $run->destinations_success,
             'destinations_failed' => (int) $run->destinations_failed,
-            'started_at' => $run->started_at?->toIso8601String(),
-            'finished_at' => $run->finished_at?->toIso8601String(),
-            'created_at' => $run->created_at?->toIso8601String(),
+            'started_at' => AlertDatePresenter::isoFromStored($run, 'started_at'),
+            'finished_at' => AlertDatePresenter::isoFromStored($run, 'finished_at'),
+            'created_at' => AlertDatePresenter::isoFromValue($run->created_at),
         ];
     }
 }

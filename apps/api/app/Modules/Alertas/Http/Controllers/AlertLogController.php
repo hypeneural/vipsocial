@@ -6,6 +6,7 @@ use App\Modules\Alertas\Http\Requests\AlertLogListRequest;
 use App\Modules\Alertas\Models\Alert;
 use App\Modules\Alertas\Models\AlertDispatchLog;
 use App\Modules\Alertas\Models\AlertDispatchRun;
+use App\Modules\Alertas\Support\AlertDatePresenter;
 use App\Modules\Alertas\Services\AlertDispatchService;
 use App\Support\Http\Controllers\BaseController;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -83,6 +84,7 @@ class AlertLogController extends BaseController
         $perPage = min(100, max(1, (int) ($filters['per_page'] ?? 20)));
 
         $query = AlertDispatchLog::query()
+            ->with('run')
             ->latest('created_at');
 
         if (isset($filters['alert_id'])) {
@@ -146,16 +148,16 @@ class AlertLogController extends BaseController
             'trigger_type' => $run->trigger_type,
             'source_log_id' => $run->source_log_id,
             'source_context' => $run->source_context,
-            'scheduled_for' => $run->scheduled_for?->toIso8601String(),
+            'scheduled_for' => AlertDatePresenter::isoFromStored($run, 'scheduled_for'),
             'status' => $run->status,
             'destinations_total' => (int) $run->destinations_total,
             'destinations_success' => (int) $run->destinations_success,
             'destinations_failed' => (int) $run->destinations_failed,
-            'started_at' => $run->started_at?->toIso8601String(),
-            'finished_at' => $run->finished_at?->toIso8601String(),
+            'started_at' => AlertDatePresenter::isoFromStored($run, 'started_at'),
+            'finished_at' => AlertDatePresenter::isoFromStored($run, 'finished_at'),
             'error_message' => $run->error_message,
-            'created_at' => $run->created_at?->toIso8601String(),
-            'updated_at' => $run->updated_at?->toIso8601String(),
+            'created_at' => AlertDatePresenter::isoFromValue($run->created_at),
+            'updated_at' => AlertDatePresenter::isoFromValue($run->updated_at),
             'logs' => $run->relationLoaded('logs')
                 ? $run->logs->map(fn(AlertDispatchLog $log) => $this->serializeLog($log))->values()->all()
                 : [],
@@ -172,11 +174,12 @@ class AlertLogController extends BaseController
             'destination_id' => $log->destination_id,
             'destination_name' => $log->destination_name_snapshot,
             'status' => $log->status,
+            'trigger_type' => $log->run?->trigger_type,
             'target_kind' => $log->target_kind,
             'target_value' => $log->target_value,
             'provider' => $log->provider,
-            'sent_at' => $log->sent_at?->toIso8601String(),
-            'created_at' => $log->created_at?->toIso8601String(),
+            'sent_at' => AlertDatePresenter::isoFromStored($log, 'sent_at'),
+            'created_at' => AlertDatePresenter::isoFromValue($log->created_at),
             'success' => $log->status === AlertDispatchLog::STATUS_SUCCESS,
             'response_message_id' => $log->provider_message_id,
             'response_zaap_id' => $log->provider_zaap_id,

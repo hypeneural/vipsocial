@@ -3,6 +3,7 @@
 namespace App\Modules\Alertas\Services;
 
 use App\Modules\Alertas\Models\AlertDestination;
+use App\Modules\Alertas\Support\AlertDatePresenter;
 use App\Modules\WhatsApp\Support\WhatsAppTargetNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -126,11 +127,11 @@ class AlertDestinationService
             'target_value' => $destination->target_value,
             'tags' => array_values((array) ($destination->tags ?? [])),
             'active' => (bool) $destination->active,
-            'archived_at' => $destination->archived_at?->toIso8601String(),
-            'last_sent_at' => $destination->last_sent_at?->toIso8601String(),
+            'archived_at' => AlertDatePresenter::isoFromStored($destination, 'archived_at'),
+            'last_sent_at' => AlertDatePresenter::isoFromStored($destination, 'last_sent_at'),
             'alert_count' => (int) ($destination->alerts_count ?? $destination->alerts()->count()),
-            'created_at' => $destination->created_at?->toIso8601String(),
-            'updated_at' => $destination->updated_at?->toIso8601String(),
+            'created_at' => AlertDatePresenter::isoFromValue($destination->created_at),
+            'updated_at' => AlertDatePresenter::isoFromValue($destination->updated_at),
         ];
     }
 

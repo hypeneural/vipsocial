@@ -4,6 +4,7 @@ namespace App\Modules\Alertas\Services;
 
 use App\Modules\Alertas\Models\Alert;
 use App\Modules\Alertas\Models\AlertScheduleRule;
+use App\Modules\Alertas\Support\AlertDatePresenter;
 use App\Modules\Alertas\Support\NextFiringResolver;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -178,7 +179,7 @@ class AlertService
             'title' => $alert->title,
             'message' => $alert->message,
             'active' => (bool) $alert->active,
-            'archived_at' => $alert->archived_at?->toIso8601String(),
+            'archived_at' => AlertDatePresenter::isoFromStored($alert, 'archived_at'),
             'destination_count' => (int) ($alert->destinations_count ?? $alert->destinations->count()),
             'next_fire_at' => $nextFireAt,
             'monitoring' => $monitoring,
@@ -199,12 +200,12 @@ class AlertService
                 'active' => (bool) $rule->active,
                 'schedule_active' => (bool) $rule->active,
                 'next_fire_at' => $this->nextFiringResolver->nextForRule($rule)?->toIso8601String(),
-                'created_at' => $rule->created_at?->toIso8601String(),
-                'updated_at' => $rule->updated_at?->toIso8601String(),
+                'created_at' => AlertDatePresenter::isoFromValue($rule->created_at),
+                'updated_at' => AlertDatePresenter::isoFromValue($rule->updated_at),
             ])->all(),
             'schedules' => $this->buildLegacySchedules($rules)->all(),
-            'created_at' => $alert->created_at?->toIso8601String(),
-            'updated_at' => $alert->updated_at?->toIso8601String(),
+            'created_at' => AlertDatePresenter::isoFromValue($alert->created_at),
+            'updated_at' => AlertDatePresenter::isoFromValue($alert->updated_at),
         ];
     }
 

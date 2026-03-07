@@ -453,3 +453,66 @@ test('retry endpoint creates a new retry run for original destination', function
         'status' => 'success',
     ]);
 });
+
+test('sent late state stays visible on alert list but does not count as open overdue and recent logs expose scheduler trigger in sao paulo time', function () {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-03-06 10:30:00', 'America/Sao_Paulo'));
+
+    Sanctum::actingAs(makeAuthenticatedAlertUser());
+    $destination = createAlertDestination();
+    $alert = createAlertWithRule([], [
+        'day_of_week' => 5,
+        'time_hhmm' => '09:45',
+        'rule_key' => 'weekly:5:09:45',
+    ]);
+    Alert::query()->whereKey($alert->id)->update([
+        'created_at' => '2026-03-06 08:00:00',
+        'updated_at' => '2026-03-06 08:00:00',
+    ]);
+    $alert->refresh();
+    $alert->destinations()->sync([$destination->id]);
+
+    $run = AlertDispatchRun::query()->create([
+        'alert_id' => $alert->id,
+        'schedule_rule_id' => $alert->scheduleRules()->value('id'),
+        'trigger_type' => AlertDispatchRun::TRIGGER_SCHEDULER,
+        'scheduled_for' => '2026-03-06 09:45:00',
+        'idempotency_key' => 'scheduler:alert-' . $alert->id . ':rule-2:2026-03-06T09:45:00-03:00',
+        'status' => AlertDispatchRun::STATUS_SUCCESS,
+        'destinations_total' => 1,
+        'destinations_success' => 1,
+        'destinations_failed' => 0,
+        'started_at' => '2026-03-06 09:45:00',
+        'finished_at' => '2026-03-06 10:15:00',
+    ]);
+
+    AlertDispatchLog::query()->create([
+        'dispatch_run_id' => $run->id,
+        'alert_id' => $alert->id,
+        'destination_id' => $destination->id,
+        'alert_title_snapshot' => $alert->title,
+        'destination_name_snapshot' => $destination->name,
+        'target_kind' => $destination->target_kind,
+        'target_value' => $destination->target_value,
+        'message_snapshot' => $alert->message,
+        'status' => AlertDispatchLog::STATUS_SUCCESS,
+        'provider' => 'zapi',
+        'provider_zaap_id' => 'zaap-late',
+        'provider_message_id' => 'msg-late',
+        'provider_response_id' => 'msg-late',
+        'provider_response' => ['messageId' => 'msg-late'],
+        'sent_at' => '2026-03-06 10:15:00',
+    ]);
+
+    $this->getJson('/api/v1/alertas?per_page=10&include_inactive=1')
+        ->assertOk()
+        ->assertJsonPath('data.0.monitoring.state', 'sent_late');
+
+    $this->getJson('/api/v1/alertas/dashboard/stats')
+        ->assertOk()
+        ->assertJsonPath('data.overdue_alerts', 0);
+
+    $this->getJson('/api/v1/alertas/dashboard/recent-logs?limit=5')
+        ->assertOk()
+        ->assertJsonPath('data.0.trigger_type', 'scheduler')
+        ->assertJsonPath('data.0.sent_at', '2026-03-06T10:15:00-03:00');
+});

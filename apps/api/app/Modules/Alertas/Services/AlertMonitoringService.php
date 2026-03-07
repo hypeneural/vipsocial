@@ -4,6 +4,7 @@ namespace App\Modules\Alertas\Services;
 
 use App\Modules\Alertas\Models\Alert;
 use App\Modules\Alertas\Models\AlertDispatchRun;
+use App\Modules\Alertas\Support\AlertDatePresenter;
 use App\Modules\Alertas\Support\NextFiringResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -77,9 +78,12 @@ class AlertMonitoringService
             }
 
             $delayMinutes = max(0, $lastDueAt->diffInMinutes($now));
+            $runScheduledFor = $latestScheduledRun !== null
+                ? AlertDatePresenter::fromStored($latestScheduledRun, 'scheduled_for')
+                : null;
             $runForDue = $latestScheduledRun !== null
-                && $latestScheduledRun->scheduled_for !== null
-                && $latestScheduledRun->scheduled_for->copy()->setTimezone($now->getTimezone())->startOfMinute()->equalTo($lastDueAt)
+                && $runScheduledFor !== null
+                && $runScheduledFor->startOfMinute()->equalTo($lastDueAt)
                 ? $latestScheduledRun
                 : null;
 
@@ -121,8 +125,9 @@ class AlertMonitoringService
         int $graceMinutes
     ): array {
         $delayMinutes = max(0, $scheduledFor->diffInMinutes($now));
-        $deliveryDelayMinutes = $run->finished_at !== null
-            ? max(0, $scheduledFor->diffInMinutes($run->finished_at->copy()->setTimezone($scheduledFor->getTimezone())))
+        $finishedAt = AlertDatePresenter::fromStored($run, 'finished_at');
+        $deliveryDelayMinutes = $finishedAt !== null
+            ? max(0, $scheduledFor->diffInMinutes($finishedAt))
             : $delayMinutes;
 
         return match ($run->status) {
@@ -220,8 +225,8 @@ class AlertMonitoringService
             'scheduled_for' => $scheduledFor?->toIso8601String(),
             'delay_minutes' => $delayMinutes,
             'last_run_status' => $run?->status,
-            'last_run_created_at' => $run?->created_at?->toIso8601String(),
-            'last_run_finished_at' => $run?->finished_at?->toIso8601String(),
+            'last_run_created_at' => $run ? AlertDatePresenter::isoFromValue($run->created_at) : null,
+            'last_run_finished_at' => $run ? AlertDatePresenter::isoFromStored($run, 'finished_at') : null,
         ];
     }
 

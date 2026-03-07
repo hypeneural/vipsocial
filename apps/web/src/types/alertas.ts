@@ -102,6 +102,7 @@ export interface AlertLog {
     destination_id: number;
     destination_name: string;
     status: "pending" | "success" | "failed" | "cancelled" | "skipped";
+    trigger_type?: "scheduler" | "manual" | "retry" | null;
     target_kind: "whatsapp_phone" | "whatsapp_group";
     target_value: string;
     provider: string;
@@ -271,6 +272,19 @@ export const formatLogStatusLabel = (status: AlertLog["status"]): string => {
             return "Ignorado";
         default:
             return status;
+    }
+};
+
+export const formatTriggerTypeLabel = (triggerType?: AlertLog["trigger_type"]): string => {
+    switch (triggerType) {
+        case "scheduler":
+            return "Agendado";
+        case "manual":
+            return "Manual";
+        case "retry":
+            return "Retry";
+        default:
+            return "Envio";
     }
 };
 

@@ -19,7 +19,7 @@ import {
     useNextFirings,
 } from "@/hooks/useAlertas";
 import { cn } from "@/lib/utils";
-import { formatLogStatusLabel } from "@/types/alertas";
+import { formatLogStatusLabel, formatTriggerTypeLabel } from "@/types/alertas";
 
 const AlertsDashboard = () => {
     const statsQuery = useAlertDashboardStats();
@@ -122,7 +122,7 @@ const AlertsDashboard = () => {
                             <AlertTriangle className="w-5 h-5 text-destructive" />
                         </div>
                         <p className="text-2xl font-bold">{stats?.overdue_alerts ?? 0}</p>
-                        <p className="text-xs text-muted-foreground">Com Atraso</p>
+                        <p className="text-xs text-muted-foreground">Atrasos em Aberto</p>
                     </div>
                 </Link>
 
@@ -163,8 +163,8 @@ const AlertsDashboard = () => {
                                 Ha alerta{(stats?.overdue_alerts ?? 0) === 1 ? "" : "s"} com atraso operacional
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                Existe horario vencido sem conclusao no tempo esperado ou envio concluido com atraso.
-                                Revise a fila e a lista de alertas para localizar o item afetado.
+                                Existe horario vencido sem conclusao no tempo esperado. Revise a fila e a lista de
+                                alertas para localizar o item afetado.
                             </p>
                         </div>
                     </div>
@@ -248,7 +248,9 @@ const AlertsDashboard = () => {
 
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium truncate">{log.alert_title}</p>
-                                    <p className="text-xs text-muted-foreground truncate">-&gt; {log.destination_name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                        {formatTriggerTypeLabel(log.trigger_type)} -&gt; {log.destination_name}
+                                    </p>
                                 </div>
 
                                 <span
