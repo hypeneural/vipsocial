@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Enquetes\Http\Controllers\Public\EmbedController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\Route;
 | API routes are handled by api.php under /api/v1/* prefix.
 | Static assets (JS, CSS, images) are served directly by the web server.
 */
+
+Route::get('/embed/enquetes/{placementPublicId}', [EmbedController::class, 'show']);
 
 Route::get('/{any}', function () {
     $indexPath = public_path('index.html');

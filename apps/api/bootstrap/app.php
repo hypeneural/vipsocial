@@ -1,8 +1,10 @@
 <?php
 
 use App\Console\Commands\DispatchDueAlertsCommand;
+use App\Console\Commands\ReconcilePollResultsCommand;
 use App\Console\Commands\SyncWhatsAppGroupsCommand;
 use App\Console\Commands\CaptureWhatsAppGroupsOverviewDailySnapshotCommand;
+use App\Console\Commands\SyncPollStatusCommand;
 use App\Console\Commands\SyncSocialProfilesDailyCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withCommands([
         DispatchDueAlertsCommand::class,
+        SyncPollStatusCommand::class,
+        ReconcilePollResultsCommand::class,
         SyncWhatsAppGroupsCommand::class,
         CaptureWhatsAppGroupsOverviewDailySnapshotCommand::class,
         SyncSocialProfilesDailyCommand::class,
@@ -42,6 +46,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('alertas:dispatch-due')
             ->timezone((string) config('alertas.timezone', 'America/Sao_Paulo'))
             ->everyMinute()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('enquetes:sync-status')
+            ->timezone((string) config('enquetes.timezone', 'America/Sao_Paulo'))
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('enquetes:reconcile-results')
+            ->timezone((string) config('enquetes.timezone', 'America/Sao_Paulo'))
+            ->everyTenMinutes()
             ->withoutOverlapping()
             ->onOneServer();
     })

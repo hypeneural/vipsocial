@@ -1,27 +1,20 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
 import {
-    Plus,
-    Search,
-    Filter,
-    Vote,
-    ChevronDown,
-    ChevronRight,
-    BarChart3,
-    Calendar,
-    Clock,
-    Users,
-    MoreVertical,
-    Edit,
-    Copy,
-    Trash2,
-    Share2,
-    ExternalLink,
-    MessageCircle,
-    Sparkles,
-    Play,
-    Pause,
-    CheckCircle2,
+  BarChart3,
+  Calendar,
+  Copy,
+  Filter,
+  MoreVertical,
+  Pause,
+  Play,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  Vote,
+  XCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -29,476 +22,469 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { StatusIndicator } from "@/components/ui/StatusIndicator";
 import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import {
+  useArchivePoll,
+  useClosePoll,
+  useDuplicatePoll,
+  usePausePoll,
+  usePolls,
+  usePollsOverview,
+  useReopenPoll,
+} from "@/hooks/useEnquetes";
+import type { Poll, PollStatus } from "@/services/enquete.service";
 import { cn } from "@/lib/utils";
 
-interface PollOption {
-    id: string;
-    text: string;
-    votes: number;
-    percentage: number;
-}
-
-interface Poll {
-    id: string;
-    question: string;
-    options: PollOption[];
-    status: "active" | "scheduled" | "ended" | "draft";
-    totalVotes: number;
-    startDate: string;
-    endDate: string;
-    createdBy: string;
-    channels: string[];
-    allowMultiple: boolean;
-}
-
-const mockPolls: Poll[] = [
-    {
-        id: "1",
-        question: "Qual a prioridade para melhorias na cidade?",
-        options: [
-            { id: "1a", text: "Transporte público", votes: 1250, percentage: 42 },
-            { id: "1b", text: "Saúde", votes: 980, percentage: 33 },
-            { id: "1c", text: "Educação", votes: 520, percentage: 17 },
-            { id: "1d", text: "Segurança", votes: 250, percentage: 8 },
-        ],
-        status: "active",
-        totalVotes: 3000,
-        startDate: "2026-01-15",
-        endDate: "2026-01-25",
-        createdBy: "Maria Santos",
-        channels: ["WhatsApp", "Portal", "App"],
-        allowMultiple: false,
-    },
-    {
-        id: "2",
-        question: "Você é favorável à nova ciclovia na Av. Principal?",
-        options: [
-            { id: "2a", text: "Sim, totalmente", votes: 450, percentage: 60 },
-            { id: "2b", text: "Parcialmente", votes: 180, percentage: 24 },
-            { id: "2c", text: "Não", votes: 120, percentage: 16 },
-        ],
-        status: "active",
-        totalVotes: 750,
-        startDate: "2026-01-18",
-        endDate: "2026-01-28",
-        createdBy: "Carlos Oliveira",
-        channels: ["WhatsApp", "Portal"],
-        allowMultiple: false,
-    },
-    {
-        id: "3",
-        question: "Como você avalia os serviços públicos em 2025?",
-        options: [
-            { id: "3a", text: "Excelente", votes: 120, percentage: 8 },
-            { id: "3b", text: "Bom", votes: 380, percentage: 25 },
-            { id: "3c", text: "Regular", votes: 520, percentage: 35 },
-            { id: "3d", text: "Ruim", votes: 480, percentage: 32 },
-        ],
-        status: "ended",
-        totalVotes: 1500,
-        startDate: "2025-12-01",
-        endDate: "2025-12-31",
-        createdBy: "Ana Costa",
-        channels: ["Portal"],
-        allowMultiple: false,
-    },
-    {
-        id: "4",
-        question: "Qual evento cultural você gostaria de ver na cidade?",
-        options: [
-            { id: "4a", text: "Festival de música", votes: 0, percentage: 0 },
-            { id: "4b", text: "Feira gastronômica", votes: 0, percentage: 0 },
-            { id: "4c", text: "Mostra de cinema", votes: 0, percentage: 0 },
-            { id: "4d", text: "Exposição de arte", votes: 0, percentage: 0 },
-        ],
-        status: "scheduled",
-        totalVotes: 0,
-        startDate: "2026-02-01",
-        endDate: "2026-02-15",
-        createdBy: "Pedro Almeida",
-        channels: ["WhatsApp", "Portal", "App"],
-        allowMultiple: true,
-    },
-    {
-        id: "5",
-        question: "Rascunho: Preferência de horário para eventos",
-        options: [
-            { id: "5a", text: "Manhã", votes: 0, percentage: 0 },
-            { id: "5b", text: "Tarde", votes: 0, percentage: 0 },
-            { id: "5c", text: "Noite", votes: 0, percentage: 0 },
-        ],
-        status: "draft",
-        totalVotes: 0,
-        startDate: "",
-        endDate: "",
-        createdBy: "Maria Santos",
-        channels: [],
-        allowMultiple: false,
-    },
-];
-
-const statusConfig = {
-    active: {
-        label: "Ativa",
-        color: "bg-success/15 text-success border-success/30",
-        indicator: "online" as const,
-    },
-    scheduled: {
-        label: "Agendada",
-        color: "bg-info/15 text-info border-info/30",
-        indicator: "loading" as const,
-    },
-    ended: {
-        label: "Encerrada",
-        color: "bg-muted text-muted-foreground border-muted",
-        indicator: "offline" as const,
-    },
-    draft: {
-        label: "Rascunho",
-        color: "bg-warning/15 text-warning border-warning/30",
-        indicator: "warning" as const,
-    },
+const statusConfig: Record<
+  PollStatus,
+  {
+    label: string;
+    indicator: "online" | "offline" | "loading" | "warning";
+    badgeClass: string;
+  }
+> = {
+  draft: {
+    label: "Rascunho",
+    indicator: "warning",
+    badgeClass: "bg-warning/15 text-warning border-warning/30",
+  },
+  scheduled: {
+    label: "Agendada",
+    indicator: "loading",
+    badgeClass: "bg-info/15 text-info border-info/30",
+  },
+  live: {
+    label: "Ao vivo",
+    indicator: "online",
+    badgeClass: "bg-success/15 text-success border-success/30",
+  },
+  paused: {
+    label: "Pausada",
+    indicator: "warning",
+    badgeClass: "bg-warning/15 text-warning border-warning/30",
+  },
+  closed: {
+    label: "Encerrada",
+    indicator: "offline",
+    badgeClass: "bg-muted text-muted-foreground border-muted",
+  },
+  archived: {
+    label: "Arquivada",
+    indicator: "offline",
+    badgeClass: "bg-destructive/10 text-destructive border-destructive/30",
+  },
 };
 
+function formatDate(value: string | null) {
+  if (!value) return null;
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatSchedule(poll: Poll) {
+  const start = formatDate(poll.starts_at);
+  const end = formatDate(poll.ends_at);
+
+  if (start && end) return `${start} - ${end}`;
+  if (start) return `Inicia em ${start}`;
+  if (end) return `Encerra em ${end}`;
+  return "Sem janela agendada";
+}
+
 const Enquetes = () => {
-    const [polls] = useState<Poll[]>(mockPolls);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [filterStatus, setFilterStatus] = useState("all");
-    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | PollStatus>("all");
+  const [pollPendingArchive, setPollPendingArchive] = useState<Poll | null>(null);
 
-    const filteredPolls = polls.filter((poll) => {
-        if (searchQuery && !poll.question.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-        if (filterStatus !== "all" && poll.status !== filterStatus) return false;
-        return true;
-    });
+  const overviewQuery = usePollsOverview();
+  const pollsQuery = usePolls({
+    per_page: 100,
+    search: searchQuery || undefined,
+    include_archived: false,
+    status: filterStatus === "all" ? undefined : filterStatus,
+  });
 
-    const activeCount = polls.filter((p) => p.status === "active").length;
-    const totalVotesAllPolls = polls.reduce((acc, p) => acc + p.totalVotes, 0);
+  const duplicateMutation = useDuplicatePoll();
+  const pauseMutation = usePausePoll();
+  const closeMutation = useClosePoll();
+  const reopenMutation = useReopenPoll();
+  const archiveMutation = useArchivePoll();
 
-    return (
-        <AppShell>
-            {/* Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-6"
-            >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-bold">Enquetes</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Gerencie suas enquetes e visualize resultados
-                        </p>
-                    </div>
+  const polls = pollsQuery.data?.data ?? [];
+  const stats = overviewQuery.data?.data;
 
-                    <div className="flex gap-2">
-                        <Button variant="outline" className="rounded-xl">
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            Criar com IA
+  const totalBlocked = useMemo(
+    () => polls.reduce((sum, poll) => sum + poll.blocked_attempts_count, 0),
+    [polls]
+  );
+
+  const handleDuplicate = async (id: number) => {
+    try {
+      await duplicateMutation.mutateAsync(id);
+    } catch {
+      return;
+    }
+  };
+
+  const handlePause = async (id: number) => {
+    try {
+      await pauseMutation.mutateAsync(id);
+    } catch {
+      return;
+    }
+  };
+
+  const handleClose = async (id: number) => {
+    try {
+      await closeMutation.mutateAsync(id);
+    } catch {
+      return;
+    }
+  };
+
+  const handleReopen = async (id: number) => {
+    try {
+      await reopenMutation.mutateAsync(id);
+    } catch {
+      return;
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!pollPendingArchive) return;
+
+    try {
+      await archiveMutation.mutateAsync(pollPendingArchive.id);
+      setPollPendingArchive(null);
+    } catch {
+      return;
+    }
+  };
+
+  return (
+    <AppShell>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-xl font-bold md:text-2xl">Enquetes</h1>
+            <p className="text-sm text-muted-foreground">
+              Gerencie enquetes, placements e acompanhe resultados reais.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Link to="/engajamento/enquetes/sites">
+              <Button variant="outline" className="rounded-xl">
+                Sites
+              </Button>
+            </Link>
+            <Link to="/engajamento/enquetes/nova">
+              <Button className="rounded-xl bg-primary hover:bg-primary-dark">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Enquete
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-border/50 bg-card p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Vote className="h-4 w-4" />
+            Total
+          </div>
+          <p className="mt-1 text-2xl font-bold">{stats?.total_polls ?? polls.length}</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="rounded-xl border border-success/30 bg-success/10 p-4"
+        >
+          <div className="flex items-center gap-2 text-sm text-success">
+            <Play className="h-4 w-4" />
+            Ao vivo
+          </div>
+          <p className="mt-1 text-2xl font-bold text-success">{stats?.live_polls ?? 0}</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="rounded-xl border border-primary/30 bg-primary/10 p-4"
+        >
+          <div className="flex items-center gap-2 text-sm text-primary">
+            <Users className="h-4 w-4" />
+            Votos válidos
+          </div>
+          <p className="mt-1 text-2xl font-bold text-primary">
+            {(stats?.votes_accepted ?? 0).toLocaleString("pt-BR")}
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="rounded-xl border border-warning/30 bg-warning/10 p-4"
+        >
+          <div className="flex items-center gap-2 text-sm text-warning">
+            <XCircle className="h-4 w-4" />
+            Bloqueados
+          </div>
+          <p className="mt-1 text-2xl font-bold text-warning">
+            {(stats?.votes_blocked ?? totalBlocked).toLocaleString("pt-BR")}
+          </p>
+        </motion.div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="mb-6 flex flex-col gap-3 md:flex-row"
+      >
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Buscar por título, pergunta ou slug..."
+            className="rounded-xl bg-secondary/50 pl-10"
+          />
+        </div>
+
+        <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | PollStatus)}>
+          <SelectTrigger className="w-full rounded-xl md:w-[180px]">
+            <Filter className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="draft">Rascunhos</SelectItem>
+            <SelectItem value="scheduled">Agendadas</SelectItem>
+            <SelectItem value="live">Ao vivo</SelectItem>
+            <SelectItem value="paused">Pausadas</SelectItem>
+            <SelectItem value="closed">Encerradas</SelectItem>
+          </SelectContent>
+        </Select>
+      </motion.div>
+
+      {pollsQuery.isLoading ? (
+        <div className="rounded-2xl border border-border/50 bg-card p-6 text-sm text-muted-foreground">
+          Carregando enquetes...
+        </div>
+      ) : pollsQuery.isError ? (
+        <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
+          Nao foi possivel carregar as enquetes.
+        </div>
+      ) : (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <Accordion type="single" collapsible className="space-y-3">
+            {polls.map((poll, index) => {
+              const config = statusConfig[poll.status];
+
+              return (
+                <motion.div
+                  key={poll.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.04 }}
+                >
+                  <AccordionItem
+                    value={String(poll.id)}
+                    className="overflow-hidden rounded-2xl border border-border/50 bg-card shadow-sm"
+                  >
+                    <AccordionTrigger className="px-4 py-4 hover:no-underline">
+                      <div className="flex w-full items-start gap-4 text-left">
+                        <StatusIndicator status={config.indicator} size="md" />
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                            <Badge className={cn("rounded-full text-[10px]", config.badgeClass)}>
+                              {config.label}
+                            </Badge>
+                            <Badge variant="outline" className="rounded-full text-[10px]">
+                              {poll.selection_type === "multiple" ? "Multipla" : "Unica"}
+                            </Badge>
+                            {poll.max_choices && poll.selection_type === "multiple" ? (
+                              <Badge variant="outline" className="rounded-full text-[10px]">
+                                Ate {poll.max_choices} opcoes
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <h3 className="line-clamp-1 font-semibold text-sm md:text-base">{poll.title}</h3>
+                          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{poll.question}</p>
+
+                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {poll.valid_votes_count.toLocaleString("pt-BR")} votos
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Vote className="h-3 w-3" />
+                              {poll.options_count} opcoes
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <BarChart3 className="h-3 w-3" />
+                              {poll.placements_count} placements
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatSchedule(poll)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+
+                    <AccordionContent className="px-4 pb-4">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-xl border border-border/50 bg-secondary/30 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Votos válidos</p>
+                          <p className="mt-1 text-lg font-semibold">{poll.valid_votes_count.toLocaleString("pt-BR")}</p>
+                        </div>
+                        <div className="rounded-xl border border-border/50 bg-secondary/30 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Bloqueios</p>
+                          <p className="mt-1 text-lg font-semibold">{poll.blocked_attempts_count.toLocaleString("pt-BR")}</p>
+                        </div>
+                        <div className="rounded-xl border border-border/50 bg-secondary/30 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Visibilidade</p>
+                          <p className="mt-1 text-sm font-semibold">{poll.results_visibility}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+                        <Button
+                          size="sm"
+                          className="h-8 rounded-lg text-xs"
+                          onClick={() => navigate(`/engajamento/enquetes/${poll.id}/resultados`)}
+                        >
+                          <BarChart3 className="mr-1 h-3 w-3" />
+                          Ver Resultados
                         </Button>
-                        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button className="bg-primary hover:bg-primary-dark rounded-xl">
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Nova Enquete
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[600px]">
-                                <DialogHeader>
-                                    <DialogTitle>Criar Nova Enquete</DialogTitle>
-                                </DialogHeader>
-                                <div className="py-4">
-                                    <p className="text-sm text-muted-foreground">
-                                        Formulário de criação será implementado aqui.
-                                    </p>
-                                </div>
-                            </DialogContent>
-                        </Dialog>
-                    </div>
-                </div>
-            </motion.div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg text-xs"
+                          onClick={() => navigate(`/engajamento/enquetes/${poll.id}/editar`)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg text-xs"
+                          onClick={() => navigate(`/engajamento/enquetes/${poll.id}/placements`)}
+                        >
+                          Placements
+                        </Button>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-card rounded-xl p-4 border border-border/50"
-                >
-                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                        <Vote className="w-4 h-4" />
-                        Total
-                    </div>
-                    <p className="text-2xl font-bold mt-1">{polls.length}</p>
-                </motion.div>
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-success/10 rounded-xl p-4 border border-success/30"
-                >
-                    <div className="flex items-center gap-2 text-success text-sm">
-                        <Play className="w-4 h-4" />
-                        Ativas
-                    </div>
-                    <p className="text-2xl font-bold mt-1 text-success">{activeCount}</p>
-                </motion.div>
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-primary/10 rounded-xl p-4 border border-primary/30"
-                >
-                    <div className="flex items-center gap-2 text-primary text-sm">
-                        <Users className="w-4 h-4" />
-                        Total Votos
-                    </div>
-                    <p className="text-2xl font-bold mt-1 text-primary">
-                        {totalVotesAllPolls.toLocaleString()}
-                    </p>
-                </motion.div>
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="bg-info/10 rounded-xl p-4 border border-info/30"
-                >
-                    <div className="flex items-center gap-2 text-info text-sm">
-                        <Calendar className="w-4 h-4" />
-                        Agendadas
-                    </div>
-                    <p className="text-2xl font-bold mt-1 text-info">
-                        {polls.filter((p) => p.status === "scheduled").length}
-                    </p>
-                </motion.div>
-            </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="ghost" className="ml-auto h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleDuplicate(poll.id)}>
+                              <Copy className="mr-2 h-4 w-4" />
+                              Duplicar
+                            </DropdownMenuItem>
 
-            {/* Filters */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="flex flex-col md:flex-row gap-3 mb-6"
-            >
-                <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar enquetes..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 rounded-xl bg-secondary/50"
-                    />
-                </div>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-full md:w-[150px] rounded-xl">
-                        <Filter className="w-4 h-4 mr-2" />
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="active">Ativas</SelectItem>
-                        <SelectItem value="scheduled">Agendadas</SelectItem>
-                        <SelectItem value="ended">Encerradas</SelectItem>
-                        <SelectItem value="draft">Rascunhos</SelectItem>
-                    </SelectContent>
-                </Select>
-            </motion.div>
+                            {poll.status === "live" ? (
+                              <DropdownMenuItem onClick={() => handlePause(poll.id)}>
+                                <Pause className="mr-2 h-4 w-4" />
+                                Pausar
+                              </DropdownMenuItem>
+                            ) : null}
 
-            {/* Polls Accordion List */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="pb-20 md:pb-0"
-            >
-                <Accordion type="single" collapsible className="space-y-3">
-                    {filteredPolls.map((poll, index) => {
-                        const config = statusConfig[poll.status];
+                            {poll.status === "paused" ? (
+                              <DropdownMenuItem onClick={() => handleReopen(poll.id)}>
+                                <Play className="mr-2 h-4 w-4" />
+                                Reabrir
+                              </DropdownMenuItem>
+                            ) : null}
 
-                        return (
-                            <motion.div
-                                key={poll.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.05 }}
+                            {(poll.status === "live" || poll.status === "paused" || poll.status === "scheduled") ? (
+                              <DropdownMenuItem onClick={() => handleClose(poll.id)}>
+                                <XCircle className="mr-2 h-4 w-4" />
+                                Encerrar
+                              </DropdownMenuItem>
+                            ) : null}
+
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => setPollPendingArchive(poll)}
                             >
-                                <AccordionItem
-                                    value={poll.id}
-                                    className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-                                >
-                                    <AccordionTrigger className="px-4 py-4 hover:no-underline">
-                                        <div className="flex items-start gap-4 w-full text-left">
-                                            <StatusIndicator status={config.indicator} size="md" />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <Badge className={cn("text-[10px] rounded-full", config.color)}>
-                                                        {config.label}
-                                                    </Badge>
-                                                    {poll.allowMultiple && (
-                                                        <Badge variant="outline" className="text-[10px] rounded-full">
-                                                            Múltipla escolha
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <h3 className="font-semibold text-sm md:text-base line-clamp-2">
-                                                    {poll.question}
-                                                </h3>
-                                                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-                                                    <span className="flex items-center gap-1">
-                                                        <Users className="w-3 h-3" />
-                                                        {poll.totalVotes.toLocaleString()} votos
-                                                    </span>
-                                                    {poll.startDate && (
-                                                        <span className="flex items-center gap-1">
-                                                            <Calendar className="w-3 h-3" />
-                                                            {new Date(poll.startDate).toLocaleDateString("pt-BR")}
-                                                        </span>
-                                                    )}
-                                                    <span className="flex items-center gap-1">
-                                                        <MessageCircle className="w-3 h-3" />
-                                                        {poll.channels.length} canais
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent className="px-4 pb-4">
-                                        {/* Options with Progress Bars */}
-                                        <div className="space-y-3 mb-4">
-                                            {poll.options.map((option) => (
-                                                <div key={option.id} className="space-y-1">
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span>{option.text}</span>
-                                                        <span className="font-semibold">{option.percentage}%</span>
-                                                    </div>
-                                                    <Progress
-                                                        value={option.percentage}
-                                                        className="h-2"
-                                                    />
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {option.votes.toLocaleString()} votos
-                                                    </p>
-                                                </div>
-                                            ))}
-                                        </div>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Arquivar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </motion.div>
+              );
+            })}
+          </Accordion>
 
-                                        {/* Channels */}
-                                        {poll.channels.length > 0 && (
-                                            <div className="flex items-center gap-2 mb-4">
-                                                <span className="text-xs text-muted-foreground">Canais:</span>
-                                                {poll.channels.map((channel) => (
-                                                    <Badge key={channel} variant="secondary" className="text-[10px]">
-                                                        {channel}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        )}
+          {polls.length === 0 ? (
+            <div className="rounded-2xl border border-border/50 bg-card py-12 text-center text-muted-foreground">
+              <Vote className="mx-auto mb-4 h-10 w-10 opacity-50" />
+              <p>Nenhuma enquete encontrada.</p>
+              <p className="text-sm text-muted-foreground/70">Ajuste os filtros ou crie uma nova enquete.</p>
+            </div>
+          ) : null}
+        </motion.div>
+      )}
 
-                                        {/* Actions */}
-                                        <div className="flex items-center gap-2 pt-3 border-t border-border/50 flex-wrap">
-                                            <Button
-                                                size="sm"
-                                                className="h-8 text-xs rounded-lg"
-                                                onClick={() => window.location.href = `/engajamento/enquetes/${poll.id}/resultados`}
-                                            >
-                                                <BarChart3 className="w-3 h-3 mr-1" />
-                                                Ver Resultados
-                                            </Button>
-                                            <Button size="sm" variant="outline" className="h-8 text-xs rounded-lg">
-                                                <Share2 className="w-3 h-3 mr-1" />
-                                                Embed
-                                            </Button>
-                                            <Button size="sm" variant="outline" className="h-8 text-xs rounded-lg">
-                                                <MessageCircle className="w-3 h-3 mr-1" />
-                                                WhatsApp
-                                            </Button>
-
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto">
-                                                        <MoreVertical className="w-4 h-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem>
-                                                        <Edit className="w-4 h-4 mr-2" />
-                                                        Editar
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <Copy className="w-4 h-4 mr-2" />
-                                                        Duplicar
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem>
-                                                        <ExternalLink className="w-4 h-4 mr-2" />
-                                                        Abrir no Portal
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    {poll.status === "active" ? (
-                                                        <DropdownMenuItem>
-                                                            <Pause className="w-4 h-4 mr-2" />
-                                                            Encerrar
-                                                        </DropdownMenuItem>
-                                                    ) : poll.status === "draft" || poll.status === "scheduled" ? (
-                                                        <DropdownMenuItem>
-                                                            <Play className="w-4 h-4 mr-2" />
-                                                            Ativar
-                                                        </DropdownMenuItem>
-                                                    ) : null}
-                                                    <DropdownMenuItem className="text-destructive">
-                                                        <Trash2 className="w-4 h-4 mr-2" />
-                                                        Excluir
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            </motion.div>
-                        );
-                    })}
-                </Accordion>
-
-                {filteredPolls.length === 0 && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="empty-state"
-                    >
-                        <Vote className="empty-state-icon" />
-                        <p className="text-muted-foreground">Nenhuma enquete encontrada</p>
-                        <p className="text-sm text-muted-foreground/70">Tente ajustar os filtros</p>
-                    </motion.div>
-                )}
-            </motion.div>
-        </AppShell>
-    );
+      <ConfirmDialog
+        open={pollPendingArchive !== null}
+        onOpenChange={(open) => {
+          if (!open) setPollPendingArchive(null);
+        }}
+        title="Arquivar enquete?"
+        description={
+          pollPendingArchive
+            ? `A enquete "${pollPendingArchive.title}" sera arquivada. O historico de votos e tentativas sera preservado.`
+            : ""
+        }
+        confirmText="Arquivar enquete"
+        variant="danger"
+        loading={archiveMutation.isPending}
+        onConfirm={handleArchive}
+      />
+    </AppShell>
+  );
 };
 
 export default Enquetes;

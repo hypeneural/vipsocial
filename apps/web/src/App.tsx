@@ -36,6 +36,8 @@ const PessoasPermissoes = lazy(() => import("./pages/pessoas/Permissoes"));
 const Enquetes = lazy(() => import("./pages/engajamento/Enquetes"));
 const EnqueteResultados = lazy(() => import("./pages/engajamento/EnqueteResultados"));
 const EnqueteForm = lazy(() => import("./pages/engajamento/EnqueteForm"));
+const EnqueteSites = lazy(() => import("./pages/engajamento/EnqueteSites"));
+const EnquetePlacements = lazy(() => import("./pages/engajamento/EnquetePlacements"));
 const Relatorios = lazy(() => import("./pages/engajamento/Relatorios"));
 
 // Automacao
@@ -154,7 +156,9 @@ const App = () => (
                     {/* Engajamento Routes */}
                     <Route path="/engajamento/enquetes" element={<Enquetes />} />
                     <Route path="/engajamento/enquetes/nova" element={<EnqueteForm />} />
+                    <Route path="/engajamento/enquetes/sites" element={<EnqueteSites />} />
                     <Route path="/engajamento/enquetes/:id/editar" element={<EnqueteForm />} />
+                    <Route path="/engajamento/enquetes/:id/placements" element={<EnquetePlacements />} />
                     <Route path="/engajamento/enquetes/:id/resultados" element={<EnqueteResultados />} />
                     <Route path="/engajamento/relatorios" element={<Relatorios />} />
 
