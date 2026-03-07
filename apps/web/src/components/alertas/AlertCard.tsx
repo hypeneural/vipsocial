@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
-import { Bell, Calendar, Users, Edit, Copy, BarChart3, Pause, Play } from "lucide-react";
+import { BarChart3, Bell, Calendar, Copy, Edit, Pause, Play, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, formatDaysOfWeek, formatTime } from "@/types/alertas";
+import { Alert, formatScheduleRuleLabel } from "@/types/alertas";
 import { cn } from "@/lib/utils";
 
 interface AlertCardProps {
@@ -13,9 +13,6 @@ interface AlertCardProps {
     onToggle?: (id: number) => void;
 }
 
-/**
- * Card de alerta com resumo de schedule e ações
- */
 export const AlertCard = ({
     alert,
     onEdit,
@@ -23,15 +20,11 @@ export const AlertCard = ({
     onViewLogs,
     onToggle,
 }: AlertCardProps) => {
-    // Pega o primeiro schedule para exibição
-    const primarySchedule = alert.schedules[0];
-    const daysDisplay = primarySchedule ? formatDaysOfWeek(primarySchedule.days_of_week) : "Sem agendamento";
-    const timesDisplay = primarySchedule?.times.map(t => formatTime(t)).join(", ") || "";
-
-    // Trunca a mensagem
-    const truncatedMessage = alert.message.length > 100
-        ? alert.message.slice(0, 100) + "..."
-        : alert.message;
+    const rules = alert.schedule_rules ?? [];
+    const primaryRule = rules[0];
+    const moreRulesCount = Math.max(0, rules.length - 1);
+    const truncatedMessage =
+        alert.message.length > 100 ? `${alert.message.slice(0, 100)}...` : alert.message;
 
     return (
         <motion.div
@@ -42,17 +35,20 @@ export const AlertCard = ({
                 !alert.active && "opacity-70 border-dashed"
             )}
         >
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                    <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center",
-                        alert.active ? "bg-primary/10" : "bg-muted"
-                    )}>
-                        <Bell className={cn(
-                            "w-5 h-5",
-                            alert.active ? "text-primary" : "text-muted-foreground"
-                        )} />
+                    <div
+                        className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center",
+                            alert.active ? "bg-primary/10" : "bg-muted"
+                        )}
+                    >
+                        <Bell
+                            className={cn(
+                                "w-5 h-5",
+                                alert.active ? "text-primary" : "text-muted-foreground"
+                            )}
+                        />
                     </div>
                     <div>
                         <h3 className="font-semibold text-base">{alert.title}</h3>
@@ -63,38 +59,32 @@ export const AlertCard = ({
                 </div>
             </div>
 
-            {/* Schedule Info */}
-            {primarySchedule && (
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+            {primaryRule ? (
+                <div className="mb-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        <span>{daysDisplay}</span>
+                        <span>{formatScheduleRuleLabel(primaryRule)}</span>
                     </div>
-                    {timesDisplay && (
-                        <div className="flex items-center gap-1">
-                            <span>às</span>
-                            <span className="font-medium text-foreground">{timesDisplay}</span>
-                        </div>
-                    )}
+                    {moreRulesCount > 0 ? <span>+{moreRulesCount} regra(s)</span> : null}
+                </div>
+            ) : (
+                <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <span>Sem agendamento</span>
                 </div>
             )}
 
-            {/* Destinations */}
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
                 <Users className="w-4 h-4" />
-                <span>{alert.destinations.length} destino(s) vinculado(s)</span>
+                <span>{alert.destination_count || alert.destinations.length} destino(s) vinculado(s)</span>
             </div>
 
-            {/* Message Preview */}
             <div className="bg-muted/50 rounded-lg p-3 mb-4">
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                    📝 "{truncatedMessage}"
-                </p>
+                <p className="text-sm text-muted-foreground line-clamp-2">"{truncatedMessage}"</p>
             </div>
 
-            {/* Actions */}
             <div className="flex flex-wrap gap-2">
-                {onEdit && (
+                {onEdit ? (
                     <Button
                         variant="outline"
                         size="sm"
@@ -104,8 +94,9 @@ export const AlertCard = ({
                         <Edit className="w-4 h-4 mr-1" />
                         Editar
                     </Button>
-                )}
-                {onDuplicate && (
+                ) : null}
+
+                {onDuplicate ? (
                     <Button
                         variant="outline"
                         size="sm"
@@ -115,8 +106,9 @@ export const AlertCard = ({
                         <Copy className="w-4 h-4 mr-1" />
                         Duplicar
                     </Button>
-                )}
-                {onViewLogs && (
+                ) : null}
+
+                {onViewLogs ? (
                     <Button
                         variant="outline"
                         size="sm"
@@ -126,8 +118,9 @@ export const AlertCard = ({
                         <BarChart3 className="w-4 h-4 mr-1" />
                         Logs
                     </Button>
-                )}
-                {onToggle && (
+                ) : null}
+
+                {onToggle ? (
                     <Button
                         variant={alert.active ? "outline" : "default"}
                         size="sm"
@@ -146,7 +139,7 @@ export const AlertCard = ({
                             </>
                         )}
                     </Button>
-                )}
+                ) : null}
             </div>
         </motion.div>
     );

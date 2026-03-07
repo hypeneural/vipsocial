@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\DispatchDueAlertsCommand;
 use App\Console\Commands\SyncWhatsAppGroupsCommand;
 use App\Console\Commands\CaptureWhatsAppGroupsOverviewDailySnapshotCommand;
 use App\Console\Commands\SyncSocialProfilesDailyCommand;
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         App\Providers\ModuleServiceProvider::class,
     ])
     ->withCommands([
+        DispatchDueAlertsCommand::class,
         SyncWhatsAppGroupsCommand::class,
         CaptureWhatsAppGroupsOverviewDailySnapshotCommand::class,
         SyncSocialProfilesDailyCommand::class,
@@ -34,6 +36,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('social:sync-daily')
             ->timezone((string) config('social.timezone', 'America/Sao_Paulo'))
             ->dailyAt((string) config('social.sync_hour', '06:10'))
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('alertas:dispatch-due')
+            ->timezone((string) config('alertas.timezone', 'America/Sao_Paulo'))
+            ->everyMinute()
             ->withoutOverlapping()
             ->onOneServer();
     })

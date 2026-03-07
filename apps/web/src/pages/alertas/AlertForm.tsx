@@ -1,104 +1,147 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Eye, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, Save } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { DaysOfWeekPicker } from "@/components/alertas/DaysOfWeekPicker";
-import { TimesPicker } from "@/components/alertas/TimesPicker";
 import { DestinationSelector } from "@/components/alertas/DestinationSelector";
 import { MessagePreview } from "@/components/alertas/MessagePreview";
-import { Destination, MAX_MESSAGE_LENGTH } from "@/types/alertas";
-
-// Mock destinations
-const mockDestinations: Destination[] = [
-    { destination_id: 1, phone_number: "+5547999991111", name: "VIP Tijucas", tags: ["tijucas", "geral"], active: true, created_at: "", updated_at: "" },
-    { destination_id: 2, phone_number: "+5547999992222", name: "VIP Itapema", tags: ["itapema", "geral"], active: true, created_at: "", updated_at: "" },
-    { destination_id: 3, phone_number: "+5547999993333", name: "VIP Barra Velha", tags: ["barra-velha", "geral"], active: true, created_at: "", updated_at: "" },
-    { destination_id: 4, phone_number: "+5547999994444", name: "VIP Esportes", tags: ["esportes"], active: true, created_at: "", updated_at: "" },
-];
+import {
+    AlertScheduleRuleDraft,
+    AlertScheduleRulesBuilder,
+    createWeeklyRuleDraft,
+} from "@/components/alertas/AlertScheduleRulesBuilder";
+import {
+    useAlert,
+    useCreateAlert,
+    useDestinations,
+    useUpdateAlert,
+} from "@/hooks/useAlertas";
+import { MAX_MESSAGE_LENGTH } from "@/types/alertas";
 
 const AlertForm = () => {
     const navigate = useNavigate();
     const { id } = useParams();
-    const isEditing = Boolean(id);
-    const [isLoading, setIsLoading] = useState(isEditing);
-    const [isSaving, setIsSaving] = useState(false);
-    const [showPreview, setShowPreview] = useState(true);
+    const alertId = id ? Number(id) : undefined;
+    const isEditing = Boolean(alertId);
 
-    // Form state
+    const alertQuery = useAlert(alertId);
+    const destinationsQuery = useDestinations({
+        per_page: 100,
+        include_inactive: true,
+        include_archived: false,
+    });
+    const createMutation = useCreateAlert();
+    const updateMutation = useUpdateAlert();
+
+    const [showPreview, setShowPreview] = useState(true);
     const [title, setTitle] = useState("");
     const [message, setMessage] = useState("");
     const [active, setActive] = useState(true);
-    const [daysOfWeek, setDaysOfWeek] = useState("0111110"); // Seg-Sex
-    const [times, setTimes] = useState<string[]>(["12:00"]);
     const [selectedDestinations, setSelectedDestinations] = useState<number[]>([]);
+    const [scheduleRules, setScheduleRules] = useState<AlertScheduleRuleDraft[]>([
+        createWeeklyRuleDraft(1, "12:00"),
+    ]);
 
-    // Load data if editing
     useEffect(() => {
-        if (isEditing) {
-            // TODO: Fetch from API
-            setTimeout(() => {
-                setTitle("Jornal VIP Meio-dia");
-                setMessage("🔴 Em 15 minutos começa o *Jornal VIP*!\n\n📺 Acompanhe ao vivo: https://vipsocial.com.br/ao-vivo");
-                setDaysOfWeek("0111110");
-                setTimes(["11:45", "17:45"]);
-                setSelectedDestinations([1, 2, 3]);
-                setActive(true);
-                setIsLoading(false);
-            }, 500);
+        if (!alertQuery.data?.data) {
+            return;
         }
-    }, [isEditing, id]);
+
+        const alert = alertQuery.data.data;
+        setTitle(alert.title);
+        setMessage(alert.message);
+        setActive(alert.active);
+        setSelectedDestinations(alert.destinations.map((destination) => destination.destination_id));
+        setScheduleRules(
+            alert.schedule_rules.length > 0
+                ? alert.schedule_rules.map((rule) => ({
+                      client_id: `rule-${rule.schedule_id}`,
+                      schedule_type: rule.schedule_type,
+                      day_of_week: rule.day_of_week,
+                      specific_date: rule.specific_date,
+                      time_hhmm: rule.time_hhmm,
+                      active: rule.active ?? rule.schedule_active ?? true,
+                  }))
+                : [createWeeklyRuleDraft(1, "12:00")]
+        );
+    }, [alertQuery.data]);
 
     const handleSave = async () => {
-        // Validação
         if (!title.trim()) {
-            alert("Preencha o título do alerta");
+            window.alert("Preencha o titulo do alerta");
             return;
         }
+
         if (!message.trim()) {
-            alert("Preencha a mensagem do alerta");
+            window.alert("Preencha a mensagem do alerta");
             return;
         }
-        if (times.length === 0) {
-            alert("Adicione pelo menos um horário");
-            return;
-        }
+
         if (selectedDestinations.length === 0) {
-            alert("Selecione pelo menos um destino");
+            window.alert("Selecione pelo menos um destino");
             return;
         }
 
-        setIsSaving(true);
+        if (scheduleRules.length === 0) {
+            window.alert("Adicione pelo menos uma regra de agendamento");
+            return;
+        }
 
-        // TODO: Save to API
+        const hasInvalidRule = scheduleRules.some((rule) => {
+            if (!rule.time_hhmm) {
+                return true;
+            }
+
+            if (rule.schedule_type === "weekly") {
+                return rule.day_of_week === null;
+            }
+
+            return !rule.specific_date;
+        });
+
+        if (hasInvalidRule) {
+            window.alert("Revise as regras de agendamento antes de salvar");
+            return;
+        }
+
         const payload = {
-            title,
-            message,
+            title: title.trim(),
+            message: message.trim(),
             active,
             destination_ids: selectedDestinations,
-            schedules: [{
-                days_of_week: daysOfWeek,
-                times,
-                active: true,
-            }],
+            schedule_rules: scheduleRules.map((rule) => ({
+                schedule_type: rule.schedule_type,
+                day_of_week: rule.schedule_type === "weekly" ? rule.day_of_week : null,
+                specific_date: rule.schedule_type === "specific_date" ? rule.specific_date : null,
+                time_hhmm: rule.time_hhmm,
+                active: rule.active,
+            })),
         };
 
-        console.log("Saving alert:", payload);
+        try {
+            if (isEditing && alertId) {
+                await updateMutation.mutateAsync({ id: alertId, data: payload });
+            } else {
+                await createMutation.mutateAsync(payload);
+            }
 
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        setIsSaving(false);
-        navigate("/alertas/lista");
+            navigate("/alertas/lista");
+        } catch {
+            return;
+        }
     };
+
+    const isLoading = alertQuery.isLoading || destinationsQuery.isLoading;
+    const isSaving = createMutation.isPending || updateMutation.isPending;
+    const destinations = destinationsQuery.data?.data ?? [];
 
     return (
         <AppShell>
-            {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -118,165 +161,154 @@ const AlertForm = () => {
                             {isEditing ? "Editar Alerta" : "Novo Alerta"}
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            {isEditing ? "Atualize a mensagem e agendamento" : "Configure a mensagem e o agendamento"}
+                            Configure mensagem, destinos e regras dinamicas de disparo.
                         </p>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <Label htmlFor="active" className="text-sm">Ativo</Label>
-                        <Switch
-                            id="active"
-                            checked={active}
-                            onCheckedChange={setActive}
-                        />
+                        <Label htmlFor="active" className="text-sm">
+                            Ativo
+                        </Label>
+                        <Switch id="active" checked={active} onCheckedChange={setActive} />
                     </div>
                 </div>
             </motion.div>
 
-            <div className="grid lg:grid-cols-3 gap-6">
-                {/* Form - 2 columns */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Informações Básicas */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="bg-card rounded-2xl border border-border/50 p-6"
-                    >
-                        <h2 className="font-semibold text-lg mb-4">Informações Básicas</h2>
+            {isLoading ? (
+                <div className="rounded-2xl border border-border/50 bg-card p-6 text-sm text-muted-foreground">
+                    Carregando formulario...
+                </div>
+            ) : (
+                <div className="grid lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 space-y-6">
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
+                            className="bg-card rounded-2xl border border-border/50 p-6"
+                        >
+                            <h2 className="font-semibold text-lg mb-4">Informacoes Basicas</h2>
 
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="title">Título Interno *</Label>
-                                <Input
-                                    id="title"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="Ex: Jornal VIP Meio-dia"
-                                    className="rounded-xl"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Usado apenas para identificação interna (não é enviado)
-                                </p>
-                            </div>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="title">Titulo Interno *</Label>
+                                    <Input
+                                        id="title"
+                                        value={title}
+                                        onChange={(event) => setTitle(event.target.value)}
+                                        placeholder="Ex: Jornal VIP Meio-dia"
+                                        className="rounded-xl"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Usado apenas para identificacao interna.
+                                    </p>
+                                </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="message">Mensagem *</Label>
-                                <Textarea
-                                    id="message"
-                                    value={message}
-                                    onChange={(e) => setMessage(e.target.value)}
-                                    placeholder="🔴 Em 15 minutos começa o *Jornal VIP*!&#10;&#10;📺 Acompanhe ao vivo: https://vipsocial.com.br/ao-vivo"
-                                    className="rounded-xl min-h-[150px] resize-y"
-                                    maxLength={MAX_MESSAGE_LENGTH}
-                                />
-                                <div className="flex justify-between text-xs text-muted-foreground">
-                                    <span>Suporta emoji, *negrito*, _itálico_, ~tachado~ e links</span>
-                                    <span>{message.length}/{MAX_MESSAGE_LENGTH}</span>
+                                <div className="space-y-2">
+                                    <Label htmlFor="message">Mensagem *</Label>
+                                    <Textarea
+                                        id="message"
+                                        value={message}
+                                        onChange={(event) => setMessage(event.target.value)}
+                                        placeholder="Ex: Em instantes comeca o Jornal VIP."
+                                        className="rounded-xl min-h-[150px] resize-y"
+                                        maxLength={MAX_MESSAGE_LENGTH}
+                                    />
+                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                        <span>Suporta emoji, *negrito*, _italico_, ~tachado~ e links.</span>
+                                        <span>
+                                            {message.length}/{MAX_MESSAGE_LENGTH}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </motion.div>
+                        </motion.div>
 
-                    {/* Agendamento */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="bg-card rounded-2xl border border-border/50 p-6"
-                    >
-                        <h2 className="font-semibold text-lg mb-4">Agendamento</h2>
-
-                        <div className="space-y-6">
-                            <div className="space-y-2">
-                                <Label>Dias da Semana *</Label>
-                                <DaysOfWeekPicker
-                                    value={daysOfWeek}
-                                    onChange={setDaysOfWeek}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Horários *</Label>
-                                <TimesPicker
-                                    value={times}
-                                    onChange={setTimes}
-                                />
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Destinos */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="bg-card rounded-2xl border border-border/50 p-6"
-                    >
-                        <h2 className="font-semibold text-lg mb-4">Destinos</h2>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            Selecione os grupos que receberão este alerta
-                        </p>
-
-                        <DestinationSelector
-                            destinations={mockDestinations}
-                            selectedIds={selectedDestinations}
-                            onChange={setSelectedDestinations}
-                        />
-                    </motion.div>
-
-                    {/* Actions */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.4 }}
-                        className="flex gap-3 pb-20 lg:pb-0"
-                    >
-                        <Button
-                            variant="outline"
-                            onClick={() => navigate("/alertas/lista")}
-                            className="rounded-xl"
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-card rounded-2xl border border-border/50 p-6"
                         >
-                            Cancelar
-                        </Button>
-                        <div className="flex-1" />
-                        <Button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="bg-primary hover:bg-primary-dark rounded-xl min-w-[120px]"
-                        >
-                            <Save className="w-4 h-4 mr-2" />
-                            {isSaving ? "Salvando..." : active ? "Ativar Alerta" : "Salvar Rascunho"}
-                        </Button>
-                    </motion.div>
-                </div>
+                            <h2 className="font-semibold text-lg mb-4">Agendamento</h2>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Cada regra pode ter dia ou data propria com horario independente.
+                            </p>
 
-                {/* Preview - 1 column */}
-                <div className="lg:col-span-1">
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="bg-card rounded-2xl border border-border/50 p-6 sticky top-24"
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="font-semibold text-lg">Preview</h2>
+                            <AlertScheduleRulesBuilder value={scheduleRules} onChange={setScheduleRules} />
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="bg-card rounded-2xl border border-border/50 p-6"
+                        >
+                            <h2 className="font-semibold text-lg mb-4">Destinos</h2>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Selecione um ou mais destinos para este alerta.
+                            </p>
+
+                            <DestinationSelector
+                                destinations={destinations}
+                                selectedIds={selectedDestinations}
+                                onChange={setSelectedDestinations}
+                            />
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.4 }}
+                            className="flex gap-3 pb-20 lg:pb-0"
+                        >
                             <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setShowPreview(!showPreview)}
+                                variant="outline"
+                                onClick={() => navigate("/alertas/lista")}
+                                className="rounded-xl"
                             >
-                                <Eye className="w-4 h-4 mr-1" />
-                                {showPreview ? "Ocultar" : "Mostrar"}
+                                Cancelar
                             </Button>
-                        </div>
+                            <div className="flex-1" />
+                            <Button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className="bg-primary hover:bg-primary-dark rounded-xl min-w-[120px]"
+                            >
+                                <Save className="w-4 h-4 mr-2" />
+                                {isSaving ? "Salvando..." : active ? "Salvar Alerta" : "Salvar Pausado"}
+                            </Button>
+                        </motion.div>
+                    </div>
 
-                        {showPreview && (
-                            <MessagePreview message={message || "Digite uma mensagem para ver o preview..."} />
-                        )}
-                    </motion.div>
+                    <div className="lg:col-span-1">
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-card rounded-2xl border border-border/50 p-6 sticky top-24"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="font-semibold text-lg">Preview</h2>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowPreview(!showPreview)}
+                                >
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    {showPreview ? "Ocultar" : "Mostrar"}
+                                </Button>
+                            </div>
+
+                            {showPreview ? (
+                                <MessagePreview
+                                    message={message || "Digite uma mensagem para ver o preview..."}
+                                />
+                            ) : null}
+                        </motion.div>
+                    </div>
                 </div>
-            </div>
+            )}
         </AppShell>
     );
 };

@@ -63,6 +63,30 @@ test('send text sync returns zapi response', function () {
     });
 });
 
+test('send text preserves group id targets', function () {
+    Http::fake([
+        '*' => Http::response([
+            'zaapId' => 'group-zaap',
+            'messageId' => 'group-message',
+        ], 200),
+    ]);
+
+    $user = makeAuthenticatedUser();
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/v1/whatsapp/send-text', [
+            'phone' => '120363027326371817-group',
+            'message' => 'Ola grupo',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.zaapId', 'group-zaap');
+
+    Http::assertSent(function (Request $request): bool {
+        return $request->url() === 'https://api.z-api.io/instances/instance-test/token/token-test/send-text'
+            && $request['phone'] === '120363027326371817-group';
+    });
+});
+
 test('send text async queues job', function () {
     Queue::fake();
 

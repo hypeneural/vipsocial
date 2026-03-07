@@ -586,7 +586,7 @@ export function SocialMetricsWidget() {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.22 }}
-      className="rounded-[28px] border border-border/60 bg-card p-4 shadow-lg md:p-6"
+      className="overflow-hidden rounded-[28px] border border-border/60 bg-card p-4 shadow-lg md:p-6"
     >
       <div className="flex flex-col gap-4 border-b border-border/50 pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
@@ -671,7 +671,7 @@ export function SocialMetricsWidget() {
 
       {!isLoading && !isError && dashboard && (
         <div className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
               title="Audiência total"
               value={formatNumber(totalAudience)}
@@ -705,8 +705,8 @@ export function SocialMetricsWidget() {
               Nenhum perfil social monitorado ainda. Cadastre perfis em `/api/v1/social/profiles` para alimentar a dashboard.
             </div>
           ) : (
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.95fr)]">
-              <div className="rounded-[24px] border border-border/60 bg-gradient-to-br from-background to-muted/20 p-4 md:p-5">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.95fr)]">
+              <div className="min-w-0 rounded-[24px] border border-border/60 bg-gradient-to-br from-background to-muted/20 p-4 md:p-5">
                 <div className="flex flex-col gap-2 border-b border-border/50 pb-4 md:flex-row md:items-end md:justify-between">
                   <div>
                     <p className="text-sm font-semibold">Histórico da métrica principal</p>
@@ -720,11 +720,11 @@ export function SocialMetricsWidget() {
                 </div>
 
                 {chartData.length === 0 ? (
-                  <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+                  <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground sm:h-[320px]">
                     Sem histórico suficiente para o período.
                   </div>
                 ) : (
-                  <ChartContainer config={chartConfig} className="mt-4 h-[320px] w-full">
+                  <ChartContainer config={chartConfig} className="mt-4 h-[280px] w-full sm:h-[320px]">
                     <LineChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                       <CartesianGrid vertical={false} strokeDasharray="3 3" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
@@ -803,7 +803,7 @@ export function SocialMetricsWidget() {
                   ) : (
                     <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]">
                       <div className="flex flex-col items-center">
-                        <ChartContainer config={compositionChartConfig} className="mx-auto h-[320px] w-full max-w-[380px]">
+                        <ChartContainer config={compositionChartConfig} className="mx-auto h-[250px] w-full max-w-[280px] sm:h-[300px] sm:max-w-[340px] lg:h-[320px] lg:max-w-[380px]">
                           <PieChart>
                             <defs>
                               <linearGradient id={instagramGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -854,7 +854,7 @@ export function SocialMetricsWidget() {
                               data={audienceComposition.items}
                               dataKey="value"
                               nameKey="label"
-                              outerRadius={118}
+                              outerRadius={110}
                               paddingAngle={2}
                               strokeWidth={2}
                               animationDuration={1100}
@@ -876,12 +876,12 @@ export function SocialMetricsWidget() {
                         </ChartContainer>
                         <div className="mt-2 flex flex-col items-center text-center">
                           <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Total</span>
-                          <span className="text-3xl font-bold tracking-tight">{formatNumber(totalAudience)}</span>
+                          <span className="text-2xl font-bold tracking-tight sm:text-3xl">{formatNumber(totalAudience)}</span>
                           <span className="text-sm text-muted-foreground">Audiência monitorada</span>
                         </div>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="min-w-0 grid gap-3 sm:grid-cols-2">
                         {audienceComposition.items.map((item, index) => {
                           const Icon = item.icon;
                           const firstProfile = cards.find(
@@ -909,8 +909,8 @@ export function SocialMetricsWidget() {
                                   : "border-border/60 bg-muted/20 hover:bg-muted/35"
                               )}
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-3">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="flex min-w-0 items-center gap-3">
                                   <span
                                     className="flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-sm"
                                     style={getNetworkSwatchStyle(item.network)}
@@ -922,7 +922,7 @@ export function SocialMetricsWidget() {
                                     <p className="text-xs text-muted-foreground">{item.description}</p>
                                   </div>
                                 </div>
-                                <Badge variant="outline">#{index + 1}</Badge>
+                                <Badge variant="outline" className="w-fit">#{index + 1}</Badge>
                               </div>
 
                               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -960,7 +960,7 @@ export function SocialMetricsWidget() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-4">
                 <div className="rounded-[24px] border border-border/60 bg-muted/15 p-4">
                   <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-3">
                     <div>
@@ -1044,7 +1044,7 @@ export function SocialMetricsWidget() {
                 </div>
 
                 {selectedCard && (
-                  <div className="rounded-[24px] border border-border/60 bg-background p-4">
+                  <div className="min-w-0 rounded-[24px] border border-border/60 bg-background p-4">
                     <div className="flex flex-col gap-4 border-b border-border/50 pb-4">
                       <div className="flex items-start gap-3">
                         <SocialAvatar card={selectedCard} size="lg" />

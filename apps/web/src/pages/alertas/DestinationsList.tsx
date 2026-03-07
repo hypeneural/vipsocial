@@ -1,114 +1,91 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import {
     ArrowLeft,
+    Bell,
+    Edit,
+    Phone,
     Plus,
     Search,
-    Phone,
-    Edit,
-    Trash2,
     Tag,
-    Bell,
+    Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Destination, formatPhoneNumber } from "@/types/alertas";
+import {
+    useDeleteDestination,
+    useDestinations,
+    useToggleDestination,
+} from "@/hooks/useAlertas";
+import { formatPhoneNumber } from "@/types/alertas";
 import { cn } from "@/lib/utils";
-
-// Mock data
-const mockDestinations: Destination[] = [
-    {
-        destination_id: 1,
-        phone_number: "+5547999991111",
-        name: "VIP Tijucas",
-        tags: ["tijucas", "geral"],
-        active: true,
-        created_at: "2026-01-01",
-        updated_at: "2026-01-20",
-        alertCount: 3,
-        lastSentAt: "há 2h",
-    },
-    {
-        destination_id: 2,
-        phone_number: "+5547999992222",
-        name: "VIP Itapema",
-        tags: ["itapema", "geral"],
-        active: true,
-        created_at: "2026-01-01",
-        updated_at: "2026-01-20",
-        alertCount: 3,
-        lastSentAt: "há 2h",
-    },
-    {
-        destination_id: 3,
-        phone_number: "+5547999993333",
-        name: "VIP Barra Velha",
-        tags: ["barra-velha", "geral"],
-        active: true,
-        created_at: "2026-01-01",
-        updated_at: "2026-01-20",
-        alertCount: 2,
-        lastSentAt: "há 5h",
-    },
-    {
-        destination_id: 4,
-        phone_number: "+5547999994444",
-        name: "VIP Esportes",
-        tags: ["esportes"],
-        active: false,
-        created_at: "2026-01-01",
-        updated_at: "2026-01-18",
-        alertCount: 1,
-        lastSentAt: "há 2 dias",
-    },
-];
 
 const DestinationsList = () => {
     const navigate = useNavigate();
-    const [destinations, setDestinations] = useState<Destination[]>(mockDestinations);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
     const [filterTag, setFilterTag] = useState<string | null>(null);
 
-    // Coleta todas as tags
-    const allTags = Array.from(
-        new Set(destinations.flatMap(d => d.tags))
-    ).sort();
+    const destinationsQuery = useDestinations({
+        per_page: 100,
+        search: searchQuery || undefined,
+        include_inactive: filterStatus !== "active",
+        include_archived: false,
+    });
+    const toggleMutation = useToggleDestination();
+    const deleteMutation = useDeleteDestination();
 
-    // Filtra destinos
-    const filteredDestinations = destinations.filter(dest => {
-        if (searchQuery &&
-            !dest.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-            !dest.phone_number.includes(searchQuery)) return false;
-        if (filterStatus === "active" && !dest.active) return false;
-        if (filterStatus === "inactive" && dest.active) return false;
-        if (filterTag && !dest.tags.includes(filterTag)) return false;
+    const destinations = destinationsQuery.data?.data ?? [];
+
+    const allTags = useMemo(
+        () => Array.from(new Set(destinations.flatMap((destination) => destination.tags ?? []))).sort(),
+        [destinations]
+    );
+
+    const filteredDestinations = destinations.filter((destination) => {
+        if (filterStatus === "active" && !destination.active) return false;
+        if (filterStatus === "inactive" && destination.active) return false;
+        if (filterTag && !(destination.tags ?? []).includes(filterTag)) return false;
         return true;
     });
 
-    const toggleActive = (id: number) => {
-        setDestinations(prev =>
-            prev.map(d => d.destination_id === id ? { ...d, active: !d.active } : d)
-        );
-        // TODO: Save to API
+    const formatLastSent = (dateString?: string | null) => {
+        if (!dateString) {
+            return "Nunca";
+        }
+
+        return new Date(dateString).toLocaleString("pt-BR", {
+            dateStyle: "short",
+            timeStyle: "short",
+        });
     };
 
-    const handleDelete = (id: number) => {
-        if (confirm("Deseja desativar este destino?")) {
-            setDestinations(prev =>
-                prev.map(d => d.destination_id === id ? { ...d, active: false } : d)
-            );
-            // TODO: Delete from API
+    const handleToggle = async (destinationId: number) => {
+        try {
+            await toggleMutation.mutateAsync(destinationId);
+        } catch {
+            return;
+        }
+    };
+
+    const handleArchive = async (destinationId: number) => {
+        if (!window.confirm("Deseja arquivar este destino?")) {
+            return;
+        }
+
+        try {
+            await deleteMutation.mutateAsync(destinationId);
+        } catch {
+            return;
         }
     };
 
     return (
         <AppShell>
-            {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -126,7 +103,7 @@ const DestinationsList = () => {
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold">Destinos</h1>
                         <p className="text-sm text-muted-foreground">
-                            Grupos de WhatsApp para receber alertas
+                            Telefones e grupos cadastrados para receber alertas.
                         </p>
                     </div>
 
@@ -139,7 +116,6 @@ const DestinationsList = () => {
                 </div>
             </motion.div>
 
-            {/* Filters */}
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -149,15 +125,15 @@ const DestinationsList = () => {
                 <div className="flex-1 relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                        placeholder="Buscar por nome ou número..."
+                        placeholder="Buscar por nome ou numero..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(event) => setSearchQuery(event.target.value)}
                         className="pl-10 rounded-xl bg-secondary/50"
                     />
                 </div>
                 <select
                     value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value as any)}
+                    onChange={(event) => setFilterStatus(event.target.value as "all" | "active" | "inactive")}
                     className="px-4 py-2 border rounded-xl bg-background text-sm"
                 >
                     <option value="all">Todos os status</option>
@@ -166,111 +142,118 @@ const DestinationsList = () => {
                 </select>
                 <select
                     value={filterTag || ""}
-                    onChange={(e) => setFilterTag(e.target.value || null)}
+                    onChange={(event) => setFilterTag(event.target.value || null)}
                     className="px-4 py-2 border rounded-xl bg-background text-sm"
                 >
                     <option value="">Todas as tags</option>
-                    {allTags.map(tag => (
-                        <option key={tag} value={tag}>{tag}</option>
+                    {allTags.map((tag) => (
+                        <option key={tag} value={tag}>
+                            {tag}
+                        </option>
                     ))}
                 </select>
             </motion.div>
 
-            {/* Destinations Grid */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
-            >
-                {filteredDestinations.map((dest, index) => (
-                    <motion.div
-                        key={dest.destination_id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className={cn(
-                            "bg-card rounded-2xl border p-4 transition-all hover:shadow-md",
-                            !dest.active && "opacity-70 border-dashed"
-                        )}
-                    >
-                        {/* Header */}
-                        <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="flex items-center gap-3">
-                                <div className={cn(
-                                    "w-10 h-10 rounded-xl flex items-center justify-center",
-                                    dest.active ? "bg-blue-500/10" : "bg-muted"
-                                )}>
-                                    <Phone className={cn(
-                                        "w-5 h-5",
-                                        dest.active ? "text-blue-500" : "text-muted-foreground"
-                                    )} />
+            {destinationsQuery.isLoading ? (
+                <div className="rounded-2xl border border-border/50 bg-card p-6 text-sm text-muted-foreground">
+                    Carregando destinos...
+                </div>
+            ) : (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
+                    {filteredDestinations.map((destination, index) => (
+                        <motion.div
+                            key={destination.destination_id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className={cn(
+                                "bg-card rounded-2xl border p-4 transition-all hover:shadow-md",
+                                !destination.active && "opacity-70 border-dashed"
+                            )}
+                        >
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className={cn(
+                                            "w-10 h-10 rounded-xl flex items-center justify-center",
+                                            destination.active ? "bg-blue-500/10" : "bg-muted"
+                                        )}
+                                    >
+                                        <Phone
+                                            className={cn(
+                                                "w-5 h-5",
+                                                destination.active ? "text-blue-500" : "text-muted-foreground"
+                                            )}
+                                        />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="font-semibold truncate">{destination.name}</h3>
+                                        <p className="text-xs text-muted-foreground break-all">
+                                            {formatPhoneNumber(destination.phone_number)}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="font-semibold">{dest.name}</h3>
-                                    <p className="text-xs text-muted-foreground">
-                                        {formatPhoneNumber(dest.phone_number)}
-                                    </p>
+                                <Switch
+                                    checked={destination.active}
+                                    onCheckedChange={() => handleToggle(destination.destination_id)}
+                                />
+                            </div>
+
+                            {(destination.tags ?? []).length > 0 ? (
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                    {destination.tags.map((tag) => (
+                                        <Badge key={tag} variant="secondary" className="text-xs">
+                                            <Tag className="w-3 h-3 mr-1" />
+                                            {tag}
+                                        </Badge>
+                                    ))}
                                 </div>
+                            ) : null}
+
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                                <div className="flex items-center gap-1">
+                                    <Bell className="w-3 h-3" />
+                                    <span>{destination.alert_count ?? 0} alerta(s)</span>
+                                </div>
+                                <span>-</span>
+                                <span>Ultimo envio: {formatLastSent(destination.last_sent_at)}</span>
                             </div>
-                            <Switch
-                                checked={dest.active}
-                                onCheckedChange={() => toggleActive(dest.destination_id)}
-                            />
-                        </div>
 
-                        {/* Tags */}
-                        {dest.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-3">
-                                {dest.tags.map(tag => (
-                                    <Badge key={tag} variant="secondary" className="text-xs">
-                                        <Tag className="w-3 h-3 mr-1" />
-                                        {tag}
-                                    </Badge>
-                                ))}
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate(`/alertas/destinos/${destination.destination_id}/editar`)}
+                                    className="flex-1 rounded-lg"
+                                >
+                                    <Edit className="w-4 h-4 mr-1" />
+                                    Editar
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleArchive(destination.destination_id)}
+                                    className="text-destructive hover:text-destructive rounded-lg"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
                             </div>
-                        )}
+                        </motion.div>
+                    ))}
 
-                        {/* Stats */}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
-                            <div className="flex items-center gap-1">
-                                <Bell className="w-3 h-3" />
-                                <span>{dest.alertCount} alerta(s)</span>
-                            </div>
-                            <span>•</span>
-                            <span>Último envio: {dest.lastSentAt}</span>
+                    {filteredDestinations.length === 0 ? (
+                        <div className="col-span-full text-center py-12 text-muted-foreground">
+                            <Phone className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                            <p>Nenhum destino encontrado</p>
                         </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigate(`/alertas/destinos/${dest.destination_id}/editar`)}
-                                className="flex-1 rounded-lg"
-                            >
-                                <Edit className="w-4 h-4 mr-1" />
-                                Editar
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDelete(dest.destination_id)}
-                                className="text-destructive hover:text-destructive rounded-lg"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    </motion.div>
-                ))}
-
-                {filteredDestinations.length === 0 && (
-                    <div className="col-span-full text-center py-12 text-muted-foreground">
-                        <Phone className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>Nenhum destino encontrado</p>
-                    </div>
-                )}
-            </motion.div>
+                    ) : null}
+                </motion.div>
+            )}
         </AppShell>
     );
 };

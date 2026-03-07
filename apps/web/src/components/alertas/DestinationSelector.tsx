@@ -32,7 +32,7 @@ export const DestinationSelector = ({
 
     // Filtra destinos
     const filteredDestinations = destinations.filter(dest => {
-        if (!dest.active) return false;
+        if (!dest.active && !selectedIds.includes(dest.destination_id)) return false;
         if (search && !dest.name.toLowerCase().includes(search.toLowerCase()) &&
             !dest.phone_number.includes(search)) return false;
         if (tagFilter && !dest.tags.includes(tagFilter)) return false;

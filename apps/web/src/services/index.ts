@@ -26,6 +26,7 @@ export type {
     UpdateDestinationDTO,
     CreateAlertDTO,
     UpdateAlertDTO,
+    DestinationFilters,
     AlertFilters,
     LogFilters
 } from "./alerta.service";

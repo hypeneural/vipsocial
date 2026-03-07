@@ -9,6 +9,7 @@ use App\Modules\WhatsApp\Services\GroupSyncService;
 use App\Modules\WhatsApp\Services\GroupSnapshotService;
 use App\Modules\WhatsApp\Services\WhatsAppService;
 use App\Modules\WhatsApp\Support\PhoneNormalizer;
+use App\Modules\WhatsApp\Support\WhatsAppTargetNormalizer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -56,7 +57,7 @@ class SyncGroupMetadataJobTest extends TestCase
         ]);
 
         $service = new GroupSyncService(
-            new WhatsAppService(new ZApiClient(), new PhoneNormalizer()),
+            new WhatsAppService(new ZApiClient(), new WhatsAppTargetNormalizer(new PhoneNormalizer())),
             new GroupSnapshotService()
         );
 

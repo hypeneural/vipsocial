@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -168,7 +168,7 @@ export function WhatsAppGroupsWidget() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.25 }}
-      className="rounded-[28px] border border-border/60 bg-card p-4 shadow-lg md:p-6"
+      className="overflow-hidden rounded-[28px] border border-border/60 bg-card p-4 shadow-lg md:p-6"
     >
       <div className="flex flex-col gap-4 border-b border-border/50 pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
@@ -239,7 +239,7 @@ export function WhatsAppGroupsWidget() {
 
       {isLoading && (
         <div className="grid gap-4 py-8 lg:grid-cols-2">
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {[1, 2, 3, 4].map((item) => (
                 <div key={item} className="h-28 animate-pulse rounded-2xl bg-muted/40" />
@@ -258,9 +258,9 @@ export function WhatsAppGroupsWidget() {
       )}
 
       {!isLoading && !isError && summary && (
-        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.95fr)]">
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
+        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.95fr)]">
+          <div className="min-w-0 space-y-6">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
               <KpiCard
                 title="Usuários únicos"
                 value={formatNumber(summary.unique_members_current)}
@@ -311,11 +311,11 @@ export function WhatsAppGroupsWidget() {
               </div>
 
               {chartData.length === 0 ? (
-                <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                <div className="flex h-[260px] items-center justify-center text-sm text-muted-foreground sm:h-[300px]">
                   Sem snapshots disponíveis para o período.
                 </div>
               ) : (
-                <ChartContainer config={whatsappChartConfig} className="mt-4 h-[300px] w-full">
+                <ChartContainer config={whatsappChartConfig} className="mt-4 h-[260px] w-full sm:h-[300px]">
                   <AreaChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="fill-unique-members" x1="0" y1="0" x2="0" y2="1">
@@ -371,7 +371,7 @@ export function WhatsAppGroupsWidget() {
                 </ChartContainer>
               )}
 
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div className="rounded-2xl bg-background/80 p-3">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Base inicial</p>
                   <p className="mt-2 text-lg font-semibold">{formatNumber(summary.unique_growth.baseline)}</p>
@@ -405,7 +405,7 @@ export function WhatsAppGroupsWidget() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="rounded-[24px] border border-border/60 bg-muted/15 p-4 md:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -426,7 +426,7 @@ export function WhatsAppGroupsWidget() {
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-4 rounded-[22px] border border-border/60 bg-background/85 p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="truncate text-base font-semibold">{selectedGroup.name || selectedGroup.subject || "Grupo sem nome"}</p>
                       <p className="mt-1 truncate text-xs text-muted-foreground">{selectedGroup.group_id}</p>
@@ -434,7 +434,7 @@ export function WhatsAppGroupsWidget() {
                     <Badge variant="outline">#{selectedGroup.rank}</Badge>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="rounded-2xl bg-muted/30 p-3">
                       <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Membros</p>
                       <p className="mt-2 text-lg font-semibold">{formatNumber(selectedGroup.members_current)}</p>
@@ -487,7 +487,7 @@ export function WhatsAppGroupsWidget() {
             </div>
 
             <div className="rounded-[24px] border border-border/60 bg-muted/15 p-4 md:p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold">Distribuição por grupo</p>
                   <p className="text-xs text-muted-foreground">
@@ -587,3 +587,5 @@ export function WhatsAppGroupsWidget() {
 }
 
 export default WhatsAppGroupsWidget;
+
+

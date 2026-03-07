@@ -6,7 +6,7 @@ use App\Modules\WhatsApp\Clients\WhatsAppProviderInterface;
 use App\Modules\WhatsApp\Jobs\SendWhatsAppImageJob;
 use App\Modules\WhatsApp\Jobs\SendWhatsAppLinkJob;
 use App\Modules\WhatsApp\Jobs\SendWhatsAppTextJob;
-use App\Modules\WhatsApp\Support\PhoneNormalizer;
+use App\Modules\WhatsApp\Support\WhatsAppTargetNormalizer;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -14,14 +14,14 @@ class WhatsAppService
 {
     public function __construct(
         private readonly WhatsAppProviderInterface $client,
-        private readonly PhoneNormalizer $phoneNormalizer
+        private readonly WhatsAppTargetNormalizer $targetNormalizer
     ) {
     }
 
     public function sendText(string $phone, string $message, array $options = []): array
     {
         $payload = array_filter([
-            'phone' => $this->phoneNormalizer->normalize($phone),
+            'phone' => $this->targetNormalizer->normalize($phone),
             'message' => $message,
             'delayMessage' => $options['delayMessage'] ?? null,
             'delayTyping' => $options['delayTyping'] ?? null,
@@ -34,7 +34,7 @@ class WhatsAppService
     public function sendImage(string $phone, string $image, ?string $caption = null, array $options = []): array
     {
         $payload = array_filter([
-            'phone' => $this->phoneNormalizer->normalize($phone),
+            'phone' => $this->targetNormalizer->normalize($phone),
             'image' => $image,
             'caption' => $caption,
             'messageId' => $options['messageId'] ?? null,
@@ -55,7 +55,7 @@ class WhatsAppService
         string $linkType = 'LARGE'
     ): array {
         $payload = [
-            'phone' => $this->phoneNormalizer->normalize($phone),
+            'phone' => $this->targetNormalizer->normalize($phone),
             'message' => $message,
             'image' => $image,
             'linkUrl' => $linkUrl,

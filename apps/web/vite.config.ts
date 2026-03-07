@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+﻿import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { execSync } from "node:child_process";
@@ -91,3 +91,4 @@ export default defineConfig(({ mode }) => ({
     __APP_BUILD_ID__: JSON.stringify(buildId),
   },
 }));
+

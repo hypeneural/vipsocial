@@ -1,10 +1,15 @@
 import api from "./api";
 import { ApiResponse, PaginatedResponse, ListParams, FilterParams } from "./types";
-import { Alert, Destination, AlertLog, AlertSchedule } from "@/types/alertas";
+import {
+    Alert,
+    AlertDispatchRun,
+    AlertLog,
+    AlertScheduleRule,
+    AlertsStats,
+    Destination,
+    NextFiring,
+} from "@/types/alertas";
 
-// ==========================================
-// DESTINATION TYPES
-// ==========================================
 export interface CreateDestinationDTO {
     name: string;
     phone_number: string;
@@ -19,15 +24,17 @@ export interface UpdateDestinationDTO {
     active?: boolean;
 }
 
-// ==========================================
-// ALERT TYPES
-// ==========================================
+export type CreateAlertScheduleRuleDTO = Omit<
+    AlertScheduleRule,
+    "schedule_id" | "rule_key" | "created_at" | "updated_at" | "next_fire_at"
+>;
+
 export interface CreateAlertDTO {
     title: string;
     message: string;
     active?: boolean;
     destination_ids: number[];
-    schedules: Omit<AlertSchedule, "schedule_id" | "alert_id">[];
+    schedule_rules: CreateAlertScheduleRuleDTO[];
 }
 
 export interface UpdateAlertDTO {
@@ -35,25 +42,30 @@ export interface UpdateAlertDTO {
     message?: string;
     active?: boolean;
     destination_ids?: number[];
-    schedules?: Omit<AlertSchedule, "schedule_id" | "alert_id">[];
+    schedule_rules?: CreateAlertScheduleRuleDTO[];
 }
 
 export interface AlertFilters extends FilterParams {
     destination_id?: number;
+    include_inactive?: boolean;
+    include_archived?: boolean;
+}
+
+export interface DestinationFilters extends FilterParams {
+    include_inactive?: boolean;
+    include_archived?: boolean;
 }
 
 export interface LogFilters extends FilterParams {
     alert_id?: number;
     destination_id?: number;
-    status?: "success" | "failed";
+    status?: "pending" | "success" | "failed" | "cancelled" | "skipped";
+    search?: string;
 }
 
-// ==========================================
-// DESTINATION SERVICE
-// ==========================================
 export const destinationService = {
     getAll: async (
-        params?: ListParams & FilterParams
+        params?: ListParams & DestinationFilters
     ): Promise<PaginatedResponse<Destination>> => {
         const { data } = await api.get<PaginatedResponse<Destination>>("/alertas/destinos", { params });
         return data;
@@ -85,9 +97,6 @@ export const destinationService = {
     },
 };
 
-// ==========================================
-// ALERT SERVICE
-// ==========================================
 export const alertService = {
     getAll: async (
         params?: ListParams & AlertFilters
@@ -126,15 +135,12 @@ export const alertService = {
         return data;
     },
 
-    sendNow: async (id: number): Promise<ApiResponse<void>> => {
-        const { data } = await api.post<ApiResponse<void>>(`/alertas/${id}/send`);
+    sendNow: async (id: number): Promise<ApiResponse<{ dispatch_run: AlertDispatchRun }>> => {
+        const { data } = await api.post<ApiResponse<{ dispatch_run: AlertDispatchRun }>>(`/alertas/${id}/send`);
         return data;
     },
 };
 
-// ==========================================
-// ALERT LOG SERVICE
-// ==========================================
 export const alertLogService = {
     getAll: async (
         params?: ListParams & LogFilters
@@ -145,45 +151,34 @@ export const alertLogService = {
 
     getByAlertId: async (
         alertId: number,
-        params?: ListParams
+        params?: ListParams & Omit<LogFilters, "alert_id">
     ): Promise<PaginatedResponse<AlertLog>> => {
-        const { data } = await api.get<PaginatedResponse<AlertLog>>(
-            `/alertas/${alertId}/logs`,
-            { params }
-        );
+        const { data } = await api.get<PaginatedResponse<AlertLog>>(`/alertas/${alertId}/logs`, { params });
         return data;
     },
 
-    retry: async (logId: number): Promise<ApiResponse<AlertLog>> => {
-        const { data } = await api.post<ApiResponse<AlertLog>>(`/alertas/logs/${logId}/retry`);
+    retry: async (logId: string): Promise<ApiResponse<{ dispatch_run: AlertDispatchRun }>> => {
+        const { data } = await api.post<ApiResponse<{ dispatch_run: AlertDispatchRun }>>(`/alertas/logs/${logId}/retry`);
         return data;
     },
 };
 
-// ==========================================
-// DASHBOARD SERVICE
-// ==========================================
 export const alertDashboardService = {
-    getStats: async (): Promise<ApiResponse<{
-        total_destinations: number;
-        active_destinations: number;
-        total_alerts: number;
-        active_alerts: number;
-        today_sent: number;
-        today_failed: number;
-    }>> => {
-        const { data } = await api.get("/alertas/dashboard/stats");
+    getStats: async (): Promise<ApiResponse<AlertsStats>> => {
+        const { data } = await api.get<ApiResponse<AlertsStats>>("/alertas/dashboard/stats");
         return data;
     },
 
-    getNextFirings: async (limit?: number): Promise<ApiResponse<{
-        alert_id: number;
-        title: string;
-        next_fire_at: string;
-        destinations_count: number;
-    }[]>> => {
-        const { data } = await api.get("/alertas/dashboard/next-firings", {
+    getNextFirings: async (limit?: number): Promise<ApiResponse<NextFiring[]>> => {
+        const { data } = await api.get<ApiResponse<NextFiring[]>>("/alertas/dashboard/next-firings", {
             params: { limit: limit || 5 },
+        });
+        return data;
+    },
+
+    getRecentLogs: async (limit?: number): Promise<ApiResponse<AlertLog[]>> => {
+        const { data } = await api.get<ApiResponse<AlertLog[]>>("/alertas/dashboard/recent-logs", {
+            params: { limit: limit || 10 },
         });
         return data;
     },

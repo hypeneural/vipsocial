@@ -52,7 +52,7 @@ export const NextFiringsList = ({
                         <p className="font-medium text-sm truncate">{firing.alert_title}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <Users className="w-3 h-3" />
-                            <span>{firing.destination_count} grupo(s)</span>
+                            <span>{firing.destination_count} destino(s)</span>
                         </div>
                     </div>
 
