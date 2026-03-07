@@ -78,6 +78,7 @@ export interface PollPlacement {
   is_active: boolean;
   last_seen_at: string | null;
   embed_url: string;
+  embed_loader_url: string;
   site: {
     id: number;
     name: string;

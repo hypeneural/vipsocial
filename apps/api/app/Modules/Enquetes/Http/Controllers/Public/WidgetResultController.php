@@ -24,6 +24,12 @@ class WidgetResultController extends BaseController
             ->where('public_id', $pollPublicId)
             ->firstOrFail();
 
+        $widgetState = $this->stateResolver->resolveWidgetState($poll);
+
+        if ($widgetState === 'ended_hide') {
+            return $this->jsonError('Resultados indisponiveis para esta enquete', 'POLL_RESULTS_HIDDEN', 403);
+        }
+
         if ($poll->results_visibility === Poll::RESULTS_NEVER) {
             return $this->jsonError('Resultados indisponiveis para esta enquete', 'POLL_RESULTS_HIDDEN', 403);
         }
@@ -34,7 +40,7 @@ class WidgetResultController extends BaseController
 
         if (
             $poll->results_visibility === Poll::RESULTS_AFTER_END
-            && !str_starts_with($this->stateResolver->resolveWidgetState($poll), 'ended_')
+            && !str_starts_with($widgetState, 'ended_')
         ) {
             return $this->jsonError('Resultados ainda nao disponiveis', 'POLL_RESULTS_NOT_AVAILABLE_YET', 403);
         }

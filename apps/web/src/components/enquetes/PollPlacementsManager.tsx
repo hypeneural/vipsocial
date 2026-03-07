@@ -27,11 +27,11 @@ import {
   useTogglePollPlacement,
   useUpdatePollPlacement,
 } from "@/hooks/useEnquetes";
+import { PollEmbedCodeDialog } from "@/components/enquetes/PollEmbedCodeDialog";
 import type {
   CreatePollPlacementDTO,
   PollPlacement,
 } from "@/services/enquete.service";
-import showToast from "@/lib/toast";
 
 interface PollPlacementsManagerProps {
   pollId: number;
@@ -79,6 +79,7 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<PlacementFormState>(emptyPlacementForm);
+  const [codePlacement, setCodePlacement] = useState<PollPlacement | null>(null);
 
   const placements = useMemo(() => placementsQuery.data?.data ?? [], [placementsQuery.data]);
   const sites = useMemo(() => sitesQuery.data?.data ?? [], [sitesQuery.data]);
@@ -128,15 +129,6 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
 
   const handleToggle = async (placement: PollPlacement) => {
     await togglePlacementMutation.mutateAsync(placement.id);
-  };
-
-  const handleCopy = async (placement: PollPlacement) => {
-    try {
-      await navigator.clipboard.writeText(placement.embed_url);
-      showToast.success("URL de embed copiada");
-    } catch {
-      showToast.error("Falha ao copiar URL de embed");
-    }
   };
 
   return (
@@ -196,10 +188,10 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
                       variant="outline"
                       size="sm"
                       className="rounded-xl"
-                      onClick={() => handleCopy(placement)}
+                      onClick={() => setCodePlacement(placement)}
                     >
                       <Copy className="mr-2 h-4 w-4" />
-                      Embed
+                      Codigo
                     </Button>
                     <Button
                       type="button"
@@ -362,6 +354,16 @@ export function PollPlacementsManager({ pollId }: PollPlacementsManagerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PollEmbedCodeDialog
+        placement={codePlacement}
+        open={codePlacement !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCodePlacement(null);
+          }
+        }}
+      />
     </>
   );
 }

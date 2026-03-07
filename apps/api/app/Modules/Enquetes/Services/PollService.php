@@ -213,9 +213,35 @@ class PollService
             'description' => $option->description,
             'sort_order' => $option->sort_order,
             'is_active' => $option->is_active,
-            'image_url' => $media?->getUrl('web') ?? $media?->getUrl(),
-            'image_thumb_url' => $media?->getUrl('thumb'),
+            'image_url' => $this->serializeOptionMediaUrl($option, $media, 'web'),
+            'image_thumb_url' => $this->serializeOptionMediaUrl($option, $media, 'thumb'),
         ];
+    }
+
+    private function serializeOptionMediaUrl(PollOption $option, $media, ?string $preferredConversion = null): ?string
+    {
+        if ($media === null) {
+            return null;
+        }
+
+        $conversion = null;
+
+        if (
+            $preferredConversion !== null
+            && method_exists($media, 'hasGeneratedConversion')
+            && $media->hasGeneratedConversion($preferredConversion)
+        ) {
+            $conversion = $preferredConversion;
+        }
+
+        $url = route('enquetes.option-media', array_filter([
+            'optionPublicId' => $option->public_id,
+            'conversion' => $conversion,
+        ], static fn($value) => $value !== null));
+
+        $version = optional($media->updated_at)->getTimestamp();
+
+        return $version ? $url . '?v=' . $version : $url;
     }
 
     private function fillPoll(Poll $poll, array $validated, ?int $userId, bool $creating): void

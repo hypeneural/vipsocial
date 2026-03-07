@@ -33,6 +33,7 @@ import {
 } from "recharts";
 import { AppShell } from "@/components/layout/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PollEmbedCodeDialog } from "@/components/enquetes/PollEmbedCodeDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -221,6 +222,7 @@ const EnqueteResultados = () => {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [votePendingInvalidation, setVotePendingInvalidation] = useState<PollVoteLog | null>(null);
+  const [embedDialogPlacementId, setEmbedDialogPlacementId] = useState<number | null>(null);
   const dashboardQuery = usePollDashboard(isValidPollId ? pollId : undefined);
   const placementsQuery = usePollPlacements(isValidPollId ? pollId : undefined);
   const placementsMetricsQuery = usePollPlacementsMetrics(isValidPollId ? pollId : undefined);
@@ -259,9 +261,26 @@ const EnqueteResultados = () => {
     [options]
   );
 
-  const topOption = useMemo(
-    () => [...optionsChartData].sort((left, right) => (right.votes ?? 0) - (left.votes ?? 0))[0] ?? null,
+  const maxVotes = useMemo(
+    () => Math.max(0, ...optionsChartData.map((option) => option.votes ?? 0)),
     [optionsChartData]
+  );
+
+  const leaderOptions = useMemo(
+    () => (maxVotes > 0 ? optionsChartData.filter((option) => (option.votes ?? 0) === maxVotes) : []),
+    [maxVotes, optionsChartData]
+  );
+
+  const hasLeaderTie = leaderOptions.length > 1;
+  const leaderPublicIds = useMemo(
+    () => new Set(leaderOptions.map((option) => option.public_id)),
+    [leaderOptions]
+  );
+  const topOption = leaderOptions[0] ?? null;
+  const hasVoteData = (overview?.votes_accepted ?? 0) > 0;
+  const embedDialogPlacement = useMemo(
+    () => placements.find((placement) => placement.id === embedDialogPlacementId) ?? activePlacement ?? null,
+    [activePlacement, embedDialogPlacementId, placements]
   );
 
   const timelineData = useMemo(
@@ -357,18 +376,13 @@ const EnqueteResultados = () => {
     }
   };
 
-  const handleCopyEmbed = async (embedUrl?: string | null) => {
-    if (!embedUrl) {
+  const openEmbedDialog = () => {
+    if (!activePlacement) {
       showToast.warning("Nenhum placement ativo com embed disponivel");
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(embedUrl);
-      showToast.success("URL de embed copiada");
-    } catch {
-      showToast.error("Nao foi possivel copiar a URL de embed");
-    }
+    setEmbedDialogPlacementId(activePlacement.id);
   };
 
   const handleExport = async (fileName: string, loader: () => Promise<Blob>) => {
@@ -484,10 +498,10 @@ const EnqueteResultados = () => {
             <Button
               size="sm"
               className="rounded-xl"
-              onClick={() => handleCopyEmbed(activePlacement?.embed_url)}
+              onClick={openEmbedDialog}
             >
               <Copy className="mr-2 h-4 w-4" />
-              Copiar embed
+              Codigo de incorporacao
             </Button>
           </div>
         </div>
@@ -505,10 +519,18 @@ const EnqueteResultados = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="rounded-xl border border-border/50 bg-card p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <BarChart3 className="h-4 w-4" />
-            Lider
+            Lideranca
           </div>
-          <p className="mt-1 truncate text-base font-semibold">{topOption?.label ?? "Sem votos"}</p>
-          <p className="text-sm text-primary">{formatPercent(topOption?.percentage)}</p>
+          <p className="mt-1 truncate text-base font-semibold">
+            {!hasVoteData ? "Sem votos ate agora" : hasLeaderTie ? `Empate entre ${leaderOptions.length} opcoes` : topOption?.label}
+          </p>
+          <p className="text-sm text-primary">
+            {!hasVoteData
+              ? "A lideranca aparece apos o primeiro voto"
+              : hasLeaderTie
+                ? `${formatPercent(topOption?.percentage)} cada`
+                : formatPercent(topOption?.percentage)}
+          </p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="rounded-xl border border-success/30 bg-success/10 p-4">
@@ -549,7 +571,7 @@ const EnqueteResultados = () => {
           <div className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
               <h3 className="mb-4 text-lg font-semibold">Distribuicao por opcao</h3>
-              {optionsChartData.length === 0 ? (
+              {!hasVoteData ? (
                 <EmptyState message="Ainda nao existem votos validos para distribuir." />
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
@@ -576,7 +598,7 @@ const EnqueteResultados = () => {
 
             <div className="rounded-2xl border border-border/50 bg-card p-4 shadow-sm">
               <h3 className="mb-4 text-lg font-semibold">Ranking de votos</h3>
-              {optionsChartData.length === 0 ? (
+              {!hasVoteData ? (
                 <EmptyState message="Sem votos validos para montar o ranking." />
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
@@ -602,14 +624,18 @@ const EnqueteResultados = () => {
               <EmptyState message="Sem opcoes com resultado para exibir." />
             ) : (
               <div className="space-y-3">
-                {optionsChartData.map((option, index) => (
+                {optionsChartData.map((option) => (
                   <div key={option.public_id} className="rounded-xl border border-border/40 bg-secondary/20 p-4">
                     <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="h-3 w-3 rounded-full" style={{ backgroundColor: option.fill }} />
                           <p className="truncate font-medium">{option.label}</p>
-                          {index === 0 ? <Badge className="rounded-full bg-primary/15 text-primary">Lider</Badge> : null}
+                          {leaderPublicIds.has(option.public_id) ? (
+                            <Badge className="rounded-full bg-primary/15 text-primary">
+                              {hasLeaderTie ? "Empate" : "Lider"}
+                            </Badge>
+                          ) : null}
                         </div>
                         {option.description ? (
                           <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
@@ -984,6 +1010,15 @@ const EnqueteResultados = () => {
         variant="warning"
         loading={invalidateVoteMutation.isPending}
         onConfirm={handleInvalidateVote}
+      />
+      <PollEmbedCodeDialog
+        placement={embedDialogPlacement}
+        open={embedDialogPlacementId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEmbedDialogPlacementId(null);
+          }
+        }}
       />
     </AppShell>
   );

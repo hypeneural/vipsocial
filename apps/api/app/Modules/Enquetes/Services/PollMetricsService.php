@@ -295,9 +295,12 @@ class PollMetricsService
             ->whereIn('event_type', ['widget_loaded', 'widget_visible'])
             ->count();
 
-        $topOption = collect($this->optionsBreakdown($poll->id))
-            ->sortByDesc('votes')
-            ->first();
+        $topOption = null;
+        if ($totalVotes > 0) {
+            $topOption = collect($this->optionsBreakdown($poll->id))
+                ->sortByDesc('votes')
+                ->first();
+        }
 
         return [
             'impressions' => $impressions,

@@ -285,7 +285,7 @@ test('poll site and domains can be created and updated', function () {
         ->assertJsonPath('data.0.domain_pattern', 'noticias.tvvip.social');
 });
 
-test('placement can be created toggled and embed route returns html', function () {
+test('placement can be created toggled and embed routes return html and loader script', function () {
     Sanctum::actingAs(makeAuthenticatedEnquetesUser());
 
     $poll = Poll::query()->create([
@@ -320,6 +320,9 @@ test('placement can be created toggled and embed route returns html', function (
 
     $placementId = $response->json('data.id');
     $placementPublicId = $response->json('data.public_id');
+    $embedLoaderUrl = $response->json('data.embed_loader_url');
+
+    expect($embedLoaderUrl)->toContain("/embed/enquetes/{$placementPublicId}/loader.js");
 
     $this->patchJson("/api/v1/enquetes/placements/{$placementId}/toggle")
         ->assertOk()
@@ -329,8 +332,13 @@ test('placement can be created toggled and embed route returns html', function (
 
     $this->get("/embed/enquetes/{$placementPublicId}")
         ->assertOk()
-        ->assertSee('Embed enquete')
-        ->assertSee('Qual programa voce mais acompanha?');
+        ->assertSee('Enquete TV VIP Social')
+        ->assertSee('Carregando enquete');
+
+    $this->get("/embed/enquetes/{$placementPublicId}/loader.js")
+        ->assertOk()
+        ->assertHeader('content-type', 'application/javascript; charset=UTF-8')
+        ->assertSee('tvvip-enquete:resize');
 });
 
 test('poll option image can be uploaded and removed', function () {
@@ -360,12 +368,51 @@ test('poll option image can be uploaded and removed', function () {
         ->assertOk()
         ->assertJsonPath('data.label', 'Jornal VIP');
 
-    expect($option->fresh()->getFirstMedia('option_image'))->not->toBeNull();
+    $option->refresh();
+
+    expect($option->getFirstMedia('option_image'))->not->toBeNull();
+
+    $this->get("/media/enquetes/options/{$option->public_id}/thumb")
+        ->assertOk();
 
     $this->deleteJson("/api/v1/enquetes/options/{$option->id}/image")
         ->assertOk();
 
     expect($option->fresh()->getFirstMedia('option_image'))->toBeNull();
+});
+
+test('dashboard overview does not mark a leader when poll has no valid votes', function () {
+    Sanctum::actingAs(makeAuthenticatedEnquetesUser());
+
+    $poll = Poll::query()->create([
+        'title' => 'Programacao TV VIP',
+        'question' => 'Qual programa voce mais acompanha?',
+        'status' => 'live',
+        'selection_type' => 'single',
+        'vote_limit_mode' => 'once_ever',
+        'results_visibility' => 'live',
+        'after_end_behavior' => 'show_results_only',
+        'timezone' => 'America/Sao_Paulo',
+    ]);
+
+    PollOption::query()->create([
+        'poll_id' => $poll->id,
+        'label' => 'Jornal VIP',
+        'sort_order' => 0,
+        'is_active' => true,
+    ]);
+
+    PollOption::query()->create([
+        'poll_id' => $poll->id,
+        'label' => 'Esportes VIP',
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $this->getJson("/api/v1/enquetes/{$poll->id}/metrics/overview")
+        ->assertOk()
+        ->assertJsonPath('data.overview.votes_accepted', 0)
+        ->assertJsonPath('data.overview.top_option', null);
 });
 
 test('public boot and widget session return payload and persist hashed session context', function () {
@@ -544,6 +591,32 @@ test('public vote accepts first vote and blocks repeated vote for once ever poli
         ->assertStatus(409)
         ->assertJsonPath('data.accepted', false)
         ->assertJsonPath('data.block_reason', 'ALREADY_VOTED');
+});
+
+test('public results stay hidden when poll is configured to hide widget after end', function () {
+    $poll = Poll::query()->create([
+        'title' => 'Programacao TV VIP',
+        'question' => 'Qual programa voce mais acompanha?',
+        'status' => 'closed',
+        'selection_type' => 'single',
+        'vote_limit_mode' => 'once_ever',
+        'results_visibility' => 'after_end',
+        'after_end_behavior' => 'hide_widget',
+        'timezone' => 'America/Sao_Paulo',
+        'starts_at' => now()->subDay(),
+        'ends_at' => now()->subHour(),
+    ]);
+
+    PollOption::query()->create([
+        'poll_id' => $poll->id,
+        'label' => 'Jornal VIP',
+        'sort_order' => 0,
+        'is_active' => true,
+    ]);
+
+    $this->getJson("/api/v1/public/enquetes/{$poll->public_id}/results")
+        ->assertStatus(403)
+        ->assertJsonPath('code', 'POLL_RESULTS_HIDDEN');
 });
 
 test('public vote accepts multiple selection respecting max choices', function () {

@@ -63,7 +63,8 @@ class PollPlacementService
             'page_path' => $placement->page_path,
             'is_active' => $placement->is_active,
             'last_seen_at' => optional($placement->last_seen_at)?->toIso8601String(),
-            'embed_url' => url('/embed/enquetes/' . $placement->public_id),
+            'embed_url' => route('enquetes.embed.show', ['placementPublicId' => $placement->public_id]),
+            'embed_loader_url' => route('enquetes.embed.loader', ['placementPublicId' => $placement->public_id]),
             'site' => $placement->site ? [
                 'id' => $placement->site->id,
                 'name' => $placement->site->name,

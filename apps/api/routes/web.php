@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Enquetes\Http\Controllers\Public\EmbedController;
+use App\Modules\Enquetes\Http\Controllers\Public\PollMediaController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -12,7 +13,12 @@ use Illuminate\Support\Facades\Route;
 | Static assets (JS, CSS, images) are served directly by the web server.
 */
 
-Route::get('/embed/enquetes/{placementPublicId}', [EmbedController::class, 'show']);
+Route::get('/media/enquetes/options/{optionPublicId}/{conversion?}', [PollMediaController::class, 'optionImage'])
+    ->name('enquetes.option-media');
+Route::get('/embed/enquetes/{placementPublicId}/loader.js', [EmbedController::class, 'loader'])
+    ->name('enquetes.embed.loader');
+Route::get('/embed/enquetes/{placementPublicId}', [EmbedController::class, 'show'])
+    ->name('enquetes.embed.show');
 
 Route::get('/{any}', function () {
     $indexPath = public_path('index.html');
