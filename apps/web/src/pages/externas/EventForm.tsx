@@ -350,6 +350,8 @@ const EventForm = () => {
     const [selectedColabs, setSelectedColabs] = useState<Array<{ user_id: number; nome: string; funcao: string }>>([]);
     const [selectedEquips, setSelectedEquips] = useState<number[]>([]);
     const [savedEvent, setSavedEvent] = useState<ExternalEvent | null>(null);
+    const categorySelectValue = categoryId === "" ? "__select_category__" : String(categoryId);
+    const statusSelectValue = statusId === "" ? "__select_status__" : String(statusId);
 
     // ── Equipment availability check ──────────
     const availabilityParams = useMemo(() => {
@@ -567,11 +569,12 @@ const EventForm = () => {
                                                 <Settings2 className="w-3 h-3 mr-1" /> Gerenciar
                                             </Button>
                                         </div>
-                                        <Select value={categoryId ? String(categoryId) : undefined} onValueChange={(v) => setCategoryId(Number(v))}>
+                                        <Select value={categorySelectValue} onValueChange={(v) => v !== "__select_category__" && setCategoryId(Number(v))}>
                                             <SelectTrigger className="rounded-xl">
                                                 <SelectValue placeholder="Selecione..." />
                                             </SelectTrigger>
                                             <SelectContent>
+                                                <SelectItem value="__select_category__" disabled>Selecione...</SelectItem>
                                                 {categories.map((c) => (
                                                     <SelectItem key={c.id} value={String(c.id)}>
                                                         <span className="flex items-center gap-2">
@@ -591,11 +594,12 @@ const EventForm = () => {
                                                 <Settings2 className="w-3 h-3 mr-1" /> Gerenciar
                                             </Button>
                                         </div>
-                                        <Select value={statusId ? String(statusId) : undefined} onValueChange={(v) => setStatusId(Number(v))}>
+                                        <Select value={statusSelectValue} onValueChange={(v) => v !== "__select_status__" && setStatusId(Number(v))}>
                                             <SelectTrigger className="rounded-xl">
                                                 <SelectValue placeholder="Selecione..." />
                                             </SelectTrigger>
                                             <SelectContent>
+                                                <SelectItem value="__select_status__" disabled>Selecione...</SelectItem>
                                                 {statuses.map((s) => (
                                                     <SelectItem key={s.id} value={String(s.id)}>
                                                         <span className="flex items-center gap-2">
