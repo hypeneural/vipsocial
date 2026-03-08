@@ -3,7 +3,9 @@
 namespace App\Modules\VipGallery\Http\Controllers;
 
 use App\Modules\Externas\Models\ExternalEvent;
+use App\Modules\VipGallery\Http\Resources\GalleryBannerResource;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryPhotoJob;
+use App\Modules\VipGallery\Models\VipGalleryBanner;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
@@ -12,6 +14,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use ZipArchive;
 
 class VipGalleryAdminController extends BaseController
 {
@@ -34,6 +39,7 @@ class VipGalleryAdminController extends BaseController
                 ['value' => ExternalEvent::VIP_GALLERY_STATUS_ARCHIVED, 'label' => 'Arquivada'],
             ],
             'default_delete_keywords' => (string) config('vip_gallery.delete.default_keywords', 'Deletar,Apagar,Excluir'),
+            'default_pause_keywords' => (string) config('vip_gallery.pause.default_keywords', 'Parar,Pausar'),
             'default_logo_url' => $mediaManager->defaultLogoUrl(),
             'no_logo_sentinel' => $mediaManager->noLogoSentinel(),
         ]);
@@ -136,6 +142,152 @@ class VipGalleryAdminController extends BaseController
         );
 
         return $this->jsonSuccess($stored, 'Logo enviada com sucesso', 201);
+    }
+
+    public function uploadBanners(Request $request, VipGalleryMediaManager $mediaManager): JsonResponse
+    {
+        $maxKilobytes = (int) ceil(((int) config('vip_gallery.images.banner_max_bytes', 5242880)) / 1024);
+
+        $validated = $request->validate([
+            'event_id' => ['required', 'integer', 'exists:external_events,id'],
+            'banners' => ['required', 'array', 'min:1'],
+            'banners.*' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', "max:{$maxKilobytes}"],
+        ]);
+
+        $event = ExternalEvent::query()->findOrFail((int) $validated['event_id']);
+
+        if (! $event->is_vip_gallery) {
+            return $this->jsonError(
+                'O evento precisa estar com a Cobertura VIP ativada para receber banners',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        $nextSortOrder = (int) VipGalleryBanner::query()
+            ->where('external_event_id', $event->id)
+            ->max('sort_order');
+
+        $banners = collect($validated['banners'])
+            ->map(function ($file, int $index) use ($event, $mediaManager, $nextSortOrder) {
+                $stored = $mediaManager->storeUploadedBanner($file, $event->id);
+
+                return VipGalleryBanner::query()->create([
+                    'external_event_id' => $event->id,
+                    'image_path' => $stored['path'],
+                    'width' => $stored['width'],
+                    'height' => $stored['height'],
+                    'alt_text' => sprintf('%s - Banner %d', $event->titulo, $nextSortOrder + $index + 1),
+                    'sort_order' => $nextSortOrder + $index + 1,
+                    'is_active' => true,
+                ]);
+            })
+            ->values();
+
+        return $this->jsonSuccess([
+            'banners' => GalleryBannerResource::collection($banners)->resolve($request),
+        ], 'Banners enviados com sucesso', 201);
+    }
+
+    public function destroyBanner(VipGalleryBanner $banner, VipGalleryMediaManager $mediaManager): JsonResponse
+    {
+        $mediaManager->deletePath($banner->image_path);
+        $banner->delete();
+
+        return $this->jsonDeleted('Banner removido com sucesso');
+    }
+
+    public function downloadAll(ExternalEvent $event, VipGalleryMediaManager $mediaManager): JsonResponse
+    {
+        if (! $event->is_vip_gallery) {
+            return $this->jsonError(
+                'O evento informado nao possui Cobertura VIP ativa',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        $photos = VipGalleryPhoto::query()
+            ->where('external_event_id', $event->id)
+            ->publiclyVisible()
+            ->orderBy('published_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($photos->isEmpty()) {
+            return $this->jsonError(
+                'Nao existem fotos publicas para compactar neste evento',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        $slug = trim((string) ($event->gallery_slug ?: Str::slug($event->titulo)));
+        $fileName = sprintf('%s-%s.zip', $slug !== '' ? $slug : 'cobertura-vip', now()->format('Ymd-His'));
+        $relativePath = trim((string) config('vip_gallery.base_dir', 'vip-gallery'), '/')."/exports/events/{$event->id}/{$fileName}";
+        $absolutePath = Storage::disk('public')->path($relativePath);
+        $directory = dirname($absolutePath);
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0775, true);
+        }
+
+        if (is_file($absolutePath)) {
+            @unlink($absolutePath);
+        }
+
+        $zip = new ZipArchive();
+        $opened = $zip->open($absolutePath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        if ($opened !== true) {
+            return $this->jsonError(
+                'Nao foi possivel iniciar a compactacao das fotos',
+                'INTERNAL_SERVER_ERROR',
+                500
+            );
+        }
+
+        $addedFiles = 0;
+
+        foreach ($photos as $index => $photo) {
+            $publicPath = $photo->publicImagePath();
+
+            if (! is_string($publicPath) || $publicPath === '' || ! Storage::disk('public')->exists($publicPath)) {
+                continue;
+            }
+
+            $sourcePath = Storage::disk('public')->path($publicPath);
+            $extension = pathinfo($sourcePath, PATHINFO_EXTENSION) ?: 'jpg';
+            $entryName = sprintf(
+                '%04d-%s.%s',
+                $index + 1,
+                preg_replace('/[^A-Za-z0-9_-]+/', '-', $photo->zapi_message_id) ?: 'foto',
+                $extension
+            );
+
+            if ($zip->addFile($sourcePath, $entryName)) {
+                $addedFiles++;
+            }
+        }
+
+        $zip->close();
+
+        if ($addedFiles === 0) {
+            @unlink($absolutePath);
+
+            return $this->jsonError(
+                'Nenhum arquivo valido foi encontrado para gerar o ZIP deste evento',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        return $this->jsonSuccess([
+            'download_url' => $mediaManager->publicUrl($relativePath),
+            'file_name' => $fileName,
+            'total_files' => $addedFiles,
+            'generated_at' => now()->toIso8601String(),
+        ], 'Arquivo ZIP gerado com sucesso');
     }
 
     public function reprocess(VipGalleryPhoto $photo, VipGalleryMediaManager $mediaManager): JsonResponse

@@ -44,6 +44,10 @@ return [
         'default_keywords' => 'Deletar,Apagar,Excluir',
     ],
 
+    'pause' => [
+        'default_keywords' => 'Parar,Pausar',
+    ],
+
     'tracking' => [
         'view_dedupe_minutes' => (int) env('VIP_GALLERY_VIEW_DEDUPE_MINUTES', 30),
         'download_dedupe_minutes' => (int) env('VIP_GALLERY_DOWNLOAD_DEDUPE_MINUTES', 30),
@@ -53,6 +57,7 @@ return [
         'download_timeout' => (int) env('VIP_GALLERY_DOWNLOAD_TIMEOUT', 30),
         'max_bytes' => (int) env('VIP_GALLERY_IMAGE_MAX_BYTES', 15728640),
         'logo_max_bytes' => 2097152,
+        'banner_max_bytes' => (int) env('VIP_GALLERY_BANNER_MAX_BYTES', 5242880),
         'allowed_mimes' => [
             'image/jpeg',
             'image/png',
@@ -61,7 +66,7 @@ return [
         'jpeg_quality' => 90,
         'default_logo_path' => 'vip-gallery/defaults/logo_vip.png',
         'no_logo_sentinel' => '__none__',
-        'logo_position' => 'bottom_right',
+        'logo_position' => 'bottom_center',
         'logo_margin_right_px' => 24,
         'logo_margin_bottom_px' => 24,
         'logo_size_percent_default' => 15,

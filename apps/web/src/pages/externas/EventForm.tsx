@@ -70,19 +70,23 @@ import {
     useDeleteEventStatusItem,
     useEquipmentAvailability,
     useVipGalleryOptions,
+    useDeleteVipGalleryBanner,
+    useUploadVipGalleryBanners,
     useUploadVipGalleryLogo,
 } from "@/hooks/useExternas";
 import { useColaboradores } from "@/hooks/useColaboradores";
 import { useEquipamentos } from "@/hooks/useEquipamentos";
 import showToast from "@/lib/toast";
 import type { CreateExternalEventDTO, EquipmentConflict } from "@/services/externa.service";
-import type { EventCategory, EventStatusData, VipGalleryStatus, VipLogoMode } from "@/types/externas";
+import type { EventCategory, EventStatusData, VipGalleryBanner, VipGalleryStatus, VipLogoMode } from "@/types/externas";
 import { generateGoogleCalendarUrl, ExternalEvent } from "@/types/externas";
 import { cn } from "@/lib/utils";
 import {
     DEFAULT_VIP_DELETE_KEYWORDS,
+    DEFAULT_VIP_PAUSE_KEYWORDS,
     FALLBACK_VIP_GROUPS,
     deriveVipLogoMode,
+    suggestVipGallerySlug,
     VIP_GALLERY_STATUS_LABELS,
     VIP_NO_LOGO_SENTINEL,
 } from "@/features/externas/vipGallery";
@@ -327,6 +331,7 @@ const EventForm = () => {
     const vipGroupOptions = vipOptions?.groups?.length ? vipOptions.groups : FALLBACK_VIP_GROUPS;
     const vipStatusOptions = vipOptions?.statuses?.length ? vipOptions.statuses : vipGalleryStatusOptions;
     const defaultDeleteKeywords = vipOptions?.default_delete_keywords || DEFAULT_VIP_DELETE_KEYWORDS;
+    const defaultPauseKeywords = vipOptions?.default_pause_keywords || DEFAULT_VIP_PAUSE_KEYWORDS;
     const noLogoSentinel = vipOptions?.no_logo_sentinel || VIP_NO_LOGO_SENTINEL;
 
     // ── Mutations ─────────────────────────────
@@ -339,6 +344,8 @@ const EventForm = () => {
     const updateStatus = useUpdateEventStatusItem();
     const deleteStatus = useDeleteEventStatusItem();
     const uploadVipGalleryLogo = useUploadVipGalleryLogo();
+    const uploadVipGalleryBanners = useUploadVipGalleryBanners();
+    const deleteVipGalleryBanner = useDeleteVipGalleryBanner();
 
     // ── Modal state ───────────────────────────
     const [catModalOpen, setCatModalOpen] = useState(false);
@@ -363,8 +370,13 @@ const EventForm = () => {
     const [vipLogoMode, setVipLogoMode] = useState<VipLogoMode>("default");
     const [customLogoPath, setCustomLogoPath] = useState("");
     const [logoSizePercent, setLogoSizePercent] = useState("15");
+    const [allowPauseCommand, setAllowPauseCommand] = useState(true);
     const [allowDeleteCommand, setAllowDeleteCommand] = useState(true);
+    const [pauseCommandKeyword, setPauseCommandKeyword] = useState(DEFAULT_VIP_PAUSE_KEYWORDS);
     const [deleteCommandKeyword, setDeleteCommandKeyword] = useState(DEFAULT_VIP_DELETE_KEYWORDS);
+    const [pendingBannerFiles, setPendingBannerFiles] = useState<File[]>([]);
+    const [uploadedVipBanners, setUploadedVipBanners] = useState<VipGalleryBanner[]>([]);
+    const [gallerySlugTouched, setGallerySlugTouched] = useState(false);
     const [selectedColabs, setSelectedColabs] = useState<Array<{ user_id: number; nome: string; funcao: string }>>([]);
     const [selectedEquips, setSelectedEquips] = useState<number[]>([]);
     const [savedEvent, setSavedEvent] = useState<ExternalEvent | null>(null);
@@ -407,8 +419,12 @@ const EventForm = () => {
             setCustomLogoPath(ev.custom_logo_path || "");
             setVipLogoMode(deriveVipLogoMode(ev.custom_logo_path, noLogoSentinel));
             setLogoSizePercent(String(ev.logo_size_percent || 15));
+            setAllowPauseCommand(ev.allow_pause_command ?? true);
             setAllowDeleteCommand(!!ev.allow_delete_command);
+            setPauseCommandKeyword(ev.pause_command_keyword || defaultPauseKeywords);
             setDeleteCommandKeyword(ev.delete_command_keyword || defaultDeleteKeywords);
+            setUploadedVipBanners(ev.vip_gallery_banners || []);
+            setGallerySlugTouched(!!ev.gallery_slug);
             setSelectedColabs(
                 ev.collaborators?.map((c) => ({
                     user_id: c.id,
@@ -418,7 +434,7 @@ const EventForm = () => {
             );
             setSelectedEquips(ev.equipment?.map((e) => e.id) || []);
         }
-    }, [isEditing, existingEvent, defaultDeleteKeywords, noLogoSentinel]);
+    }, [isEditing, existingEvent, defaultDeleteKeywords, defaultPauseKeywords, noLogoSentinel]);
 
     useEffect(() => {
         if (!isEditing && categories.length && !categoryId) {
@@ -436,8 +452,17 @@ const EventForm = () => {
     useEffect(() => {
         if (!isEditing) {
             setDeleteCommandKeyword((current) => current.trim() || defaultDeleteKeywords);
+            setPauseCommandKeyword((current) => current.trim() || defaultPauseKeywords);
         }
-    }, [defaultDeleteKeywords, isEditing]);
+    }, [defaultDeleteKeywords, defaultPauseKeywords, isEditing]);
+
+    useEffect(() => {
+        if (!isVipGallery || gallerySlugTouched) {
+            return;
+        }
+
+        setGallerySlug(suggestVipGallerySlug(titulo));
+    }, [gallerySlugTouched, isVipGallery, titulo]);
 
     // ── Handlers ──────────────────────────────
     const handleAddCollaborator = (userId: string) => {
@@ -467,7 +492,10 @@ const EventForm = () => {
             return;
         }
 
+        setGallerySlug((current) => current.trim() || suggestVipGallerySlug(titulo));
+        setAllowPauseCommand((current) => current || !isEditing);
         setAllowDeleteCommand((current) => current || !isEditing);
+        setPauseCommandKeyword((current) => current.trim() || defaultPauseKeywords);
         setDeleteCommandKeyword((current) => current.trim() || defaultDeleteKeywords);
     };
 
@@ -510,12 +538,45 @@ const EventForm = () => {
         event.target.value = "";
     };
 
+    const handleGallerySlugChange = (value: string) => {
+        setGallerySlugTouched(true);
+        setGallerySlug(value);
+    };
+
+    const handleSelectVipBanners = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || []);
+
+        if (files.length === 0) {
+            return;
+        }
+
+        setPendingBannerFiles((current) => [...current, ...files]);
+        event.target.value = "";
+    };
+
+    const handleRemovePendingBanner = (index: number) => {
+        setPendingBannerFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
+    };
+
+    const handleRemoveUploadedBanner = (bannerId: number) => {
+        deleteVipGalleryBanner.mutate(bannerId, {
+            onSuccess: () => {
+                setUploadedVipBanners((current) => current.filter((banner) => banner.id !== bannerId));
+            },
+        });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!categoryId || !statusId) return;
 
         if (isVipGallery && vipLogoMode === "custom" && !customLogoPath.trim()) {
             showToast.error("Envie a logo personalizada em PNG antes de salvar o evento.");
+            return;
+        }
+
+        if (isVipGallery && allowPauseCommand && !pauseCommandKeyword.trim()) {
+            showToast.error("Informe ao menos uma palavra-chave para pausar a galeria via WhatsApp.");
             return;
         }
 
@@ -530,6 +591,9 @@ const EventForm = () => {
         const resolvedDeleteCommandKeyword = isVipGallery && allowDeleteCommand
             ? (deleteCommandKeyword.trim() || defaultDeleteKeywords)
             : defaultDeleteKeywords;
+        const resolvedPauseCommandKeyword = isVipGallery && allowPauseCommand
+            ? (pauseCommandKeyword.trim() || defaultPauseKeywords)
+            : defaultPauseKeywords;
 
         const dto: CreateExternalEventDTO = {
             titulo,
@@ -551,18 +615,40 @@ const EventForm = () => {
             gallery_slug: isVipGallery ? (gallerySlug || null) : null,
             custom_logo_path: resolvedCustomLogoPath,
             logo_size_percent: isVipGallery ? Number(logoSizePercent || 15) : null,
+            allow_pause_command: isVipGallery ? allowPauseCommand : false,
             allow_delete_command: isVipGallery ? allowDeleteCommand : false,
+            pause_command_keyword: resolvedPauseCommandKeyword,
             delete_command_keyword: resolvedDeleteCommandKeyword,
         };
 
-        if (isEditing) {
-            updateEvent.mutate({ id: Number(id), dto }, {
-                onSuccess: (res) => setSavedEvent(res.data),
+        try {
+            const response = isEditing
+                ? await updateEvent.mutateAsync({ id: Number(id), dto })
+                : await createEvent.mutateAsync(dto);
+            const persistedEvent = response.data;
+            let persistedBanners = uploadedVipBanners;
+
+            if (isVipGallery && pendingBannerFiles.length > 0) {
+                const bannersResponse = await uploadVipGalleryBanners.mutateAsync({
+                    files: pendingBannerFiles,
+                    eventId: persistedEvent.id,
+                });
+
+                persistedBanners = [
+                    ...uploadedVipBanners,
+                    ...(bannersResponse.data.banners || []),
+                ];
+
+                setUploadedVipBanners(persistedBanners);
+                setPendingBannerFiles([]);
+            }
+
+            setSavedEvent({
+                ...persistedEvent,
+                vip_gallery_banners: persistedBanners,
             });
-        } else {
-            createEvent.mutate(dto, {
-                onSuccess: (res) => setSavedEvent(res.data),
-            });
+        } catch {
+            return;
         }
     };
 
@@ -571,7 +657,7 @@ const EventForm = () => {
         window.open(generateGoogleCalendarUrl(savedEvent), "_blank");
     };
 
-    const isSaving = createEvent.isPending || updateEvent.isPending;
+    const isSaving = createEvent.isPending || updateEvent.isPending || uploadVipGalleryBanners.isPending;
 
     // Count conflicting selections
     const conflictCount = selectedEquips.filter((eid) => conflicts[eid]).length;
@@ -767,7 +853,7 @@ const EventForm = () => {
                                         Cobertura VIP
                                     </h2>
                                     <p className="text-sm text-muted-foreground mt-1">
-                                        Configura a galeria publica, ingestao por grupo do WhatsApp e comando de apagar.
+                                        Configura a galeria publica, ingestao por grupo do WhatsApp e comandos de pausar/apagar.
                                     </p>
                                 </div>
                                 <label className="flex items-center gap-2 text-sm font-medium">
@@ -824,25 +910,28 @@ const EventForm = () => {
                                                 <Input
                                                     id="gallery_slug"
                                                     value={gallerySlug}
-                                                    onChange={(e) => setGallerySlug(e.target.value)}
+                                                    onChange={(e) => handleGallerySlugChange(e.target.value)}
                                                     placeholder="ex: casamento-vip"
                                                     required={isVipGallery}
                                                     className="rounded-xl"
                                                 />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Sugerido automaticamente a partir do titulo do evento, mas voce pode ajustar manualmente.
+                                                </p>
                                             </div>
 
                                             <div className="space-y-2">
-                                                <Label>Selecione o GRUPO</Label>
+                                                <Label>Selecione o GRUPO do WhatsApp</Label>
                                                 <Select
                                                     value={whatsappGroupSelectValue}
                                                     onValueChange={(value) => setWhatsappGroupId(value === "__select_vip_group__" ? "" : value)}
                                                 >
                                                     <SelectTrigger className="rounded-xl">
-                                                        <SelectValue placeholder="Selecione o GRUPO" />
+                                                        <SelectValue placeholder="Selecione o GRUPO do WhatsApp" />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="__select_vip_group__" disabled>
-                                                            Selecione o GRUPO
+                                                            Selecione o GRUPO do WhatsApp
                                                         </SelectItem>
                                                         {vipGroupOptions.map((option) => (
                                                             <SelectItem key={option.value} value={option.value}>
@@ -930,6 +1019,119 @@ const EventForm = () => {
                                                     </p>
                                                 </div>
                                             )}
+                                        </div>
+
+                                        <div className="rounded-xl border p-4 space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="vip_gallery_banners">Banners da Galeria</Label>
+                                                <Input
+                                                    id="vip_gallery_banners"
+                                                    type="file"
+                                                    accept="image/jpeg,image/png,image/webp"
+                                                    multiple
+                                                    onChange={handleSelectVipBanners}
+                                                    disabled={uploadVipGalleryBanners.isPending}
+                                                    className="max-w-sm rounded-xl"
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Envie um ou mais banners para aparecer no topo da galeria publica.
+                                                </p>
+                                            </div>
+
+                                            {pendingBannerFiles.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <Label>Banners pendentes para envio</Label>
+                                                    <div className="space-y-2">
+                                                        {pendingBannerFiles.map((file, index) => (
+                                                            <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-xl border bg-muted/40 px-3 py-2 text-sm">
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate font-medium">{file.name}</p>
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                                    </p>
+                                                                </div>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8"
+                                                                    onClick={() => handleRemovePendingBanner(index)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {isEditing
+                                                            ? "Os banners pendentes serao enviados quando voce salvar as alteracoes."
+                                                            : "Os banners serao enviados logo apos a criacao do evento."}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {uploadedVipBanners.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <Label>Banners ja enviados</Label>
+                                                    <div className="grid gap-3 sm:grid-cols-2">
+                                                        {uploadedVipBanners.map((banner) => (
+                                                            <div key={banner.id} className="overflow-hidden rounded-xl border bg-muted/30">
+                                                                <img
+                                                                    src={banner.image_url}
+                                                                    alt={banner.alt_text || "Banner VIP"}
+                                                                    className="h-28 w-full object-cover"
+                                                                />
+                                                                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-sm font-medium">
+                                                                            {banner.alt_text || `Banner #${banner.sort_order}`}
+                                                                        </p>
+                                                                        <p className="text-xs text-muted-foreground">
+                                                                            Ordem {banner.sort_order}
+                                                                        </p>
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-destructive"
+                                                                        onClick={() => handleRemoveUploadedBanner(banner.id)}
+                                                                        disabled={deleteVipGalleryBanner.isPending}
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="rounded-xl border border-dashed p-4 space-y-3">
+                                            <label className="flex items-center gap-2 text-sm font-medium">
+                                                <Checkbox
+                                                    checked={allowPauseCommand}
+                                                    onCheckedChange={(checked) => setAllowPauseCommand(checked === true)}
+                                                />
+                                                Permitir pause command via WhatsApp
+                                            </label>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="pause_command_keyword">Palavras-chave para pausar</Label>
+                                                <Input
+                                                    id="pause_command_keyword"
+                                                    value={pauseCommandKeyword}
+                                                    onChange={(e) => setPauseCommandKeyword(e.target.value)}
+                                                    placeholder={defaultPauseKeywords}
+                                                    required={isVipGallery && allowPauseCommand}
+                                                    disabled={!allowPauseCommand}
+                                                    className="rounded-xl"
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Separe por virgula. Exemplo: {defaultPauseKeywords}. A comparacao ignora maiusculas e minusculas.
+                                                </p>
+                                            </div>
                                         </div>
 
                                         <div className="rounded-xl border border-dashed p-4 space-y-3">

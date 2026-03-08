@@ -279,3 +279,37 @@ export function useUploadVipGalleryLogo() {
     });
 }
 
+export function useUploadVipGalleryBanners() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ files, eventId }: { files: File[]; eventId: number }) =>
+            externaService.uploadVipGalleryBanners(files, eventId),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            showToast.success("Banners enviados!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao enviar os banners"),
+    });
+}
+
+export function useDeleteVipGalleryBanner() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: (bannerId: number) => externaService.deleteVipGalleryBanner(bannerId),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            showToast.success("Banner removido!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao remover o banner"),
+    });
+}
+
+export function useDownloadAllVipGalleryPhotos() {
+    return useMutation({
+        mutationFn: (eventId: number) => externaService.downloadAllVipGalleryPhotos(eventId),
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao gerar o ZIP das fotos"),
+    });
+}
+

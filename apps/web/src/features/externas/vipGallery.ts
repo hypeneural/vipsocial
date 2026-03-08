@@ -18,6 +18,7 @@ export const FALLBACK_VIP_GROUPS: VipGalleryGroupOption[] = [
 ];
 
 export const DEFAULT_VIP_DELETE_KEYWORDS = "Deletar,Apagar,Excluir";
+export const DEFAULT_VIP_PAUSE_KEYWORDS = "Parar,Pausar";
 export const VIP_NO_LOGO_SENTINEL = "__none__";
 
 export function vipGalleryStatusLabel(status?: VipGalleryStatus | null): string {
@@ -50,4 +51,15 @@ export function vipGroupLabel(
     }
 
     return groups.find((group) => group.value === groupId)?.label || groupId;
+}
+
+export function suggestVipGallerySlug(title?: string | null): string {
+    const normalized = (title || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+    return normalized;
 }

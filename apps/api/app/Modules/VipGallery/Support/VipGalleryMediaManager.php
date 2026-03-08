@@ -150,6 +150,13 @@ class VipGalleryMediaManager
         }
     }
 
+    public function deletePath(?string $path): void
+    {
+        if (is_string($path) && $path !== '' && $this->storage()->exists($path)) {
+            $this->storage()->delete($path);
+        }
+    }
+
     public function pathExists(?string $path): bool
     {
         return is_string($path) && $path !== '' && $this->storage()->exists($path);
@@ -227,6 +234,37 @@ class VipGalleryMediaManager
         return [
             'path' => $path,
             'url' => $this->publicUrl($path),
+        ];
+    }
+
+    public function storeUploadedBanner(UploadedFile $file, int $eventId): array
+    {
+        $binary = (string) file_get_contents($file->getRealPath());
+
+        if ($binary === '') {
+            throw new RuntimeException('O banner enviado esta vazio');
+        }
+
+        if (strlen($binary) > (int) config('vip_gallery.images.banner_max_bytes', 5242880)) {
+            throw new RuntimeException('O banner excede o limite de tamanho permitido');
+        }
+
+        $imageInfo = $this->detectImageInfo($binary);
+        $mime = strtolower((string) ($imageInfo['mime'] ?? ''));
+        $this->assertMimeAllowed($mime);
+
+        $baseDir = trim((string) config('vip_gallery.base_dir', 'vip-gallery'), '/');
+        $extension = $this->extensionFromMime($mime);
+        $path = "{$baseDir}/banners/events/{$eventId}/".Str::uuid()->toString().".{$extension}";
+
+        $this->storage()->put($path, $binary);
+
+        return [
+            'path' => $path,
+            'url' => $this->publicUrl($path),
+            'width' => (int) ($imageInfo[0] ?? 0),
+            'height' => (int) ($imageInfo[1] ?? 0),
+            'mime' => $mime,
         ];
     }
 
@@ -428,6 +466,10 @@ class VipGalleryMediaManager
 
     private function logoDestinationX(int $imageWidth, int $logoWidth): int
     {
+        if ((string) config('vip_gallery.images.logo_position', 'bottom_center') === 'bottom_center') {
+            return max(0, (int) floor(($imageWidth - $logoWidth) / 2));
+        }
+
         return max(0, $imageWidth - $logoWidth - $this->logoMarginRight());
     }
 

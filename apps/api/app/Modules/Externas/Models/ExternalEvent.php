@@ -41,7 +41,9 @@ class ExternalEvent extends Model
         'gallery_slug',
         'custom_logo_path',
         'logo_size_percent',
+        'allow_pause_command',
         'allow_delete_command',
+        'pause_command_keyword',
         'delete_command_keyword',
     ];
 
@@ -51,6 +53,7 @@ class ExternalEvent extends Model
         'is_vip_gallery' => 'boolean',
         'logo_size_percent' => 'integer',
         'views_count' => 'integer',
+        'allow_pause_command' => 'boolean',
         'allow_delete_command' => 'boolean',
     ];
 

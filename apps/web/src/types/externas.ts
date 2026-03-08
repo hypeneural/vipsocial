@@ -46,10 +46,21 @@ export interface VipGalleryStatusOption {
     label: string;
 }
 
+export interface VipGalleryBanner {
+    id: number;
+    image_url: string;
+    link_url?: string | null;
+    alt_text?: string | null;
+    sort_order: number;
+    width?: number | null;
+    height?: number | null;
+}
+
 export interface VipGalleryAdminOptions {
     groups: VipGalleryGroupOption[];
     statuses: VipGalleryStatusOption[];
     default_delete_keywords: string;
+    default_pause_keywords: string;
     default_logo_url?: string | null;
     no_logo_sentinel: string;
 }
@@ -203,8 +214,11 @@ export interface ExternalEvent {
     custom_logo_path?: string | null;
     logo_size_percent?: number | null;
     views_count?: number;
+    allow_pause_command?: boolean;
     allow_delete_command?: boolean;
+    pause_command_keyword?: string | null;
     delete_command_keyword?: string | null;
+    vip_gallery_banners?: VipGalleryBanner[];
     collaborators: EventCollaborator[];
     equipment: EventEquipmentItem[];
     created_at: string;

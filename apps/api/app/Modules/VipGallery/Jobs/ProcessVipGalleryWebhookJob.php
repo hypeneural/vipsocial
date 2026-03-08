@@ -76,7 +76,7 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
         }
 
         if ($detectedType === VipGalleryWebhookLog::TYPE_TEXT_COMMAND) {
-            $this->queueDeleteCommand($log, $payload, $event);
+            $this->queueTextCommand($log, $payload, $event);
 
             return;
         }
@@ -106,17 +106,28 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
         ]);
     }
 
-    private function queueDeleteCommand(VipGalleryWebhookLog $log, array $payload, ExternalEvent $event): void
+    private function queueTextCommand(VipGalleryWebhookLog $log, array $payload, ExternalEvent $event): void
     {
-        if (! $this->matchesDeleteCommand($payload, $event)) {
-            $log->update([
-                'routing_status' => 'ignored_text_command',
-                'error_message' => 'Mensagem de texto ignorada por nao corresponder ao comando de apagar configurado',
-            ]);
+        if ($this->matchesDeleteCommand($payload, $event)) {
+            $this->queueDeleteCommand($log, $payload, $event);
 
             return;
         }
 
+        if ($this->matchesPauseCommand($payload, $event)) {
+            $this->queuePauseCommand($log, $event);
+
+            return;
+        }
+
+        $log->update([
+            'routing_status' => 'ignored_text_command',
+            'error_message' => 'Mensagem de texto ignorada por nao corresponder aos comandos configurados',
+        ]);
+    }
+
+    private function queueDeleteCommand(VipGalleryWebhookLog $log, array $payload, ExternalEvent $event): void
+    {
         if (! $event->allow_delete_command) {
             $log->update([
                 'routing_status' => 'ignored_delete_not_allowed',
@@ -145,6 +156,25 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
         ]);
     }
 
+    private function queuePauseCommand(VipGalleryWebhookLog $log, ExternalEvent $event): void
+    {
+        if (! $event->allow_pause_command) {
+            $log->update([
+                'routing_status' => 'ignored_pause_not_allowed',
+                'error_message' => 'Evento nao permite comando de pausa via WhatsApp',
+            ]);
+
+            return;
+        }
+
+        PauseVipGalleryEventJob::dispatch($log->id, $event->id)
+            ->onQueue((string) config('vip_gallery.queues.processing', 'vip-gallery-processing'));
+
+        $log->update([
+            'routing_status' => 'queued_pause',
+        ]);
+    }
+
     private function matchesDeleteCommand(array $payload, ExternalEvent $event): bool
     {
         $receivedText = $this->normalizeCommandText(ZApiGalleryPayload::textBody($payload));
@@ -152,6 +182,20 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
             ->map(fn (string $keyword) => $this->normalizeCommandText($keyword))
             ->filter()
             ->merge(['apagar', 'deletar', 'excluir'])
+            ->unique()
+            ->values()
+            ->all();
+
+        return $receivedText !== '' && in_array($receivedText, $acceptedCommands, true);
+    }
+
+    private function matchesPauseCommand(array $payload, ExternalEvent $event): bool
+    {
+        $receivedText = $this->normalizeCommandText(ZApiGalleryPayload::textBody($payload));
+        $acceptedCommands = collect(explode(',', (string) $event->pause_command_keyword))
+            ->map(fn (string $keyword) => $this->normalizeCommandText($keyword))
+            ->filter()
+            ->merge(['parar', 'pausar'])
             ->unique()
             ->values()
             ->all();

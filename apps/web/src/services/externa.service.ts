@@ -6,6 +6,7 @@ import {
     EventStatusData,
     VipGalleryAdminOptions,
     VipCoverageEvent,
+    VipGalleryBanner,
     VipCoverageLogsResponse,
     VipCoverageStats,
     VipGalleryStatus,
@@ -32,7 +33,9 @@ export interface CreateExternalEventDTO {
     gallery_slug?: string | null;
     custom_logo_path?: string | null;
     logo_size_percent?: number | null;
+    allow_pause_command?: boolean;
     allow_delete_command?: boolean;
+    pause_command_keyword?: string | null;
     delete_command_keyword?: string | null;
     colaboradores?: Array<{ user_id: number; funcao?: string }>;
     equipamentos?: Array<{ equipment_id: number; checked?: boolean }>;
@@ -162,6 +165,45 @@ export const externaService = {
                     "Content-Type": "multipart/form-data",
                 },
             }
+        );
+
+        return data;
+    },
+
+    uploadVipGalleryBanners: async (
+        files: File[],
+        eventId: number
+    ): Promise<ApiResponse<{ banners: VipGalleryBanner[] }>> => {
+        const formData = new FormData();
+        formData.append("event_id", String(eventId));
+
+        files.forEach((file) => {
+            formData.append("banners[]", file);
+        });
+
+        const { data } = await api.post<ApiResponse<{ banners: VipGalleryBanner[] }>>(
+            "/vip-gallery/banners/upload",
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+            }
+        );
+
+        return data;
+    },
+
+    deleteVipGalleryBanner: async (bannerId: number): Promise<ApiResponse<void>> => {
+        const { data } = await api.delete<ApiResponse<void>>(`/vip-gallery/banners/${bannerId}`);
+        return data;
+    },
+
+    downloadAllVipGalleryPhotos: async (
+        eventId: number
+    ): Promise<ApiResponse<{ download_url: string; file_name: string; total_files: number; generated_at: string }>> => {
+        const { data } = await api.post<ApiResponse<{ download_url: string; file_name: string; total_files: number; generated_at: string }>>(
+            `/vip-gallery/events/${eventId}/download-all`
         );
 
         return data;

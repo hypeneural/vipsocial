@@ -31,7 +31,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useVipCoverageEvents, useVipCoverageStats, useVipGalleryOptions } from "@/hooks/useExternas";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { useDownloadAllVipGalleryPhotos, useVipCoverageEvents, useVipCoverageStats, useVipGalleryOptions } from "@/hooks/useExternas";
 import type { VipCoverageEvent, VipGalleryStatus } from "@/types/externas";
 import { cn } from "@/lib/utils";
 import { FALLBACK_VIP_GROUPS, vipGroupLabel } from "@/features/externas/vipGallery";
@@ -86,9 +94,11 @@ function formatEventDate(value: string): string {
 function VipCoverageCard({
     event,
     vipGroups,
+    onDownloadAll,
 }: {
     event: VipCoverageEvent;
     vipGroups: { value: string; label: string }[];
+    onDownloadAll: (event: VipCoverageEvent) => void;
 }) {
     const navigate = useNavigate();
     const status = vipStatusConfig[event.vip_gallery_status || "draft"];
@@ -175,6 +185,15 @@ function VipCoverageCard({
                         Abrir galeria
                     </Button>
                 )}
+                <Button
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => onDownloadAll(event)}
+                    disabled={event.vip_gallery_photos_count === 0}
+                >
+                    <Download className="mr-2 h-4 w-4" />
+                    Baixar Todas
+                </Button>
             </div>
         </motion.div>
     );
@@ -184,9 +203,17 @@ const VipCoverageDashboard = () => {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | VipGalleryStatus>("all");
+    const [downloadEvent, setDownloadEvent] = useState<VipCoverageEvent | null>(null);
+    const [downloadResult, setDownloadResult] = useState<{
+        download_url: string;
+        file_name: string;
+        total_files: number;
+        generated_at: string;
+    } | null>(null);
 
     const { data: statsData } = useVipCoverageStats();
     const { data: vipOptionsData } = useVipGalleryOptions();
+    const downloadAllVipGalleryPhotos = useDownloadAllVipGalleryPhotos();
     const { data: eventsData, isLoading, error } = useVipCoverageEvents({
         per_page: 100,
         search: searchQuery || undefined,
@@ -196,6 +223,26 @@ const VipCoverageDashboard = () => {
     const stats = statsData?.data;
     const events = eventsData?.data || [];
     const vipGroups = vipOptionsData?.data.groups || FALLBACK_VIP_GROUPS;
+
+    const handleOpenDownloadAll = (event: VipCoverageEvent) => {
+        setDownloadEvent(event);
+        setDownloadResult(null);
+        downloadAllVipGalleryPhotos.mutate(event.id, {
+            onSuccess: (response) => {
+                setDownloadResult(response.data);
+                window.open(response.data.download_url, "_blank", "noopener,noreferrer");
+            },
+        });
+    };
+
+    const handleCloseDownloadModal = (open: boolean) => {
+        if (open) {
+            return;
+        }
+
+        setDownloadEvent(null);
+        setDownloadResult(null);
+    };
 
     if (error) {
         return (
@@ -334,10 +381,66 @@ const VipCoverageDashboard = () => {
                     className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
                 >
                     {events.map((event) => (
-                        <VipCoverageCard key={event.id} event={event} vipGroups={vipGroups} />
+                        <VipCoverageCard
+                            key={event.id}
+                            event={event}
+                            vipGroups={vipGroups}
+                            onDownloadAll={handleOpenDownloadAll}
+                        />
                     ))}
                 </motion.div>
             )}
+
+            <Dialog open={!!downloadEvent} onOpenChange={handleCloseDownloadModal}>
+                <DialogContent className="sm:max-w-[420px]">
+                    <DialogHeader>
+                        <DialogTitle>Baixar Todas</DialogTitle>
+                        <DialogDescription>
+                            {downloadEvent
+                                ? `Compactando as fotos publicas da cobertura ${downloadEvent.titulo}.`
+                                : "Compactando as fotos da cobertura selecionada."}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {downloadAllVipGalleryPhotos.isPending && (
+                            <div className="flex items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-4">
+                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                <div>
+                                    <p className="font-medium">Compactando imagens</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Aguarde. O link do ZIP sera liberado automaticamente.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {downloadResult && (
+                            <div className="space-y-3 rounded-2xl border bg-muted/40 p-4">
+                                <div>
+                                    <p className="font-medium">{downloadResult.file_name}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {downloadResult.total_files} imagem(ns) compactada(s)
+                                    </p>
+                                </div>
+                                <Input value={downloadResult.download_url} readOnly className="rounded-xl" />
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" onClick={() => handleCloseDownloadModal(false)}>
+                            Fechar
+                        </Button>
+                        {downloadResult && (
+                            <Button onClick={() => window.open(downloadResult.download_url, "_blank", "noopener,noreferrer")}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Baixar novamente
+                            </Button>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppShell>
     );
 };

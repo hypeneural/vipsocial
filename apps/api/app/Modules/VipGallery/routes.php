@@ -12,8 +12,13 @@ Route::middleware('auth:sanctum')->prefix('vip-gallery')->group(function () {
     Route::get('/options', [VipGalleryAdminController::class, 'options']);
     Route::get('/logs', [VipGalleryAdminController::class, 'logs']);
     Route::post('/logos/upload', [VipGalleryAdminController::class, 'uploadLogo']);
+    Route::post('/banners/upload', [VipGalleryAdminController::class, 'uploadBanners']);
+    Route::delete('/banners/{banner}', [VipGalleryAdminController::class, 'destroyBanner'])
+        ->whereNumber('banner');
     Route::post('/photos/{photo}/reprocess', [VipGalleryAdminController::class, 'reprocess'])
         ->whereNumber('photo');
+    Route::post('/events/{event}/download-all', [VipGalleryAdminController::class, 'downloadAll'])
+        ->whereNumber('event');
 });
 
 Route::prefix('gallery')->group(function () {

@@ -248,6 +248,7 @@ class ExternaController extends BaseController
             'status',
             'collaborators',
             'equipment.category',
+            'vipGalleryBanners' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ])->findOrFail($id);
 
         return $this->jsonSuccess($event);
@@ -299,7 +300,13 @@ class ExternaController extends BaseController
             $event->equipment()->sync($equipSync);
         }
 
-        $event->load(['category', 'status', 'collaborators', 'equipment']);
+        $event->load([
+            'category',
+            'status',
+            'collaborators',
+            'equipment',
+            'vipGalleryBanners' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+        ]);
 
         // Log creation
         EventActivityLog::log($event->id, 'created', "Evento \"{$event->titulo}\" criado");
@@ -354,7 +361,9 @@ class ExternaController extends BaseController
             'gallery_slug' => 'Slug da galeria',
             'custom_logo_path' => 'Logo customizada',
             'logo_size_percent' => 'Tamanho da logo',
+            'allow_pause_command' => 'Comando de pausar',
             'allow_delete_command' => 'Comando de apagar',
+            'pause_command_keyword' => 'Palavras-chave pausar',
             'delete_command_keyword' => 'Palavra-chave apagar',
         ];
         $original = $event->getOriginal();
@@ -398,7 +407,13 @@ class ExternaController extends BaseController
             $event->equipment()->sync($equipSync);
         }
 
-        $event->load(['category', 'status', 'collaborators', 'equipment']);
+        $event->load([
+            'category',
+            'status',
+            'collaborators',
+            'equipment',
+            'vipGalleryBanners' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+        ]);
 
         return $this->jsonSuccess($event);
     }
@@ -562,7 +577,9 @@ class ExternaController extends BaseController
             'vip_gallery_photos_count' => (int) ($event->vip_gallery_photos_count ?? 0),
             'vip_gallery_banners_count' => (int) ($event->vip_gallery_banners_count ?? 0),
             'vip_gallery_downloads_count' => (int) ($event->vip_gallery_downloads_count ?? 0),
-            'vip_gallery_public_url' => $event->gallery_slug ? '/gallery/'.$event->gallery_slug : null,
+            'vip_gallery_public_url' => $event->gallery_slug
+                ? rtrim((string) config('vip_gallery.public.frontend_base_url', 'https://www.coberturavip.com.br'), '/').'/'.$event->gallery_slug
+                : null,
             'vip_gallery_is_active' => $event->isVipGalleryActive(),
         ]);
     }
@@ -591,7 +608,9 @@ class ExternaController extends BaseController
             'gallery_slug' => ['nullable', 'string', 'max:160', $gallerySlugRule],
             'custom_logo_path' => ['nullable', 'string', 'max:255'],
             'logo_size_percent' => ['nullable', 'integer', 'min:5', 'max:30'],
+            'allow_pause_command' => ['sometimes', 'boolean'],
             'allow_delete_command' => ['sometimes', 'boolean'],
+            'pause_command_keyword' => ['nullable', 'string', 'max:100'],
             'delete_command_keyword' => ['nullable', 'string', 'max:100'],
         ];
     }
@@ -605,15 +624,44 @@ class ExternaController extends BaseController
         }
 
         $errors = [];
-        $gallerySlug = trim((string) ($validated['gallery_slug'] ?? $event?->gallery_slug ?? ''));
+        $gallerySlug = $this->normalizeVipGallerySlug(
+            $validated['gallery_slug'] ?? $event?->gallery_slug,
+            $validated['titulo'] ?? $event?->titulo
+        );
         $whatsappGroupId = trim((string) ($validated['whatsapp_group_id'] ?? $event?->whatsapp_group_id ?? ''));
+        $allowPauseCommand = array_key_exists('allow_pause_command', $validated)
+            ? (bool) $validated['allow_pause_command']
+            : (bool) ($event?->allow_pause_command ?? true);
+        $allowDeleteCommand = array_key_exists('allow_delete_command', $validated)
+            ? (bool) $validated['allow_delete_command']
+            : (bool) ($event?->allow_delete_command ?? true);
+        $pauseCommandKeyword = trim((string) ($validated['pause_command_keyword'] ?? $event?->pause_command_keyword ?? $this->defaultPauseCommandKeywords()));
+        $deleteCommandKeyword = trim((string) ($validated['delete_command_keyword'] ?? $event?->delete_command_keyword ?? $this->defaultDeleteCommandKeywords()));
 
         if ($gallerySlug === '') {
             $errors['gallery_slug'] = ['O slug da galeria VIP e obrigatorio quando a cobertura VIP estiver ativa.'];
         }
 
+        if (
+            $gallerySlug !== ''
+            && ExternalEvent::query()
+                ->where('gallery_slug', $gallerySlug)
+                ->when($event, fn ($query) => $query->where('id', '!=', $event->id))
+                ->exists()
+        ) {
+            $errors['gallery_slug'] = ['O slug informado para a galeria VIP ja esta em uso.'];
+        }
+
         if ($whatsappGroupId === '') {
             $errors['whatsapp_group_id'] = ['O grupo do WhatsApp e obrigatorio quando a cobertura VIP estiver ativa.'];
+        }
+
+        if ($allowPauseCommand && $pauseCommandKeyword === '') {
+            $errors['pause_command_keyword'] = ['Informe ao menos uma palavra-chave para o comando de pausar.'];
+        }
+
+        if ($allowDeleteCommand && $deleteCommandKeyword === '') {
+            $errors['delete_command_keyword'] = ['Informe ao menos uma palavra-chave para o comando de apagar.'];
         }
 
         if (! empty($errors)) {
@@ -633,24 +681,37 @@ class ExternaController extends BaseController
                 'gallery_slug' => null,
                 'custom_logo_path' => null,
                 'logo_size_percent' => 15,
+                'allow_pause_command' => false,
                 'allow_delete_command' => false,
+                'pause_command_keyword' => $this->defaultPauseCommandKeywords(),
                 'delete_command_keyword' => $this->defaultDeleteCommandKeywords(),
             ]);
         }
 
+        $allowPauseCommand = array_key_exists('allow_pause_command', $validated)
+            ? (bool) $validated['allow_pause_command']
+            : (bool) ($event?->allow_pause_command ?? true);
         $allowDeleteCommand = array_key_exists('allow_delete_command', $validated)
             ? (bool) $validated['allow_delete_command']
             : (bool) ($event?->allow_delete_command ?? true);
+        $pauseCommandKeyword = trim((string) ($validated['pause_command_keyword'] ?? $event?->pause_command_keyword ?? $this->defaultPauseCommandKeywords()));
         $deleteCommandKeyword = trim((string) ($validated['delete_command_keyword'] ?? $event?->delete_command_keyword ?? $this->defaultDeleteCommandKeywords()));
 
         return array_merge($validated, [
             'is_vip_gallery' => true,
             'vip_gallery_status' => $validated['vip_gallery_status'] ?? $event?->vip_gallery_status ?? ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
             'whatsapp_group_id' => $validated['whatsapp_group_id'] ?? $event?->whatsapp_group_id,
-            'gallery_slug' => $validated['gallery_slug'] ?? $event?->gallery_slug,
+            'gallery_slug' => $this->normalizeVipGallerySlug(
+                $validated['gallery_slug'] ?? $event?->gallery_slug,
+                $validated['titulo'] ?? $event?->titulo
+            ),
             'custom_logo_path' => $this->normalizeVipGalleryLogoPath($validated['custom_logo_path'] ?? $event?->custom_logo_path),
             'logo_size_percent' => (int) ($validated['logo_size_percent'] ?? $event?->logo_size_percent ?? 15),
+            'allow_pause_command' => $allowPauseCommand,
             'allow_delete_command' => $allowDeleteCommand,
+            'pause_command_keyword' => $allowPauseCommand
+                ? ($pauseCommandKeyword !== '' ? $pauseCommandKeyword : $this->defaultPauseCommandKeywords())
+                : $this->defaultPauseCommandKeywords(),
             'delete_command_keyword' => $allowDeleteCommand
                 ? ($deleteCommandKeyword !== '' ? $deleteCommandKeyword : $this->defaultDeleteCommandKeywords())
                 : $this->defaultDeleteCommandKeywords(),
@@ -680,6 +741,11 @@ class ExternaController extends BaseController
         return (string) config('vip_gallery.delete.default_keywords', 'Deletar,Apagar,Excluir');
     }
 
+    private function defaultPauseCommandKeywords(): string
+    {
+        return (string) config('vip_gallery.pause.default_keywords', 'Parar,Pausar');
+    }
+
     private function normalizeVipGalleryLogoPath(mixed $value): ?string
     {
         if (! is_string($value)) {
@@ -689,6 +755,17 @@ class ExternaController extends BaseController
         $normalized = trim($value);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizeVipGallerySlug(mixed $value, mixed $fallbackTitle = null): ?string
+    {
+        $normalized = trim((string) $value);
+
+        if ($normalized === '' && is_string($fallbackTitle) && trim($fallbackTitle) !== '') {
+            $normalized = Str::slug($fallbackTitle);
+        }
+
+        return $normalized !== '' ? Str::slug($normalized) : null;
     }
 
     /**

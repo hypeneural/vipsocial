@@ -464,6 +464,12 @@ const EventDetail = () => {
                                         {event.whatsapp_group_id || "não definido"}
                                     </p>
                                     <p>
+                                        <span className="font-medium text-foreground">Pause command:</span>{" "}
+                                        {event.allow_pause_command
+                                            ? `habilitado (${event.pause_command_keyword || "Parar,Pausar"})`
+                                            : "desabilitado"}
+                                    </p>
+                                    <p>
                                         <span className="font-medium text-foreground">Delete command:</span>{" "}
                                         {event.allow_delete_command
                                             ? `habilitado (${event.delete_command_keyword || "Apagar"})`
@@ -479,13 +485,31 @@ const EventDetail = () => {
                                         {deriveVipLogoMode(event.custom_logo_path, noLogoSentinel) === "custom" && "Personalizada"}
                                         {deriveVipLogoMode(event.custom_logo_path, noLogoSentinel) === "none" && "Sem logo"}
                                     </p>
+                                    <p>Banners ativos: {event.vip_gallery_banners?.length || 0}</p>
                                 </div>
+
+                                {(event.vip_gallery_banners?.length || 0) > 0 && (
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        {event.vip_gallery_banners?.map((banner) => (
+                                            <div key={banner.id} className="overflow-hidden rounded-lg border bg-muted/30">
+                                                <img
+                                                    src={banner.image_url}
+                                                    alt={banner.alt_text || "Banner VIP"}
+                                                    className="h-24 w-full object-cover"
+                                                />
+                                                <div className="px-3 py-2 text-xs text-muted-foreground">
+                                                    {banner.alt_text || `Banner #${banner.sort_order}`}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {event.gallery_slug && (
                                     <Button
                                         variant="outline"
                                         className="w-full justify-start rounded-xl"
-                                        onClick={() => window.open(`/gallery/${event.gallery_slug}`, "_blank")}
+                                        onClick={() => window.open(`https://www.coberturavip.com.br/${event.gallery_slug}`, "_blank")}
                                     >
                                         <ExternalLink className="w-4 h-4 mr-2" />
                                         Abrir galeria pública
