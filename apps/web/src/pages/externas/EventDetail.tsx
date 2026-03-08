@@ -419,6 +419,71 @@ const EventDetail = () => {
                         )}
                     </motion.div>
 
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
+                        className="bg-card rounded-xl border p-5"
+                    >
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                            <div>
+                                <h2 className="font-semibold flex items-center gap-2">
+                                    <Camera className="w-5 h-5" /> Cobertura VIP
+                                </h2>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Estado administrativo da galeria vinculada ao evento.
+                                </p>
+                            </div>
+                            <Badge variant={event.is_vip_gallery ? "default" : "outline"}>
+                                {event.is_vip_gallery ? "Ativa no evento" : "Desativada"}
+                            </Badge>
+                        </div>
+
+                        {event.is_vip_gallery ? (
+                            <div className="space-y-3 text-sm">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-lg bg-muted p-3">
+                                        <p className="text-xs text-muted-foreground">Status da galeria</p>
+                                        <p className="mt-1 font-medium">{event.vip_gallery_status || "draft"}</p>
+                                    </div>
+                                    <div className="rounded-lg bg-muted p-3">
+                                        <p className="text-xs text-muted-foreground">Views</p>
+                                        <p className="mt-1 font-medium">{event.views_count || 0}</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 text-muted-foreground">
+                                    <p>
+                                        <span className="font-medium text-foreground">Slug:</span>{" "}
+                                        {event.gallery_slug || "não definido"}
+                                    </p>
+                                    <p>
+                                        <span className="font-medium text-foreground">Grupo WhatsApp:</span>{" "}
+                                        {event.whatsapp_group_id || "não definido"}
+                                    </p>
+                                    <p>
+                                        <span className="font-medium text-foreground">Delete command:</span>{" "}
+                                        {event.allow_delete_command
+                                            ? `habilitado (${event.delete_command_keyword || "Apagar"})`
+                                            : "desabilitado"}
+                                    </p>
+                                </div>
+
+                                {event.gallery_slug && (
+                                    <Button
+                                        variant="outline"
+                                        className="w-full justify-start rounded-xl"
+                                        onClick={() => window.open(`/gallery/${event.gallery_slug}`, "_blank")}
+                                    >
+                                        <ExternalLink className="w-4 h-4 mr-2" />
+                                        Abrir galeria pública
+                                    </Button>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">
+                                Este evento ainda não está configurado para receber fotos da Cobertura VIP.
+                            </p>
+                        )}
+                    </motion.div>
+
                     {/* Contact */}
                     {(event.contato_nome || event.contato_whatsapp) && (
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}

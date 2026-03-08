@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Jobs\DeleteVipGalleryPhotoJob;
+use App\Modules\VipGallery\Jobs\IngestVipGalleryImageJob;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryWebhookJob;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryPhotoJob;
 use App\Modules\VipGallery\Models\VipGalleryBanner;
@@ -10,6 +11,7 @@ use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -200,6 +202,21 @@ function createVipGalleryEvent(array $overrides = []): ExternalEvent
     return $event;
 }
 
+function fakeJpegBinary(): string
+{
+    $image = imagecreatetruecolor(20, 10);
+    $background = imagecolorallocate($image, 255, 0, 0);
+    imagefill($image, 0, 0, $background);
+
+    ob_start();
+    imagejpeg($image);
+    $binary = (string) ob_get_clean();
+
+    imagedestroy($image);
+
+    return $binary;
+}
+
 test('webhook gallery rejects invalid secret', function () {
     $this->postJson('/api/v1/webhook/zapi/gallery', [
         'messageId' => 'msg-1',
@@ -227,12 +244,83 @@ test('webhook gallery logs payload and queues processing job', function () {
 
     $this->assertDatabaseHas('vip_gallery_webhook_logs', [
         'message_id' => 'msg-1',
-        'phone' => '5591999999999',
+        'phone' => '120363027326371817-group',
         'detected_type' => VipGalleryWebhookLog::TYPE_IMAGE,
         'routing_status' => 'received',
     ]);
 
     Queue::assertPushed(ProcessVipGalleryWebhookJob::class, 1);
+});
+
+test('sample z-api image payload resolves event by group phone and stores sender metadata on photo', function () {
+    Http::fake([
+        'https://f004.backblazeb2.com/*' => Http::response(fakeJpegBinary(), 200, [
+            'Content-Type' => 'image/jpeg',
+        ]),
+    ]);
+
+    Queue::fake();
+
+    $event = createVipGalleryEvent([
+        'whatsapp_group_id' => '120363423950458112-group',
+        'gallery_slug' => 'galeria-1',
+    ]);
+
+    $payload = [
+        'isStatusReply' => false,
+        'chatLid' => null,
+        'connectedPhone' => '554896727305',
+        'waitingMessage' => false,
+        'isEdit' => false,
+        'isGroup' => true,
+        'isNewsletter' => false,
+        'instanceId' => '3DC6FE77FBBF108997D596155CBF9532',
+        'messageId' => '2AD96B84D25767193C35',
+        'phone' => '120363423950458112-group',
+        'fromMe' => false,
+        'momment' => 1772997259000,
+        'status' => 'RECEIVED',
+        'chatName' => 'Galeria 1',
+        'senderName' => 'Anderson Marques',
+        'broadcast' => false,
+        'participantPhone' => '554896553954',
+        'participantLid' => null,
+        'messageExpirationSeconds' => 0,
+        'forwarded' => false,
+        'type' => 'ReceivedCallback',
+        'fromApi' => false,
+        'image' => [
+            'imageUrl' => 'https://f004.backblazeb2.com/file/temp-file-download/instances/3DC6FE77FBBF108997D596155CBF9532/2AD96B84D25767193C35/test.jpg',
+            'thumbnailUrl' => 'https://f004.backblazeb2.com/file/temp-file-download/instances/3DC6FE77FBBF108997D596155CBF9532/2AD96B84D25767193C35/test.jpg',
+            'caption' => '',
+            'mimeType' => 'image/jpeg',
+            'viewOnce' => false,
+            'width' => 720,
+            'height' => 1280,
+        ],
+    ];
+
+    $response = $this->withHeader('X-VIP-GALLERY-SECRET', 'segredo-galeria')
+        ->postJson('/api/v1/webhook/zapi/gallery', $payload);
+
+    $logId = $response->json('data.log_id');
+
+    $log = VipGalleryWebhookLog::query()->findOrFail($logId);
+    expect($log->phone)->toBe('120363423950458112-group');
+
+    (new ProcessVipGalleryWebhookJob($logId))->handle(app(\App\Modules\VipGallery\Support\VipGalleryEventResolver::class));
+
+    expect($log->fresh()->routing_status)->toBe('queued_ingest');
+    (new IngestVipGalleryImageJob($logId, $event->id))->handle(app(\App\Modules\VipGallery\Support\VipGalleryMediaManager::class));
+
+    $photo = VipGalleryPhoto::query()->where('zapi_message_id', '2AD96B84D25767193C35')->first();
+
+    expect($photo)->not->toBeNull();
+    expect($photo?->external_event_id)->toBe($event->id);
+    expect($photo?->participant_phone)->toBe('554896553954');
+    expect($photo?->sender_name)->toBe('Anderson Marques');
+    expect($photo?->processing_status)->toBe(VipGalleryPhoto::STATUS_PUBLISHED_ORIGINAL);
+    expect(Storage::disk('public')->exists((string) $photo?->original_image_path))->toBeTrue();
 });
 
 test('public gallery detail and photos expose only visible records', function () {
@@ -430,6 +518,69 @@ test('delete command without permission is ignored and does not delete photo', f
     expect(VipGalleryPhoto::query()->find($photo->id))->not->toBeNull();
 });
 
+test('delete command accepts deletar alias when referenceMessageId is present', function () {
+    Queue::fake();
+
+    $event = createVipGalleryEvent([
+        'whatsapp_group_id' => '120363425148164142-group',
+        'gallery_slug' => 'galeria-2',
+        'delete_command_keyword' => 'Apagar',
+    ]);
+
+    $log = VipGalleryWebhookLog::query()->create([
+        'message_id' => '2AC721E2FB2C40A3090D',
+        'phone' => '120363425148164142-group',
+        'detected_type' => VipGalleryWebhookLog::TYPE_TEXT_COMMAND,
+        'routing_status' => 'received',
+        'payload_json' => [
+            'messageId' => '2AC721E2FB2C40A3090D',
+            'phone' => '120363425148164142-group',
+            'participantPhone' => '554896553954',
+            'senderName' => 'Anderson Marques',
+            'referenceMessageId' => '2A7C8521A40F6ECA9022',
+            'text' => [
+                'message' => 'Deletar',
+            ],
+        ],
+    ]);
+
+    (new ProcessVipGalleryWebhookJob($log->id))->handle(app(\App\Modules\VipGallery\Support\VipGalleryEventResolver::class));
+
+    Queue::assertPushed(DeleteVipGalleryPhotoJob::class, 1);
+    expect($log->fresh()->routing_status)->toBe('queued_delete');
+});
+
+test('delete command without referenceMessageId is rejected even with apagar text', function () {
+    Queue::fake();
+
+    $event = createVipGalleryEvent([
+        'whatsapp_group_id' => '120363408092361361-group',
+        'gallery_slug' => 'galeria-3',
+    ]);
+
+    $log = VipGalleryWebhookLog::query()->create([
+        'message_id' => '2AD96B84D25767193C35',
+        'phone' => '120363408092361361-group',
+        'detected_type' => VipGalleryWebhookLog::TYPE_TEXT_COMMAND,
+        'routing_status' => 'received',
+        'payload_json' => [
+            'messageId' => '2AD96B84D25767193C35',
+            'phone' => '120363408092361361-group',
+            'participantPhone' => '554896553954',
+            'senderName' => 'Anderson Marques',
+            'text' => [
+                'message' => 'Apagar',
+            ],
+        ],
+    ]);
+
+    (new ProcessVipGalleryWebhookJob($log->id))->handle(app(\App\Modules\VipGallery\Support\VipGalleryEventResolver::class));
+
+    Queue::assertNothingPushed();
+    expect($log->fresh()->routing_status)->toBe('invalid_delete_command');
+    expect($event->fresh()->whatsapp_group_id)->toBe('120363408092361361-group');
+});
+
 test('admin can queue reprocess for failed photo', function () {
     Queue::fake();
 
@@ -458,4 +609,69 @@ test('admin can queue reprocess for failed photo', function () {
 
     Queue::assertPushed(ProcessVipGalleryPhotoJob::class, 1);
     expect($photo->fresh()->processing_attempts)->toBe(1);
+});
+
+test('authenticated vip coverage endpoints expose vip event list and totals', function () {
+    $event = createVipGalleryEvent([
+        'views_count' => 11,
+        'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_ACTIVE,
+    ]);
+
+    VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'vip-stat-1',
+        'participant_phone' => '5591999999999',
+        'sender_name' => 'Anderson',
+        'original_image_path' => 'vip-gallery/events/'.$event->id.'/originals/vip-stat-1.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PUBLISHED_ORIGINAL,
+        'downloads_count' => 3,
+        'received_at' => now()->subMinutes(4),
+        'published_at' => now()->subMinutes(3),
+    ]);
+
+    VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'vip-stat-2',
+        'participant_phone' => '5591888888888',
+        'sender_name' => 'Bruna',
+        'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/vip-stat-2.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
+        'downloads_count' => 2,
+        'received_at' => now()->subMinutes(2),
+        'published_at' => now()->subMinute(),
+    ]);
+
+    ExternalEvent::query()->create([
+        'titulo' => 'Evento sem VIP',
+        'category_id' => $event->category_id,
+        'status_id' => $event->status_id,
+        'data_hora' => now()->addDays(2),
+        'local' => 'Ananindeua',
+        'is_vip_gallery' => false,
+        'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
+        'logo_size_percent' => 15,
+        'allow_delete_command' => false,
+        'delete_command_keyword' => 'Apagar',
+    ]);
+
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/externas/cobertura-vip/stats')
+        ->assertOk()
+        ->assertJsonPath('data.total_galleries', 1)
+        ->assertJsonPath('data.active_galleries', 1)
+        ->assertJsonPath('data.total_views', 11)
+        ->assertJsonPath('data.total_downloads', 5);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/externas/cobertura-vip?search=casamento-vip')
+        ->assertOk()
+        ->assertJsonPath('meta.total', 1)
+        ->assertJsonPath('data.0.id', $event->id)
+        ->assertJsonPath('data.0.gallery_slug', 'casamento-vip')
+        ->assertJsonPath('data.0.vip_gallery_photos_count', 2)
+        ->assertJsonPath('data.0.vip_gallery_downloads_count', 5)
+        ->assertJsonPath('data.0.vip_gallery_public_url', '/gallery/casamento-vip')
+        ->assertJsonPath('data.0.vip_gallery_is_active', true);
 });

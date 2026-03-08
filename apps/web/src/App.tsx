@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ShimmerPage } from "@/components/Shimmer";
 
 // Critical pages (loaded immediately)
@@ -89,11 +89,7 @@ const EquipmentInventory = lazy(() => import("./pages/config/EquipmentInventory"
 const ExternasDashboard = lazy(() => import("./pages/externas/Dashboard"));
 const ExternasEventForm = lazy(() => import("./pages/externas/EventForm"));
 const ExternasEventDetail = lazy(() => import("./pages/externas/EventDetail"));
-
-// Cobertura VIP (Photo Galleries)
-const CoberturaVipDashboard = lazy(() => import("./pages/cobertura-vip/Dashboard"));
-const CoberturaVipGalleryForm = lazy(() => import("./pages/cobertura-vip/GalleryForm"));
-const CoberturaVipGalleryDetail = lazy(() => import("./pages/cobertura-vip/GalleryDetail"));
+const ExternasVipCoverageDashboard = lazy(() => import("./pages/externas/VipCoverageDashboard"));
 
 // ==========================================
 // QUERY CLIENT CONFIG
@@ -107,6 +103,13 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const LegacyVipEventRedirect = ({ edit = false }: { edit?: boolean }) => {
+  const { id } = useParams();
+  const target = edit ? `/externas/${id}/editar` : `/externas/${id}`;
+
+  return <Navigate to={target} replace />;
+};
 
 // ==========================================
 // APP COMPONENT
@@ -198,16 +201,17 @@ const App = () => (
 
                     {/* Externas Routes */}
                     <Route path="/externas" element={<ExternasDashboard />} />
+                    <Route path="/externas/cobertura-vip" element={<ExternasVipCoverageDashboard />} />
                     <Route path="/externas/novo" element={<ExternasEventForm />} />
                     <Route path="/externas/:id" element={<ExternasEventDetail />} />
                     <Route path="/externas/:id/editar" element={<ExternasEventForm />} />
 
-                    {/* Cobertura VIP Routes */}
-                    <Route path="/cobertura-vip" element={<CoberturaVipDashboard />} />
-                    <Route path="/cobertura-vip/novo" element={<CoberturaVipGalleryForm />} />
-                    <Route path="/cobertura-vip/:id" element={<CoberturaVipGalleryDetail />} />
-                    <Route path="/cobertura-vip/:id/editar" element={<CoberturaVipGalleryForm />} />
-                    <Route path="/cobertura-vip/:id/metricas" element={<CoberturaVipGalleryDetail />} />
+                    {/* Legacy Cobertura VIP Routes */}
+                    <Route path="/cobertura-vip" element={<Navigate to="/externas/cobertura-vip" replace />} />
+                    <Route path="/cobertura-vip/novo" element={<Navigate to="/externas/novo" replace />} />
+                    <Route path="/cobertura-vip/:id" element={<LegacyVipEventRedirect />} />
+                    <Route path="/cobertura-vip/:id/editar" element={<LegacyVipEventRedirect edit />} />
+                    <Route path="/cobertura-vip/:id/metricas" element={<LegacyVipEventRedirect />} />
                   </Route>
 
                   {/* Catch-all */}

@@ -7,6 +7,7 @@ use App\Modules\Externas\Models\EventActivityLog;
 use App\Modules\Externas\Models\EventCategory;
 use App\Modules\Externas\Models\EventStatus;
 use App\Modules\Externas\Models\ExternalEvent;
+use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Support\Http\Controllers\BaseController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -161,7 +162,7 @@ class ExternaController extends BaseController
 
     public function index(Request $request): JsonResponse
     {
-        $query = ExternalEvent::with(['category', 'status', 'collaborators', 'equipment']);
+        $query = $this->buildEventIndexQuery($request);
 
         // ── Filters ────────────────────────────
         if ($request->filled('category_id')) {
@@ -191,6 +192,51 @@ class ExternaController extends BaseController
 
         $perPage = $request->input('per_page', 20);
         $events = $query->orderBy('data_hora', 'desc')->paginate($perPage);
+
+        return $this->jsonPaginated($events);
+    }
+
+    public function vipGalleryIndex(Request $request): JsonResponse
+    {
+        $query = $this->buildEventIndexQuery($request, false)->where('is_vip_gallery', true);
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('status_id')) {
+            $query->where('status_id', $request->status_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('titulo', 'like', "%{$search}%")
+                    ->orWhere('local', 'like', "%{$search}%")
+                    ->orWhere('briefing', 'like', "%{$search}%")
+                    ->orWhere('gallery_slug', 'like', "%{$search}%")
+                    ->orWhere('whatsapp_group_id', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('data_inicio')) {
+            $query->where('data_hora', '>=', $request->data_inicio);
+        }
+
+        if ($request->filled('data_fim')) {
+            $query->where('data_hora', '<=', $request->data_fim);
+        }
+
+        $query
+            ->withCount(['vipGalleryPhotos', 'vipGalleryBanners'])
+            ->withSum('vipGalleryPhotos as vip_gallery_downloads_count', 'downloads_count');
+
+        $perPage = $request->input('per_page', 20);
+        $events = $query->orderBy('data_hora', 'desc')->paginate($perPage);
+
+        $events->setCollection(
+            $events->getCollection()->map(fn (ExternalEvent $event) => $this->serializeVipGalleryEvent($event))
+        );
 
         return $this->jsonPaginated($events);
     }
@@ -471,6 +517,55 @@ class ExternaController extends BaseController
     // ══════════════════════════════════════════
     // EQUIPMENT AVAILABILITY
     // ══════════════════════════════════════════
+
+    public function vipGalleryStats(): JsonResponse
+    {
+        $vipEvents = ExternalEvent::query()->where('is_vip_gallery', true);
+
+        return $this->jsonSuccess([
+            'total_galleries' => (int) (clone $vipEvents)->count(),
+            'active_galleries' => (int) (clone $vipEvents)
+                ->where('vip_gallery_status', ExternalEvent::VIP_GALLERY_STATUS_ACTIVE)
+                ->count(),
+            'total_views' => (int) (clone $vipEvents)->sum('views_count'),
+            'total_downloads' => (int) VipGalleryPhoto::query()
+                ->whereIn('external_event_id', ExternalEvent::query()->where('is_vip_gallery', true)->select('id'))
+                ->sum('downloads_count'),
+        ]);
+    }
+
+    private function buildEventIndexQuery(Request $request, bool $withFullRelations = true)
+    {
+        $relations = $withFullRelations
+            ? ['category', 'status', 'collaborators', 'equipment']
+            : ['category', 'status'];
+
+        $query = ExternalEvent::with($relations);
+
+        if ($request->filled('vip_gallery_status')) {
+            $query->where('vip_gallery_status', $request->vip_gallery_status);
+        }
+
+        if ($request->has('is_vip_gallery')) {
+            $isVipGallery = filter_var($request->input('is_vip_gallery'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($isVipGallery !== null) {
+                $query->where('is_vip_gallery', $isVipGallery);
+            }
+        }
+
+        return $query;
+    }
+
+    private function serializeVipGalleryEvent(ExternalEvent $event): array
+    {
+        return array_merge($event->toArray(), [
+            'vip_gallery_photos_count' => (int) ($event->vip_gallery_photos_count ?? 0),
+            'vip_gallery_banners_count' => (int) ($event->vip_gallery_banners_count ?? 0),
+            'vip_gallery_downloads_count' => (int) ($event->vip_gallery_downloads_count ?? 0),
+            'vip_gallery_public_url' => $event->gallery_slug ? '/gallery/'.$event->gallery_slug : null,
+            'vip_gallery_is_active' => $event->isVipGalleryActive(),
+        ]);
+    }
 
     private function vipGalleryRules(?ExternalEvent $event = null): array
     {

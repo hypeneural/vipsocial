@@ -4,6 +4,8 @@ import {
     ExternalEvent,
     EventCategory,
     EventStatusData,
+    VipCoverageEvent,
+    VipCoverageStats,
     VipGalleryStatus,
 } from "@/types/externas";
 
@@ -40,6 +42,8 @@ export interface ExternalEventFilters {
     search?: string;
     data_inicio?: string;
     data_fim?: string;
+    is_vip_gallery?: boolean;
+    vip_gallery_status?: VipGalleryStatus;
 }
 
 export interface EventStats {
@@ -111,6 +115,18 @@ export const externaService = {
     },
 
     // ── Categories ─────────────────────────────
+    getVipCoverageStats: async (): Promise<ApiResponse<VipCoverageStats>> => {
+        const { data } = await api.get<ApiResponse<VipCoverageStats>>("/externas/cobertura-vip/stats");
+        return data;
+    },
+
+    getVipCoverageEvents: async (
+        params?: ListParams & ExternalEventFilters
+    ): Promise<PaginatedResponse<VipCoverageEvent>> => {
+        const { data } = await api.get<PaginatedResponse<VipCoverageEvent>>("/externas/cobertura-vip", { params });
+        return data;
+    },
+
     getCategories: async (): Promise<ApiResponse<EventCategory[]>> => {
         const { data } = await api.get<ApiResponse<EventCategory[]>>("/externas/categorias");
         return data;

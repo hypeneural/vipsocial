@@ -685,110 +685,122 @@ const EventForm = () => {
                                 </label>
                             </div>
 
-                            <div className={cn("space-y-4", !isVipGallery && "opacity-60")}>
-                                <div className="grid sm:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Status da Galeria VIP</Label>
-                                        <Select
-                                            value={vipGalleryStatus}
-                                            onValueChange={(value) => setVipGalleryStatus(value as VipGalleryStatus)}
-                                            disabled={!isVipGallery}
-                                        >
-                                            <SelectTrigger className="rounded-xl">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {vipGalleryStatusOptions.map((option) => (
-                                                    <SelectItem key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                            <AnimatePresence initial={false}>
+                                {isVipGallery ? (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: "auto" }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="space-y-4 overflow-hidden"
+                                    >
+                                        <div className="grid sm:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label>Status da Galeria VIP</Label>
+                                                <Select
+                                                    value={vipGalleryStatus}
+                                                    onValueChange={(value) => setVipGalleryStatus(value as VipGalleryStatus)}
+                                                >
+                                                    <SelectTrigger className="rounded-xl">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {vipGalleryStatusOptions.map((option) => (
+                                                            <SelectItem key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="logo_size_percent">Tamanho da Logo (%)</Label>
-                                        <Input
-                                            id="logo_size_percent"
-                                            type="number"
-                                            min={5}
-                                            max={30}
-                                            value={logoSizePercent}
-                                            onChange={(e) => setLogoSizePercent(e.target.value)}
-                                            disabled={!isVipGallery}
-                                            className="rounded-xl"
-                                        />
-                                    </div>
-                                </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="logo_size_percent">Tamanho da Logo (%)</Label>
+                                                <Input
+                                                    id="logo_size_percent"
+                                                    type="number"
+                                                    min={5}
+                                                    max={30}
+                                                    value={logoSizePercent}
+                                                    onChange={(e) => setLogoSizePercent(e.target.value)}
+                                                    className="rounded-xl"
+                                                />
+                                            </div>
+                                        </div>
 
-                                <div className="grid sm:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="gallery_slug">Slug da Galeria</Label>
-                                        <Input
-                                            id="gallery_slug"
-                                            value={gallerySlug}
-                                            onChange={(e) => setGallerySlug(e.target.value)}
-                                            placeholder="ex: casamento-vip"
-                                            required={isVipGallery}
-                                            disabled={!isVipGallery}
-                                            className="rounded-xl"
-                                        />
-                                    </div>
+                                        <div className="grid sm:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="gallery_slug">Slug da Galeria</Label>
+                                                <Input
+                                                    id="gallery_slug"
+                                                    value={gallerySlug}
+                                                    onChange={(e) => setGallerySlug(e.target.value)}
+                                                    placeholder="ex: casamento-vip"
+                                                    required={isVipGallery}
+                                                    className="rounded-xl"
+                                                />
+                                            </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_group_id">WhatsApp Group ID</Label>
-                                        <Input
-                                            id="whatsapp_group_id"
-                                            value={whatsappGroupId}
-                                            onChange={(e) => setWhatsappGroupId(e.target.value)}
-                                            placeholder="120363027326371817-group"
-                                            required={isVipGallery}
-                                            disabled={!isVipGallery}
-                                            className="rounded-xl"
-                                        />
-                                    </div>
-                                </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="whatsapp_group_id">WhatsApp Group ID</Label>
+                                                <Input
+                                                    id="whatsapp_group_id"
+                                                    value={whatsappGroupId}
+                                                    onChange={(e) => setWhatsappGroupId(e.target.value)}
+                                                    placeholder="120363027326371817-group"
+                                                    required={isVipGallery}
+                                                    className="rounded-xl"
+                                                />
+                                            </div>
+                                        </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="custom_logo_path">Path da Logo PNG</Label>
-                                    <Input
-                                        id="custom_logo_path"
-                                        value={customLogoPath}
-                                        onChange={(e) => setCustomLogoPath(e.target.value)}
-                                        placeholder="vip-gallery/logos/evento.png"
-                                        disabled={!isVipGallery}
-                                        className="rounded-xl"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        A implementacao atual usa apenas `Storage::disk('public')` e logo PNG transparente.
-                                    </p>
-                                </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="custom_logo_path">Path da Logo PNG</Label>
+                                            <Input
+                                                id="custom_logo_path"
+                                                value={customLogoPath}
+                                                onChange={(e) => setCustomLogoPath(e.target.value)}
+                                                placeholder="vip-gallery/logos/evento.png"
+                                                className="rounded-xl"
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                A implementacao atual usa apenas `Storage::disk('public')` e logo PNG transparente.
+                                            </p>
+                                        </div>
 
-                                <div className="rounded-xl border border-dashed p-4 space-y-3">
-                                    <label className="flex items-center gap-2 text-sm font-medium">
-                                        <Checkbox
-                                            checked={allowDeleteCommand}
-                                            onCheckedChange={(checked) => setAllowDeleteCommand(checked === true)}
-                                            disabled={!isVipGallery}
-                                        />
-                                        Permitir delete command via WhatsApp
-                                    </label>
+                                        <div className="rounded-xl border border-dashed p-4 space-y-3">
+                                            <label className="flex items-center gap-2 text-sm font-medium">
+                                                <Checkbox
+                                                    checked={allowDeleteCommand}
+                                                    onCheckedChange={(checked) => setAllowDeleteCommand(checked === true)}
+                                                />
+                                                Permitir delete command via WhatsApp
+                                            </label>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="delete_command_keyword">Palavra-chave para apagar</Label>
-                                        <Input
-                                            id="delete_command_keyword"
-                                            value={deleteCommandKeyword}
-                                            onChange={(e) => setDeleteCommandKeyword(e.target.value)}
-                                            placeholder="Apagar"
-                                            required={isVipGallery && allowDeleteCommand}
-                                            disabled={!isVipGallery || !allowDeleteCommand}
-                                            className="rounded-xl"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="delete_command_keyword">Palavra-chave para apagar</Label>
+                                                <Input
+                                                    id="delete_command_keyword"
+                                                    value={deleteCommandKeyword}
+                                                    onChange={(e) => setDeleteCommandKeyword(e.target.value)}
+                                                    placeholder="Apagar"
+                                                    required={isVipGallery && allowDeleteCommand}
+                                                    disabled={!allowDeleteCommand}
+                                                    className="rounded-xl"
+                                                />
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
+                                    >
+                                        Ative a Cobertura VIP para preencher o slug público, grupo do WhatsApp e regras da galeria.
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     </motion.div>
 

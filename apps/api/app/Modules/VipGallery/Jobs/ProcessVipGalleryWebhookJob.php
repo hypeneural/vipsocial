@@ -43,7 +43,7 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
 
         $log->forceFill([
             'message_id' => $messageId,
-            'phone' => ZApiGalleryPayload::participantPhone($payload) ?? $groupId,
+            'phone' => $groupId,
             'detected_type' => $detectedType,
             'routing_status' => 'processing',
             'error_message' => null,
@@ -149,8 +149,13 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
     {
         $receivedText = $this->normalizeCommandText(ZApiGalleryPayload::textBody($payload));
         $expectedText = $this->normalizeCommandText((string) $event->delete_command_keyword);
+        $acceptedCommands = array_values(array_unique(array_filter([
+            $expectedText,
+            'apagar',
+            'deletar',
+        ])));
 
-        return $receivedText !== '' && $receivedText === $expectedText;
+        return $receivedText !== '' && in_array($receivedText, $acceptedCommands, true);
     }
 
     private function normalizeCommandText(?string $value): string

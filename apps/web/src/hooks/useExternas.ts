@@ -7,6 +7,8 @@ const KEYS = {
     list: (filters?: ExternalEventFilters) => [...KEYS.all, "list", filters] as const,
     detail: (id: number) => [...KEYS.all, "detail", id] as const,
     stats: () => [...KEYS.all, "stats"] as const,
+    vipList: (filters?: ExternalEventFilters) => [...KEYS.all, "vip-list", filters] as const,
+    vipStats: () => [...KEYS.all, "vip-stats"] as const,
     upcoming: (days?: number) => [...KEYS.all, "upcoming", days] as const,
     categories: () => [...KEYS.all, "categories"] as const,
     statuses: () => [...KEYS.all, "statuses"] as const,
@@ -36,6 +38,20 @@ export function useExternaStats() {
     return useQuery({
         queryKey: KEYS.stats(),
         queryFn: () => externaService.getStats(),
+    });
+}
+
+export function useVipCoverageEvents(params?: ExternalEventFilters & { per_page?: number }) {
+    return useQuery({
+        queryKey: KEYS.vipList(params),
+        queryFn: () => externaService.getVipCoverageEvents(params),
+    });
+}
+
+export function useVipCoverageStats() {
+    return useQuery({
+        queryKey: KEYS.vipStats(),
+        queryFn: () => externaService.getVipCoverageStats(),
     });
 }
 

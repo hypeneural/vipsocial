@@ -28,6 +28,13 @@ export interface EventStatusData {
 
 export type VipGalleryStatus = 'draft' | 'active' | 'paused' | 'archived';
 
+export interface VipCoverageStats {
+    total_galleries: number;
+    active_galleries: number;
+    total_views: number;
+    total_downloads: number;
+}
+
 /**
  * Contato do cliente
  */
@@ -139,6 +146,14 @@ export interface ExternalEvent {
     equipment: EventEquipmentItem[];
     created_at: string;
     updated_at: string;
+}
+
+export interface VipCoverageEvent extends ExternalEvent {
+    vip_gallery_photos_count: number;
+    vip_gallery_banners_count: number;
+    vip_gallery_downloads_count: number;
+    vip_gallery_public_url?: string | null;
+    vip_gallery_is_active: boolean;
 }
 
 /**

@@ -22,6 +22,7 @@ import {
   Filter,
   UserCheck,
   Shield,
+  Camera,
   Cake,
   Plug,
   FileSearch,
@@ -62,17 +63,8 @@ const menuItems: MenuItem[] = [
     requiredPermission: "externas.view",
     children: [
       { icon: Calendar, label: "Agenda", path: "/externas" },
+      { icon: Camera, label: "Cobertura VIP", path: "/externas/cobertura-vip" },
       { icon: FileText, label: "Novo Evento", path: "/externas/novo" },
-    ],
-  },
-  {
-    icon: FileText,
-    label: "Cobertura VIP",
-    path: "/cobertura-vip",
-    requiredPermission: "galerias.view",
-    children: [
-      { icon: LayoutDashboard, label: "Galerias", path: "/cobertura-vip" },
-      { icon: FileText, label: "Nova Galeria", path: "/cobertura-vip/novo" },
     ],
   },
   {

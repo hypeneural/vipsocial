@@ -24,6 +24,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // ── Stats & Upcoming ───────────────────
         Route::get('/stats', [ExternaController::class, 'stats'])->name('externas.stats');
         Route::get('/proximos/{days?}', [ExternaController::class, 'upcoming'])->name('externas.upcoming');
+        Route::get('/cobertura-vip/stats', [ExternaController::class, 'vipGalleryStats'])->name('externas.vip-gallery.stats');
+        Route::get('/cobertura-vip', [ExternaController::class, 'vipGalleryIndex'])->name('externas.vip-gallery.index');
 
         // ── Events CRUD ────────────────────────
         Route::get('/', [ExternaController::class, 'index'])->name('externas.index');

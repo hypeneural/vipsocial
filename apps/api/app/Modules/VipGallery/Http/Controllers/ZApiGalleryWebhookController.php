@@ -25,7 +25,7 @@ class ZApiGalleryWebhookController extends BaseController
 
         $log = VipGalleryWebhookLog::query()->create([
             'message_id' => ZApiGalleryPayload::messageId($payload),
-            'phone' => ZApiGalleryPayload::participantPhone($payload) ?? ZApiGalleryPayload::groupId($payload),
+            'phone' => ZApiGalleryPayload::groupId($payload),
             'detected_type' => ZApiGalleryPayload::detectedType($payload),
             'routing_status' => 'received',
             'payload_json' => $payload,
