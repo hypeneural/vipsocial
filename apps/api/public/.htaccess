@@ -24,7 +24,7 @@
     RewriteRule ^ - [L]
 
     # Routes handled by Laravel before the SPA catch-all
-    RewriteCond %{REQUEST_URI} ^/(api|sanctum|broadcasting|embed/enquetes|media/enquetes) [NC]
+    RewriteCond %{REQUEST_URI} ^/(api|sanctum|broadcasting|embed/enquetes|media/enquetes|storage) [NC]
     RewriteRule ^ index.php [L]
 
     # SPA fallback for frontend routes

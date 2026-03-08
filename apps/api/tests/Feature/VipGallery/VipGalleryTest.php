@@ -412,6 +412,17 @@ test('public gallery sends cors header for public gallery domain', function () {
         ->assertHeader('Access-Control-Allow-Origin', 'https://coberturavip.com.br');
 });
 
+test('public storage route serves vip gallery files without relying on storage symlink', function () {
+    $binary = fakeJpegBinary();
+    $path = 'vip-gallery/events/1/processed/test-image.jpg';
+
+    Storage::disk('public')->put($path, $binary);
+
+    $this->get('/storage/'.$path)
+        ->assertOk()
+        ->assertHeader('Cache-Control', 'public');
+});
+
 test('public gallery discovery lists only active galleries with visible photos and auto opens single result', function () {
     $visibleEvent = createVipGalleryEvent([
         'gallery_slug' => 'galeria-visivel',
