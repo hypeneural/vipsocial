@@ -400,6 +400,18 @@ test('public gallery detail and photos expose only visible records', function ()
         ->assertJsonPath('meta.has_more', false);
 });
 
+test('public gallery sends cors header for public gallery domain', function () {
+    createVipGalleryEvent([
+        'gallery_slug' => 'galeria-cors',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+
+    $this->withHeader('Origin', 'https://coberturavip.com.br')
+        ->getJson('/api/v1/gallery')
+        ->assertOk()
+        ->assertHeader('Access-Control-Allow-Origin', 'https://coberturavip.com.br');
+});
+
 test('public gallery discovery lists only active galleries with visible photos and auto opens single result', function () {
     $visibleEvent = createVipGalleryEvent([
         'gallery_slug' => 'galeria-visivel',
