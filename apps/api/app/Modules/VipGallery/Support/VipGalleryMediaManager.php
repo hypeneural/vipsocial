@@ -161,7 +161,13 @@ class VipGalleryMediaManager
             return null;
         }
 
-        return $this->storage()->url($path);
+        $url = $this->storage()->url($path);
+
+        if (Str::startsWith($url, ['http://', 'https://'])) {
+            return $url;
+        }
+
+        return rtrim((string) config('app.url'), '/').'/'.ltrim($url, '/');
     }
 
     public function publicGalleryUrl(ExternalEvent $event): ?string
@@ -170,7 +176,9 @@ class VipGalleryMediaManager
             return null;
         }
 
-        return '/gallery/'.$event->gallery_slug;
+        $baseUrl = rtrim((string) config('vip_gallery.public.frontend_base_url', 'https://www.coberturavip.com.br'), '/');
+
+        return $baseUrl.'/'.$event->gallery_slug;
     }
 
     public function defaultLogoPath(): string

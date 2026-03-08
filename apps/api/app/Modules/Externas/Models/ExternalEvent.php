@@ -90,6 +90,15 @@ class ExternalEvent extends Model
         return $this->hasMany(VipGalleryPhoto::class, 'external_event_id');
     }
 
+    public function latestPublicVipGalleryPhoto()
+    {
+        return $this->hasOne(VipGalleryPhoto::class, 'external_event_id')
+            ->ofMany(
+                ['published_at' => 'max', 'id' => 'max'],
+                fn ($query) => $query->publiclyVisible()
+            );
+    }
+
     public function vipGalleryBanners()
     {
         return $this->hasMany(VipGalleryBanner::class, 'external_event_id');
@@ -98,6 +107,31 @@ class ExternalEvent extends Model
     public function isVipGalleryActive(): bool
     {
         return $this->is_vip_gallery && $this->vip_gallery_status === self::VIP_GALLERY_STATUS_ACTIVE;
+    }
+
+    public function hasVisibleVipGalleryPhotos(): bool
+    {
+        $loadedCount = $this->getAttribute('total_photos_count');
+
+        if (is_numeric($loadedCount)) {
+            return (int) $loadedCount > 0;
+        }
+
+        return $this->vipGalleryPhotos()->publiclyVisible()->exists();
+    }
+
+    public function publicVipGalleryStatus(): string
+    {
+        if ($this->isVipGalleryActive() && ! $this->hasVisibleVipGalleryPhotos()) {
+            return self::VIP_GALLERY_STATUS_PAUSED;
+        }
+
+        return (string) $this->vip_gallery_status;
+    }
+
+    public function isVipGalleryPubliclyActive(): bool
+    {
+        return $this->publicVipGalleryStatus() === self::VIP_GALLERY_STATUS_ACTIVE;
     }
 
     public static function vipGalleryStatuses(): array

@@ -156,25 +156,33 @@ beforeEach(function () {
 
 function createVipGalleryEvent(array $overrides = []): ExternalEvent
 {
-    $categoryId = DB::table('event_categories')->insertGetId([
-        'name' => 'Cobertura',
-        'slug' => 'cobertura',
-        'icon' => 'FileText',
-        'color' => 'bg-gray-500',
-        'sort_order' => 0,
-        'created_at' => now(),
-        'updated_at' => now(),
-    ]);
+    $categoryId = DB::table('event_categories')->where('slug', 'cobertura')->value('id');
 
-    $statusId = DB::table('event_statuses')->insertGetId([
-        'name' => 'Confirmado',
-        'slug' => 'confirmado',
-        'icon' => 'CircleDot',
-        'color' => 'bg-green-500',
-        'sort_order' => 0,
-        'created_at' => now(),
-        'updated_at' => now(),
-    ]);
+    if (! $categoryId) {
+        $categoryId = DB::table('event_categories')->insertGetId([
+            'name' => 'Cobertura',
+            'slug' => 'cobertura',
+            'icon' => 'FileText',
+            'color' => 'bg-gray-500',
+            'sort_order' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    $statusId = DB::table('event_statuses')->where('slug', 'confirmado')->value('id');
+
+    if (! $statusId) {
+        $statusId = DB::table('event_statuses')->insertGetId([
+            'name' => 'Confirmado',
+            'slug' => 'confirmado',
+            'icon' => 'CircleDot',
+            'color' => 'bg-green-500',
+            'sort_order' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
 
     $viewsCount = (int) ($overrides['views_count'] ?? 5);
     unset($overrides['views_count']);
@@ -370,9 +378,10 @@ test('public gallery detail and photos expose only visible records', function ()
         ->assertOk()
         ->assertJsonPath('data.slug', 'casamento-vip')
         ->assertJsonPath('data.status', ExternalEvent::VIP_GALLERY_STATUS_ACTIVE)
+        ->assertJsonPath('data.configured_status', ExternalEvent::VIP_GALLERY_STATUS_ACTIVE)
         ->assertJsonPath('data.is_active', true)
         ->assertJsonPath('data.accepting_photos', true)
-        ->assertJsonPath('data.public_url', '/gallery/casamento-vip')
+        ->assertJsonPath('data.public_url', 'https://www.coberturavip.com.br/casamento-vip')
         ->assertJsonPath('data.stats.total_photos', 1)
         ->assertJsonPath('data.stats.total_downloads', 7)
         ->assertJsonPath('data.stats.views_count', 5)
@@ -382,12 +391,56 @@ test('public gallery detail and photos expose only visible records', function ()
     $this->getJson('/api/v1/gallery/casamento-vip/photos')
         ->assertOk()
         ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.image_url', 'https://adm.tvvip.social/storage/vip-gallery/events/'.$event->id.'/processed/msg-1.jpg')
         ->assertJsonPath('data.0.is_processed', true)
         ->assertJsonPath('data.0.sender_name', 'Anderson')
         ->assertJsonPath('next_cursor', null)
         ->assertJsonPath('has_more', false)
         ->assertJsonPath('meta.next_cursor', null)
         ->assertJsonPath('meta.has_more', false);
+});
+
+test('public gallery discovery lists only active galleries with visible photos and auto opens single result', function () {
+    $visibleEvent = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-visivel',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+
+    VipGalleryPhoto::query()->create([
+        'external_event_id' => $visibleEvent->id,
+        'zapi_message_id' => 'visible-msg-1',
+        'participant_phone' => '5591999999999',
+        'sender_name' => 'Anderson',
+        'processed_image_path' => 'vip-gallery/events/'.$visibleEvent->id.'/processed/visible-msg-1.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
+        'received_at' => now()->subMinute(),
+        'published_at' => now()->subSeconds(30),
+    ]);
+
+    Storage::disk('public')->put('vip-gallery/events/'.$visibleEvent->id.'/processed/visible-msg-1.jpg', 'photo');
+
+    createVipGalleryEvent([
+        'gallery_slug' => 'galeria-sem-foto',
+        'whatsapp_group_id' => '120363425148164142-group',
+    ]);
+
+    $this->getJson('/api/v1/gallery')
+        ->assertOk()
+        ->assertJsonPath('meta.total_active', 1)
+        ->assertJsonPath('meta.auto_open_slug', 'galeria-visivel')
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.slug', 'galeria-visivel')
+        ->assertJsonPath('data.0.is_active', true)
+        ->assertJsonPath('data.0.total_photos', 1)
+        ->assertJsonPath('data.0.cover_image_url', 'https://adm.tvvip.social/storage/vip-gallery/events/'.$visibleEvent->id.'/processed/visible-msg-1.jpg')
+        ->assertJsonMissing(['slug' => 'galeria-sem-foto']);
+
+    $this->getJson('/api/v1/gallery/galeria-sem-foto')
+        ->assertOk()
+        ->assertJsonPath('data.status', ExternalEvent::VIP_GALLERY_STATUS_PAUSED)
+        ->assertJsonPath('data.configured_status', ExternalEvent::VIP_GALLERY_STATUS_ACTIVE)
+        ->assertJsonPath('data.is_active', false)
+        ->assertJsonPath('data.has_visible_photos', false);
 });
 
 test('gallery tracking increments counters once per requester window', function () {

@@ -25,6 +25,10 @@ return [
         'secret_header' => (string) env('VIP_GALLERY_WEBHOOK_SECRET_HEADER', 'X-VIP-GALLERY-SECRET'),
     ],
 
+    'public' => [
+        'frontend_base_url' => rtrim((string) env('VIP_GALLERY_FRONTEND_URL', 'https://www.coberturavip.com.br'), '/'),
+    ],
+
     'queues' => [
         'webhook' => (string) env('VIP_GALLERY_QUEUE_WEBHOOK', 'vip-gallery-webhook'),
         'processing' => (string) env('VIP_GALLERY_QUEUE_PROCESSING', 'vip-gallery-processing'),

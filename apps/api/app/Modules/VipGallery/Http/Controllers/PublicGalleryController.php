@@ -4,6 +4,7 @@ namespace App\Modules\VipGallery\Http\Controllers;
 
 use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Http\Resources\GalleryDetailResource;
+use App\Modules\VipGallery\Http\Resources\GalleryListResource;
 use App\Modules\VipGallery\Http\Resources\GalleryPhotoResource;
 use App\Modules\VipGallery\Support\VipGalleryEventResolver;
 use App\Support\Http\Controllers\BaseController;
@@ -16,6 +17,28 @@ class PublicGalleryController extends BaseController
     public function __construct(
         private readonly VipGalleryEventResolver $resolver
     ) {}
+
+    public function index(Request $request): JsonResponse
+    {
+        $galleries = $this->baseGalleryQuery()
+            ->where('vip_gallery_status', ExternalEvent::VIP_GALLERY_STATUS_ACTIVE)
+            ->orderByDesc('latest_photo_published_at')
+            ->orderByDesc('data_hora')
+            ->get()
+            ->filter(fn (ExternalEvent $event) => $event->hasVisibleVipGalleryPhotos())
+            ->values();
+
+        $items = GalleryListResource::collection($galleries)->resolve($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'meta' => [
+                'total_active' => count($items),
+                'auto_open_slug' => count($items) === 1 ? ($items[0]['slug'] ?? null) : null,
+            ],
+        ]);
+    }
 
     public function show(Request $request, string $identifier): JsonResponse
     {
@@ -40,7 +63,7 @@ class PublicGalleryController extends BaseController
         $event = $this->resolver->resolvePublic($identifier);
         $limit = min(max((int) $request->integer('limit', 20), 1), 30);
 
-        if ($event->vip_gallery_status !== ExternalEvent::VIP_GALLERY_STATUS_ACTIVE) {
+        if (! $event->isVipGalleryPubliclyActive()) {
             return response()->json([
                 'success' => true,
                 'data' => [],
@@ -81,12 +104,16 @@ class PublicGalleryController extends BaseController
             ->where('is_vip_gallery', true)
             ->with([
                 'vipGalleryBanners' => fn ($query) => $query->activeWindow()->orderBy('sort_order')->orderBy('id'),
+                'latestPublicVipGalleryPhoto',
             ])
             ->withCount([
                 'vipGalleryPhotos as total_photos_count' => fn ($query) => $query->publiclyVisible(),
             ])
             ->withSum([
                 'vipGalleryPhotos as total_downloads_count' => fn ($query) => $query->publiclyVisible(),
-            ], 'downloads_count');
+            ], 'downloads_count')
+            ->withMax([
+                'vipGalleryPhotos as latest_photo_published_at' => fn ($query) => $query->publiclyVisible(),
+            ], 'published_at');
     }
 }

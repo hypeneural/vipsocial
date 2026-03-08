@@ -9,13 +9,21 @@ class GalleryPhotoResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $imageUrl = $this->publicImageUrl();
+
         return [
             'id' => $this->id,
-            'image_url' => $this->publicImageUrl(),
+            'sequence' => (int) $this->id,
+            'image_url' => $imageUrl,
+            'thumb_url' => $imageUrl,
+            'medium_url' => $imageUrl,
+            'large_url' => $imageUrl,
+            'download_url' => $imageUrl,
             'is_processed' => $this->isProcessed(),
             'width' => (int) $this->width,
             'height' => (int) $this->height,
             'sender_name' => $this->sender_name,
+            'author_name' => $this->sender_name,
             'caption' => $this->caption,
             'published_at' => $this->published_at?->toIso8601String(),
         ];

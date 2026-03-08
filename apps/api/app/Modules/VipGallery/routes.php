@@ -23,6 +23,7 @@ Route::prefix('gallery')->group(function () {
         ->whereNumber('photo')
         ->middleware('throttle:vip-gallery-download');
 
+    Route::get('/', [PublicGalleryController::class, 'index']);
     Route::get('/{identifier}/photos', [PublicGalleryController::class, 'photos']);
     Route::get('/{identifier}', [PublicGalleryController::class, 'show']);
 });
