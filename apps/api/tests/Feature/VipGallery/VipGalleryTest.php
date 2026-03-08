@@ -33,6 +33,10 @@ beforeEach(function () {
     Schema::dropIfExists('vip_gallery_webhook_logs');
     Schema::dropIfExists('vip_gallery_banners');
     Schema::dropIfExists('vip_gallery_photos');
+    Schema::dropIfExists('event_equipment');
+    Schema::dropIfExists('event_collaborators');
+    Schema::dropIfExists('equipments');
+    Schema::dropIfExists('users');
     Schema::dropIfExists('external_events');
     Schema::dropIfExists('event_statuses');
     Schema::dropIfExists('event_categories');
@@ -57,6 +61,26 @@ beforeEach(function () {
         $table->string('icon', 50)->default('CircleDot');
         $table->string('color', 50)->default('bg-gray-500');
         $table->integer('sort_order')->default(0);
+        $table->timestamps();
+    });
+
+    Schema::create('users', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+        $table->string('email')->nullable();
+        $table->timestamp('deleted_at')->nullable();
+        $table->timestamps();
+    });
+
+    Schema::create('equipments', function (Blueprint $table) {
+        $table->id();
+        $table->string('nome');
+        $table->unsignedBigInteger('category_id')->nullable();
+        $table->string('marca')->nullable();
+        $table->string('modelo')->nullable();
+        $table->string('patrimonio')->nullable();
+        $table->unsignedBigInteger('status_id')->nullable();
+        $table->text('observacoes')->nullable();
         $table->timestamps();
     });
 
@@ -165,6 +189,22 @@ beforeEach(function () {
         $table->json('payload_json');
         $table->unsignedBigInteger('vip_gallery_photo_id')->nullable();
         $table->text('error_message')->nullable();
+        $table->timestamps();
+    });
+
+    Schema::create('event_collaborators', function (Blueprint $table) {
+        $table->id();
+        $table->unsignedBigInteger('event_id');
+        $table->unsignedBigInteger('user_id');
+        $table->string('funcao')->nullable();
+        $table->timestamps();
+    });
+
+    Schema::create('event_equipment', function (Blueprint $table) {
+        $table->id();
+        $table->unsignedBigInteger('event_id');
+        $table->unsignedBigInteger('equipment_id');
+        $table->boolean('checked')->default(false);
         $table->timestamps();
     });
 });
@@ -837,6 +877,66 @@ test('authenticated vip coverage endpoints expose vip event list and totals', fu
         ->assertJsonPath('data.0.vip_gallery_downloads_count', 5)
         ->assertJsonPath('data.0.vip_gallery_public_url', 'https://www.coberturavip.com.br/casamento-vip')
         ->assertJsonPath('data.0.vip_gallery_is_active', true);
+});
+
+test('authenticated externa store allows duplicate vip whatsapp group id when user chooses to continue', function () {
+    $existing = createVipGalleryEvent([
+        'whatsapp_group_id' => '120363423950458112-group',
+        'gallery_slug' => 'vip-existente',
+        'data_hora' => now()->addDays(4),
+    ]);
+
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->postJson('/api/v1/externas', [
+            'titulo' => 'Cobertura no mesmo grupo',
+            'category_id' => $existing->category_id,
+            'status_id' => $existing->status_id,
+            'briefing' => 'Evento com aviso apenas',
+            'data_hora' => now()->addDays(4)->addHours(2)->format('Y-m-d H:i:s'),
+            'local' => 'Tijucas',
+            'is_vip_gallery' => true,
+            'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_ACTIVE,
+            'whatsapp_group_id' => '120363423950458112-group',
+            'gallery_slug' => 'vip-mesmo-grupo',
+            'logo_size_percent' => 15,
+            'allow_pause_command' => true,
+            'allow_delete_command' => true,
+            'pause_command_keyword' => 'Parar,Pausar',
+            'delete_command_keyword' => 'Deletar,Apagar,Excluir',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('data.whatsapp_group_id', '120363423950458112-group');
+});
+
+test('upcoming externas endpoint without days returns all future events', function () {
+    $baseEvent = createVipGalleryEvent([
+        'gallery_slug' => 'vip-upcoming-base',
+        'data_hora' => now()->addDays(2),
+    ]);
+
+    ExternalEvent::query()->create([
+        'titulo' => 'Evento futuro distante',
+        'category_id' => $baseEvent->category_id,
+        'status_id' => $baseEvent->status_id,
+        'data_hora' => now()->addDays(45),
+        'local' => 'Itapema',
+        'is_vip_gallery' => false,
+        'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
+        'logo_size_percent' => 15,
+        'allow_pause_command' => false,
+        'allow_delete_command' => false,
+        'pause_command_keyword' => 'Parar,Pausar',
+        'delete_command_keyword' => 'Deletar,Apagar,Excluir',
+    ]);
+
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/externas/proximos')
+        ->assertOk()
+        ->assertJsonFragment(['titulo' => 'Evento futuro distante']);
 });
 
 test('vip gallery admin options and logs expose operational context', function () {

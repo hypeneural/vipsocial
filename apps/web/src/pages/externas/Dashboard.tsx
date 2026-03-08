@@ -33,7 +33,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useExternas, useExternaStats, useEventCategories, useEventStatuses } from "@/hooks/useExternas";
+import { useExternas, useExternaStats, useEventCategories, useEventStatuses, useUpcomingExternas } from "@/hooks/useExternas";
 import type { ExternalEvent } from "@/types/externas";
 import { cn } from "@/lib/utils";
 
@@ -199,11 +199,13 @@ const ExternasDashboard = () => {
         category_id: filterCategory !== "all" ? Number(filterCategory) : undefined,
         status_id: filterStatus !== "all" ? Number(filterStatus) : undefined,
     });
+    const { data: upcomingData } = useUpcomingExternas();
     const { data: statsData } = useExternaStats();
     const { data: categoriesData } = useEventCategories();
     const { data: statusesData } = useEventStatuses();
 
     const events = eventsData?.data || [];
+    const allUpcomingEvents = upcomingData?.data || [];
     const stats = statsData?.data;
     const categories = categoriesData?.data || [];
     const statuses = statusesData?.data || [];
@@ -212,10 +214,30 @@ const ExternasDashboard = () => {
     const now = useMemo(() => new Date(), []);
 
     const upcomingEvents = useMemo(() =>
-        events
-            .filter((ev) => getEventEnd(ev) >= now)
+        allUpcomingEvents
+            .filter((ev) => {
+                if (filterCategory !== "all" && ev.category_id !== Number(filterCategory)) {
+                    return false;
+                }
+
+                if (filterStatus !== "all" && ev.status_id !== Number(filterStatus)) {
+                    return false;
+                }
+
+                if (!searchQuery.trim()) {
+                    return true;
+                }
+
+                const search = searchQuery.trim().toLowerCase();
+
+                return [
+                    ev.titulo,
+                    ev.local,
+                    ev.briefing || "",
+                ].some((value) => value.toLowerCase().includes(search));
+            })
             .sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime()),
-        [events, now]
+        [allUpcomingEvents, filterCategory, filterStatus, searchQuery]
     );
 
     const pastEvents = useMemo(() =>

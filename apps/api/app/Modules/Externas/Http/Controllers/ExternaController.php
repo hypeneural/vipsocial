@@ -470,18 +470,34 @@ class ExternaController extends BaseController
         return $this->jsonSuccess($event);
     }
 
-    public function upcoming(int $days = 7): JsonResponse
+    public function upcoming(?int $days = null): JsonResponse
     {
         $now = Carbon::now();
-        $end = Carbon::now()->addDays($days);
+        $end = $days !== null && $days > 0 ? Carbon::now()->addDays($days) : null;
 
         $events = ExternalEvent::with(['category', 'status', 'collaborators'])
-            ->where(function ($q) use ($now, $end) {
-                $q->whereBetween('data_hora', [$now, $end])
-                    ->orWhere(function ($q2) {
-                        // Also include events currently in progress
-                        $q2->whereHas('status', fn ($sq) => $sq->where('slug', 'em-andamento'));
+            ->where(function ($query) use ($now) {
+                $query
+                    ->where(function ($withExplicitEnd) use ($now) {
+                        $withExplicitEnd
+                            ->whereNotNull('data_hora_fim')
+                            ->where('data_hora_fim', '>=', $now);
+                    })
+                    ->orWhere(function ($estimatedTwoHours) use ($now) {
+                        $estimatedTwoHours
+                            ->whereNull('data_hora_fim')
+                            ->where('data_hora', '>=', (clone $now)->subHours(2));
+                    })
+                    ->orWhere(function ($inProgress) {
+                        $inProgress->whereHas('status', fn ($statusQuery) => $statusQuery->where('slug', 'em-andamento'));
                     });
+            })
+            ->when($end, function ($query) use ($end) {
+                $query->where(function ($upToPeriodEnd) use ($end) {
+                    $upToPeriodEnd
+                        ->where('data_hora', '<=', $end)
+                        ->orWhereHas('status', fn ($statusQuery) => $statusQuery->where('slug', 'em-andamento'));
+                });
             })
             ->orderBy('data_hora')
             ->get();
@@ -587,12 +603,10 @@ class ExternaController extends BaseController
     private function vipGalleryRules(?ExternalEvent $event = null): array
     {
         $gallerySlugRule = Rule::unique('external_events', 'gallery_slug');
-        $groupIdRule = Rule::unique('external_events', 'whatsapp_group_id');
         $groupIds = $this->vipGalleryGroupIds();
 
         if ($event) {
             $gallerySlugRule = $gallerySlugRule->ignore($event->id);
-            $groupIdRule = $groupIdRule->ignore($event->id);
         }
 
         return [
@@ -603,7 +617,6 @@ class ExternaController extends BaseController
                 'string',
                 'max:120',
                 ! empty($groupIds) ? Rule::in($groupIds) : null,
-                $groupIdRule,
             ])),
             'gallery_slug' => ['nullable', 'string', 'max:160', $gallerySlugRule],
             'custom_logo_path' => ['nullable', 'string', 'max:255'],

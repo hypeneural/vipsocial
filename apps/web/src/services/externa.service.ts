@@ -78,8 +78,11 @@ export const externaService = {
         return data;
     },
 
-    getUpcoming: async (days: number = 7): Promise<ApiResponse<ExternalEvent[]>> => {
-        const { data } = await api.get<ApiResponse<ExternalEvent[]>>(`/externas/proximos/${days}`);
+    getUpcoming: async (days?: number): Promise<ApiResponse<ExternalEvent[]>> => {
+        const path = days && days > 0
+            ? `/externas/proximos/${days}`
+            : "/externas/proximos";
+        const { data } = await api.get<ApiResponse<ExternalEvent[]>>(path);
         return data;
     },
 

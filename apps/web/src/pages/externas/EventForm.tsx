@@ -47,6 +47,7 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter,
@@ -57,6 +58,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+    useExternas,
     useExterna,
     useCreateExterna,
     useUpdateExterna,
@@ -321,6 +323,7 @@ const EventForm = () => {
     const { data: colabData } = useColaboradores({ per_page: 100, "filter[active]": "true" });
     const { data: equipData } = useEquipamentos({ per_page: 100 });
     const { data: existingEvent } = useExterna(isEditing ? Number(id) : 0);
+    const { data: vipEventsData } = useExternas({ per_page: 200, is_vip_gallery: true });
     const { data: vipOptionsData } = useVipGalleryOptions();
 
     const categories = categoriesData?.data || [];
@@ -350,6 +353,7 @@ const EventForm = () => {
     // ── Modal state ───────────────────────────
     const [catModalOpen, setCatModalOpen] = useState(false);
     const [statusModalOpen, setStatusModalOpen] = useState(false);
+    const [vipGroupConflictOpen, setVipGroupConflictOpen] = useState(false);
 
     // ── Form state ────────────────────────────
     const [titulo, setTitulo] = useState("");
@@ -396,6 +400,25 @@ const EventForm = () => {
 
     const { data: availabilityData } = useEquipmentAvailability(availabilityParams);
     const conflicts: Record<number, EquipmentConflict[]> = availabilityData?.data || {};
+    const vipEvents = vipEventsData?.data || [];
+    const vipGroupConflicts = useMemo(() => {
+        if (!isVipGallery || !whatsappGroupId || !dataHora) {
+            return [];
+        }
+
+        const selectedDate = dataHora.slice(0, 10);
+        const currentEventId = isEditing ? Number(id) : null;
+
+        return vipEvents.filter((event) => {
+            if (currentEventId && event.id === currentEventId) {
+                return false;
+            }
+
+            return event.whatsapp_group_id === whatsappGroupId
+                && typeof event.data_hora === "string"
+                && event.data_hora.slice(0, 10) === selectedDate;
+        });
+    }, [dataHora, id, isEditing, isVipGallery, vipEvents, whatsappGroupId]);
 
     // ── Pre-fill on edit ──────────────────────
     useEffect(() => {
@@ -566,8 +589,7 @@ const EventForm = () => {
         });
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const persistEvent = async () => {
         if (!categoryId || !statusId) return;
 
         if (isVipGallery && vipLogoMode === "custom" && !customLogoPath.trim()) {
@@ -650,6 +672,22 @@ const EventForm = () => {
         } catch {
             return;
         }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (vipGroupConflicts.length > 0) {
+            setVipGroupConflictOpen(true);
+            return;
+        }
+
+        await persistEvent();
+    };
+
+    const handleConfirmVipGroupConflict = async () => {
+        setVipGroupConflictOpen(false);
+        await persistEvent();
     };
 
     const openGoogleCalendar = () => {
@@ -940,6 +978,11 @@ const EventForm = () => {
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
+                                                {vipGroupConflicts.length > 0 && (
+                                                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs text-amber-700">
+                                                        Ja existe cobertura VIP com este grupo na mesma data. Voce ainda pode salvar, mas vale revisar o grupo antes de prosseguir.
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -1297,6 +1340,46 @@ const EventForm = () => {
                     </motion.div>
                 </div>
             </form>
+
+            <Dialog open={vipGroupConflictOpen} onOpenChange={setVipGroupConflictOpen}>
+                <DialogContent className="sm:max-w-[520px]">
+                    <DialogHeader>
+                        <DialogTitle>Grupo do WhatsApp ja usado nesta data</DialogTitle>
+                        <DialogDescription>
+                            Encontramos outra cobertura VIP no mesmo dia usando este grupo. Voce pode trocar o grupo agora ou continuar assim mesmo.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        {vipGroupConflicts.map((event) => (
+                            <div key={event.id} className="rounded-xl border bg-muted/30 px-4 py-3">
+                                <p className="font-medium">{event.titulo}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {new Date(event.data_hora).toLocaleString("pt-BR", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    })}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                    Grupo: {vipGroupOptions.find((option) => option.value === event.whatsapp_group_id)?.label || event.whatsapp_group_id}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" onClick={() => setVipGroupConflictOpen(false)}>
+                            Trocar grupo
+                        </Button>
+                        <Button onClick={handleConfirmVipGroupConflict} disabled={isSaving}>
+                            Prosseguir assim mesmo
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Category CRUD Modal */}
             <CrudModal
