@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('/webhook/zapi/gallery', [ZApiGalleryWebhookController::class, 'store']);
 
 Route::middleware('auth:sanctum')->prefix('vip-gallery')->group(function () {
+    Route::get('/options', [VipGalleryAdminController::class, 'options']);
+    Route::get('/logs', [VipGalleryAdminController::class, 'logs']);
+    Route::post('/logos/upload', [VipGalleryAdminController::class, 'uploadLogo']);
     Route::post('/photos/{photo}/reprocess', [VipGalleryAdminController::class, 'reprocess'])
         ->whereNumber('photo');
 });

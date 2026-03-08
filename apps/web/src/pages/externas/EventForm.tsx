@@ -69,13 +69,23 @@ import {
     useUpdateEventStatusItem,
     useDeleteEventStatusItem,
     useEquipmentAvailability,
+    useVipGalleryOptions,
+    useUploadVipGalleryLogo,
 } from "@/hooks/useExternas";
 import { useColaboradores } from "@/hooks/useColaboradores";
 import { useEquipamentos } from "@/hooks/useEquipamentos";
+import showToast from "@/lib/toast";
 import type { CreateExternalEventDTO, EquipmentConflict } from "@/services/externa.service";
-import type { EventCategory, EventStatusData, VipGalleryStatus } from "@/types/externas";
+import type { EventCategory, EventStatusData, VipGalleryStatus, VipLogoMode } from "@/types/externas";
 import { generateGoogleCalendarUrl, ExternalEvent } from "@/types/externas";
 import { cn } from "@/lib/utils";
+import {
+    DEFAULT_VIP_DELETE_KEYWORDS,
+    FALLBACK_VIP_GROUPS,
+    deriveVipLogoMode,
+    VIP_GALLERY_STATUS_LABELS,
+    VIP_NO_LOGO_SENTINEL,
+} from "@/features/externas/vipGallery";
 
 // ==========================================
 // ICON MAP & PICKER
@@ -127,10 +137,10 @@ const statusColorOptions = [
 ];
 
 const vipGalleryStatusOptions: Array<{ value: VipGalleryStatus; label: string }> = [
-    { value: "draft", label: "Draft" },
-    { value: "active", label: "Active" },
-    { value: "paused", label: "Paused" },
-    { value: "archived", label: "Archived" },
+    { value: "draft", label: VIP_GALLERY_STATUS_LABELS.draft },
+    { value: "active", label: VIP_GALLERY_STATUS_LABELS.active },
+    { value: "paused", label: VIP_GALLERY_STATUS_LABELS.paused },
+    { value: "archived", label: VIP_GALLERY_STATUS_LABELS.archived },
 ];
 
 // ==========================================
@@ -307,11 +317,17 @@ const EventForm = () => {
     const { data: colabData } = useColaboradores({ per_page: 100, "filter[active]": "true" });
     const { data: equipData } = useEquipamentos({ per_page: 100 });
     const { data: existingEvent } = useExterna(isEditing ? Number(id) : 0);
+    const { data: vipOptionsData } = useVipGalleryOptions();
 
     const categories = categoriesData?.data || [];
     const statuses = statusesData?.data || [];
     const colaboradores = colabData?.data || [];
     const equipments = equipData?.data || [];
+    const vipOptions = vipOptionsData?.data;
+    const vipGroupOptions = vipOptions?.groups?.length ? vipOptions.groups : FALLBACK_VIP_GROUPS;
+    const vipStatusOptions = vipOptions?.statuses?.length ? vipOptions.statuses : vipGalleryStatusOptions;
+    const defaultDeleteKeywords = vipOptions?.default_delete_keywords || DEFAULT_VIP_DELETE_KEYWORDS;
+    const noLogoSentinel = vipOptions?.no_logo_sentinel || VIP_NO_LOGO_SENTINEL;
 
     // ── Mutations ─────────────────────────────
     const createEvent = useCreateExterna();
@@ -322,6 +338,7 @@ const EventForm = () => {
     const createStatus = useCreateEventStatusItem();
     const updateStatus = useUpdateEventStatusItem();
     const deleteStatus = useDeleteEventStatusItem();
+    const uploadVipGalleryLogo = useUploadVipGalleryLogo();
 
     // ── Modal state ───────────────────────────
     const [catModalOpen, setCatModalOpen] = useState(false);
@@ -343,15 +360,17 @@ const EventForm = () => {
     const [vipGalleryStatus, setVipGalleryStatus] = useState<VipGalleryStatus>("draft");
     const [whatsappGroupId, setWhatsappGroupId] = useState("");
     const [gallerySlug, setGallerySlug] = useState("");
+    const [vipLogoMode, setVipLogoMode] = useState<VipLogoMode>("default");
     const [customLogoPath, setCustomLogoPath] = useState("");
     const [logoSizePercent, setLogoSizePercent] = useState("15");
-    const [allowDeleteCommand, setAllowDeleteCommand] = useState(false);
-    const [deleteCommandKeyword, setDeleteCommandKeyword] = useState("Apagar");
+    const [allowDeleteCommand, setAllowDeleteCommand] = useState(true);
+    const [deleteCommandKeyword, setDeleteCommandKeyword] = useState(DEFAULT_VIP_DELETE_KEYWORDS);
     const [selectedColabs, setSelectedColabs] = useState<Array<{ user_id: number; nome: string; funcao: string }>>([]);
     const [selectedEquips, setSelectedEquips] = useState<number[]>([]);
     const [savedEvent, setSavedEvent] = useState<ExternalEvent | null>(null);
     const categorySelectValue = categoryId === "" ? "__select_category__" : String(categoryId);
     const statusSelectValue = statusId === "" ? "__select_status__" : String(statusId);
+    const whatsappGroupSelectValue = whatsappGroupId === "" ? "__select_vip_group__" : whatsappGroupId;
 
     // ── Equipment availability check ──────────
     const availabilityParams = useMemo(() => {
@@ -386,9 +405,10 @@ const EventForm = () => {
             setWhatsappGroupId(ev.whatsapp_group_id || "");
             setGallerySlug(ev.gallery_slug || "");
             setCustomLogoPath(ev.custom_logo_path || "");
+            setVipLogoMode(deriveVipLogoMode(ev.custom_logo_path, noLogoSentinel));
             setLogoSizePercent(String(ev.logo_size_percent || 15));
             setAllowDeleteCommand(!!ev.allow_delete_command);
-            setDeleteCommandKeyword(ev.delete_command_keyword || "Apagar");
+            setDeleteCommandKeyword(ev.delete_command_keyword || defaultDeleteKeywords);
             setSelectedColabs(
                 ev.collaborators?.map((c) => ({
                     user_id: c.id,
@@ -398,7 +418,7 @@ const EventForm = () => {
             );
             setSelectedEquips(ev.equipment?.map((e) => e.id) || []);
         }
-    }, [isEditing, existingEvent]);
+    }, [isEditing, existingEvent, defaultDeleteKeywords, noLogoSentinel]);
 
     useEffect(() => {
         if (!isEditing && categories.length && !categoryId) {
@@ -414,10 +434,10 @@ const EventForm = () => {
     }, [isEditing, statuses, statusId]);
 
     useEffect(() => {
-        if (!isVipGallery) {
-            setAllowDeleteCommand(false);
+        if (!isEditing) {
+            setDeleteCommandKeyword((current) => current.trim() || defaultDeleteKeywords);
         }
-    }, [isVipGallery]);
+    }, [defaultDeleteKeywords, isEditing]);
 
     // ── Handlers ──────────────────────────────
     const handleAddCollaborator = (userId: string) => {
@@ -440,9 +460,76 @@ const EventForm = () => {
         );
     };
 
+    const handleVipGalleryToggle = (enabled: boolean) => {
+        setIsVipGallery(enabled);
+
+        if (!enabled) {
+            return;
+        }
+
+        setAllowDeleteCommand((current) => current || !isEditing);
+        setDeleteCommandKeyword((current) => current.trim() || defaultDeleteKeywords);
+    };
+
+    const handleVipLogoModeChange = (value: VipLogoMode) => {
+        setVipLogoMode(value);
+
+        if (value === "default") {
+            setCustomLogoPath("");
+            return;
+        }
+
+        if (value === "none") {
+            setCustomLogoPath(noLogoSentinel);
+            return;
+        }
+
+        setCustomLogoPath((current) => current === noLogoSentinel ? "" : current);
+    };
+
+    const handleUploadVipLogo = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+
+        if (!file) {
+            return;
+        }
+
+        uploadVipGalleryLogo.mutate(
+            {
+                file,
+                eventId: isEditing ? Number(id) : undefined,
+            },
+            {
+                onSuccess: (response) => {
+                    setVipLogoMode("custom");
+                    setCustomLogoPath(response.data.path);
+                },
+            }
+        );
+
+        event.target.value = "";
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!categoryId || !statusId) return;
+
+        if (isVipGallery && vipLogoMode === "custom" && !customLogoPath.trim()) {
+            showToast.error("Envie a logo personalizada em PNG antes de salvar o evento.");
+            return;
+        }
+
+        const resolvedCustomLogoPath = !isVipGallery
+            ? null
+            : vipLogoMode === "none"
+                ? noLogoSentinel
+                : vipLogoMode === "custom"
+                    ? (customLogoPath.trim() || null)
+                    : null;
+
+        const resolvedDeleteCommandKeyword = isVipGallery && allowDeleteCommand
+            ? (deleteCommandKeyword.trim() || defaultDeleteKeywords)
+            : defaultDeleteKeywords;
 
         const dto: CreateExternalEventDTO = {
             titulo,
@@ -462,10 +549,10 @@ const EventForm = () => {
             vip_gallery_status: isVipGallery ? vipGalleryStatus : null,
             whatsapp_group_id: isVipGallery ? (whatsappGroupId || null) : null,
             gallery_slug: isVipGallery ? (gallerySlug || null) : null,
-            custom_logo_path: isVipGallery ? (customLogoPath || null) : null,
+            custom_logo_path: resolvedCustomLogoPath,
             logo_size_percent: isVipGallery ? Number(logoSizePercent || 15) : null,
             allow_delete_command: isVipGallery ? allowDeleteCommand : false,
-            delete_command_keyword: isVipGallery && allowDeleteCommand ? (deleteCommandKeyword || null) : null,
+            delete_command_keyword: resolvedDeleteCommandKeyword,
         };
 
         if (isEditing) {
@@ -684,7 +771,7 @@ const EventForm = () => {
                                     </p>
                                 </div>
                                 <label className="flex items-center gap-2 text-sm font-medium">
-                                    <Checkbox checked={isVipGallery} onCheckedChange={(checked) => setIsVipGallery(checked === true)} />
+                                    <Checkbox checked={isVipGallery} onCheckedChange={(checked) => handleVipGalleryToggle(checked === true)} />
                                     Ativar VIP
                                 </label>
                             </div>
@@ -708,7 +795,7 @@ const EventForm = () => {
                                                         <SelectValue placeholder="Selecione..." />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {vipGalleryStatusOptions.map((option) => (
+                                                        {vipStatusOptions.map((option) => (
                                                             <SelectItem key={option.value} value={option.value}>
                                                                 {option.label}
                                                             </SelectItem>
@@ -745,30 +832,104 @@ const EventForm = () => {
                                             </div>
 
                                             <div className="space-y-2">
-                                                <Label htmlFor="whatsapp_group_id">WhatsApp Group ID</Label>
-                                                <Input
-                                                    id="whatsapp_group_id"
-                                                    value={whatsappGroupId}
-                                                    onChange={(e) => setWhatsappGroupId(e.target.value)}
-                                                    placeholder="120363027326371817-group"
-                                                    required={isVipGallery}
-                                                    className="rounded-xl"
-                                                />
+                                                <Label>Selecione o GRUPO</Label>
+                                                <Select
+                                                    value={whatsappGroupSelectValue}
+                                                    onValueChange={(value) => setWhatsappGroupId(value === "__select_vip_group__" ? "" : value)}
+                                                >
+                                                    <SelectTrigger className="rounded-xl">
+                                                        <SelectValue placeholder="Selecione o GRUPO" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="__select_vip_group__" disabled>
+                                                            Selecione o GRUPO
+                                                        </SelectItem>
+                                                        {vipGroupOptions.map((option) => (
+                                                            <SelectItem key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="custom_logo_path">Path da Logo PNG</Label>
-                                            <Input
-                                                id="custom_logo_path"
-                                                value={customLogoPath}
-                                                onChange={(e) => setCustomLogoPath(e.target.value)}
-                                                placeholder="vip-gallery/logos/evento.png"
-                                                className="rounded-xl"
-                                            />
-                                            <p className="text-xs text-muted-foreground">
-                                                A implementacao atual usa apenas `Storage::disk('public')` e logo PNG transparente.
-                                            </p>
+                                        <div className="rounded-xl border p-4 space-y-4">
+                                            <div className="grid sm:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label>Logo da Galeria</Label>
+                                                    <Select
+                                                        value={vipLogoMode}
+                                                        onValueChange={(value) => handleVipLogoModeChange(value as VipLogoMode)}
+                                                    >
+                                                        <SelectTrigger className="rounded-xl">
+                                                            <SelectValue placeholder="Selecione..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="default">Logo Padrao</SelectItem>
+                                                            <SelectItem value="custom">Logo Personalizada</SelectItem>
+                                                            <SelectItem value="none">Sem Logo</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>Regra atual</Label>
+                                                    <div className="rounded-xl border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                                                        {vipLogoMode === "default" && "Todas as fotos usam a logo padrao do projeto."}
+                                                        {vipLogoMode === "custom" && "Somente esta cobertura usa a logo personalizada enviada em PNG."}
+                                                        {vipLogoMode === "none" && "Esta cobertura publica as fotos sem logo."}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {vipLogoMode === "default" && (
+                                                <div className="rounded-xl bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
+                                                    Logo padrao fixa no projeto para todas as galerias VIP.
+                                                    {vipOptions?.default_logo_url && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="link"
+                                                            className="h-auto px-1 text-sm"
+                                                            onClick={() => window.open(vipOptions.default_logo_url || "", "_blank", "noopener,noreferrer")}
+                                                        >
+                                                            Visualizar logo padrao
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {vipLogoMode === "custom" && (
+                                                <div className="space-y-3">
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <Input
+                                                            type="file"
+                                                            accept="image/png"
+                                                            onChange={handleUploadVipLogo}
+                                                            disabled={uploadVipGalleryLogo.isPending}
+                                                            className="max-w-sm rounded-xl"
+                                                        />
+                                                        {uploadVipGalleryLogo.isPending && (
+                                                            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                                Enviando logo...
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="custom_logo_path">Logo personalizada enviada</Label>
+                                                        <Input
+                                                            id="custom_logo_path"
+                                                            value={customLogoPath === noLogoSentinel ? "" : customLogoPath}
+                                                            readOnly
+                                                            placeholder="Envie uma logo PNG transparente"
+                                                            className="rounded-xl"
+                                                        />
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        A implementacao atual usa `Storage::disk('public')`, PNG transparente e GD nativo.
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="rounded-xl border border-dashed p-4 space-y-3">
@@ -781,16 +942,19 @@ const EventForm = () => {
                                             </label>
 
                                             <div className="space-y-2">
-                                                <Label htmlFor="delete_command_keyword">Palavra-chave para apagar</Label>
+                                                <Label htmlFor="delete_command_keyword">Palavras-chave para apagar</Label>
                                                 <Input
                                                     id="delete_command_keyword"
                                                     value={deleteCommandKeyword}
                                                     onChange={(e) => setDeleteCommandKeyword(e.target.value)}
-                                                    placeholder="Apagar"
+                                                    placeholder={defaultDeleteKeywords}
                                                     required={isVipGallery && allowDeleteCommand}
                                                     disabled={!allowDeleteCommand}
                                                     className="rounded-xl"
                                                 />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Separe por virgula. Exemplo: {defaultDeleteKeywords}. A comparacao ignora maiusculas e minusculas.
+                                                </p>
                                             </div>
                                         </div>
                                     </motion.div>

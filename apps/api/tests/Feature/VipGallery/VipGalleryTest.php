@@ -550,6 +550,38 @@ test('delete command accepts deletar alias when referenceMessageId is present', 
     expect($log->fresh()->routing_status)->toBe('queued_delete');
 });
 
+test('delete command accepts comma separated keywords case insensitively', function () {
+    Queue::fake();
+
+    createVipGalleryEvent([
+        'whatsapp_group_id' => '120363408092361361-group',
+        'gallery_slug' => 'galeria-3',
+        'delete_command_keyword' => 'Deletar,Apagar,Excluir',
+    ]);
+
+    $log = VipGalleryWebhookLog::query()->create([
+        'message_id' => '2AD96B84D25767193C35',
+        'phone' => '120363408092361361-group',
+        'detected_type' => VipGalleryWebhookLog::TYPE_TEXT_COMMAND,
+        'routing_status' => 'received',
+        'payload_json' => [
+            'messageId' => '2AD96B84D25767193C35',
+            'phone' => '120363408092361361-group',
+            'participantPhone' => '554896553954',
+            'senderName' => 'Anderson Marques',
+            'referenceMessageId' => '2A7C8521A40F6ECA9022',
+            'text' => [
+                'message' => 'eXcLuIr',
+            ],
+        ],
+    ]);
+
+    (new ProcessVipGalleryWebhookJob($log->id))->handle(app(\App\Modules\VipGallery\Support\VipGalleryEventResolver::class));
+
+    Queue::assertPushed(DeleteVipGalleryPhotoJob::class, 1);
+    expect($log->fresh()->routing_status)->toBe('queued_delete');
+});
+
 test('delete command without referenceMessageId is rejected even with apagar text', function () {
     Queue::fake();
 
@@ -674,4 +706,69 @@ test('authenticated vip coverage endpoints expose vip event list and totals', fu
         ->assertJsonPath('data.0.vip_gallery_downloads_count', 5)
         ->assertJsonPath('data.0.vip_gallery_public_url', '/gallery/casamento-vip')
         ->assertJsonPath('data.0.vip_gallery_is_active', true);
+});
+
+test('vip gallery admin options and logs expose operational context', function () {
+    if (! Schema::hasTable('jobs')) {
+        Schema::create('jobs', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('queue')->index();
+            $table->longText('payload')->nullable();
+            $table->unsignedTinyInteger('attempts')->default(0);
+            $table->unsignedInteger('reserved_at')->nullable();
+            $table->unsignedInteger('available_at')->default(0);
+            $table->unsignedInteger('created_at')->default(0);
+        });
+    }
+
+    if (! Schema::hasTable('failed_jobs')) {
+        Schema::create('failed_jobs', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('queue')->nullable();
+            $table->longText('payload')->nullable();
+        });
+    }
+
+    $event = createVipGalleryEvent([
+        'whatsapp_group_id' => '120363423950458112-group',
+        'gallery_slug' => 'galeria-1',
+    ]);
+
+    VipGalleryWebhookLog::query()->create([
+        'message_id' => 'pending-msg-1',
+        'phone' => '120363423950458112-group',
+        'detected_type' => VipGalleryWebhookLog::TYPE_IMAGE,
+        'routing_status' => 'received',
+        'payload_json' => [
+            'messageId' => 'pending-msg-1',
+            'phone' => '120363423950458112-group',
+        ],
+    ]);
+
+    DB::table('jobs')->insert([
+        'queue' => 'vip-gallery-webhook',
+        'payload' => '{}',
+        'attempts' => 0,
+        'reserved_at' => null,
+        'available_at' => 0,
+        'created_at' => 0,
+    ]);
+
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/vip-gallery/options')
+        ->assertOk()
+        ->assertJsonPath('data.groups.0.value', '120363423950458112-group')
+        ->assertJsonPath('data.groups.0.label', 'Galeria 1')
+        ->assertJsonPath('data.default_delete_keywords', 'Deletar,Apagar,Excluir')
+        ->assertJsonPath('data.no_logo_sentinel', '__none__');
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/vip-gallery/logs')
+        ->assertOk()
+        ->assertJsonPath('data.summary.pending_webhook_jobs', 1)
+        ->assertJsonPath('data.logs.0.event_id', $event->id)
+        ->assertJsonPath('data.logs.0.group_label', 'Galeria 1')
+        ->assertJsonPath('data.root_cause', 'A fila vip-gallery-webhook possui itens pendentes sem consumo. Enquanto isso ocorrer, os webhooks ficam em received e as fotos nao entram na galeria.');
 });

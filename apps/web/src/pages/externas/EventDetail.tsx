@@ -52,10 +52,12 @@ import {
     useChangeEventStatus,
     useUpdateChecklist,
     useEventLogs,
+    useVipGalleryOptions,
 } from "@/hooks/useExternas";
 import { generateGoogleCalendarUrl, generateWhatsAppUrl } from "@/types/externas";
 import type { ActivityLog } from "@/services/externa.service";
 import { cn } from "@/lib/utils";
+import { deriveVipLogoMode, FALLBACK_VIP_GROUPS, vipGalleryStatusLabel, vipGroupLabel } from "@/features/externas/vipGallery";
 
 // ==========================================
 // ICON MAP
@@ -117,6 +119,7 @@ const EventDetail = () => {
     const { data: eventData, isLoading, error } = useExterna(eventId);
     const { data: statusesData } = useEventStatuses();
     const { data: logsData } = useEventLogs(eventId);
+    const { data: vipOptionsData } = useVipGalleryOptions();
 
     // Mutations
     const changeStatus = useChangeEventStatus();
@@ -125,6 +128,8 @@ const EventDetail = () => {
     const event = eventData?.data;
     const statuses = statusesData?.data || [];
     const logs: ActivityLog[] = logsData?.data || [];
+    const vipGroups = vipOptionsData?.data.groups?.length ? vipOptionsData.data.groups : FALLBACK_VIP_GROUPS;
+    const noLogoSentinel = vipOptionsData?.data.no_logo_sentinel || "__none__";
 
     // Local checklist state
     const [localChecklist, setLocalChecklist] = useState<Record<number, boolean>>({});
@@ -441,7 +446,7 @@ const EventDetail = () => {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="rounded-lg bg-muted p-3">
                                         <p className="text-xs text-muted-foreground">Status da galeria</p>
-                                        <p className="mt-1 font-medium">{event.vip_gallery_status || "draft"}</p>
+                                        <p className="mt-1 font-medium">{vipGalleryStatusLabel(event.vip_gallery_status)}</p>
                                     </div>
                                     <div className="rounded-lg bg-muted p-3">
                                         <p className="text-xs text-muted-foreground">Views</p>
@@ -463,6 +468,16 @@ const EventDetail = () => {
                                         {event.allow_delete_command
                                             ? `habilitado (${event.delete_command_keyword || "Apagar"})`
                                             : "desabilitado"}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                                    <p>Grupo selecionado: {vipGroupLabel(event.whatsapp_group_id, vipGroups)}</p>
+                                    <p>
+                                        Logo:{" "}
+                                        {deriveVipLogoMode(event.custom_logo_path, noLogoSentinel) === "default" && "Padrao do projeto"}
+                                        {deriveVipLogoMode(event.custom_logo_path, noLogoSentinel) === "custom" && "Personalizada"}
+                                        {deriveVipLogoMode(event.custom_logo_path, noLogoSentinel) === "none" && "Sem logo"}
                                     </p>
                                 </div>
 

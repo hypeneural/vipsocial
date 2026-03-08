@@ -90,6 +90,7 @@ const ExternasDashboard = lazy(() => import("./pages/externas/Dashboard"));
 const ExternasEventForm = lazy(() => import("./pages/externas/EventForm"));
 const ExternasEventDetail = lazy(() => import("./pages/externas/EventDetail"));
 const ExternasVipCoverageDashboard = lazy(() => import("./pages/externas/VipCoverageDashboard"));
+const ExternasVipCoverageLogs = lazy(() => import("./pages/externas/VipCoverageLogs"));
 
 // ==========================================
 // QUERY CLIENT CONFIG
@@ -202,6 +203,7 @@ const App = () => (
                     {/* Externas Routes */}
                     <Route path="/externas" element={<ExternasDashboard />} />
                     <Route path="/externas/cobertura-vip" element={<ExternasVipCoverageDashboard />} />
+                    <Route path="/externas/cobertura-vip/logs" element={<ExternasVipCoverageLogs />} />
                     <Route path="/externas/novo" element={<ExternasEventForm />} />
                     <Route path="/externas/:id" element={<ExternasEventDetail />} />
                     <Route path="/externas/:id/editar" element={<ExternasEventForm />} />

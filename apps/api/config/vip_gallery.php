@@ -5,6 +5,21 @@ return [
 
     'base_dir' => trim((string) env('VIP_GALLERY_BASE_DIR', 'vip-gallery'), '/'),
 
+    'groups' => [
+        [
+            'id' => '120363423950458112-group',
+            'label' => 'Galeria 1',
+        ],
+        [
+            'id' => '120363425148164142-group',
+            'label' => 'Galeria 2',
+        ],
+        [
+            'id' => '120363408092361361-group',
+            'label' => 'Galeria 3',
+        ],
+    ],
+
     'webhook' => [
         'secret' => (string) env('VIP_GALLERY_WEBHOOK_SECRET', ''),
         'secret_header' => (string) env('VIP_GALLERY_WEBHOOK_SECRET_HEADER', 'X-VIP-GALLERY-SECRET'),
@@ -21,6 +36,10 @@ return [
         'message' => (string) env('VIP_GALLERY_ACK_MESSAGE', 'Publicada!'),
     ],
 
+    'delete' => [
+        'default_keywords' => 'Deletar,Apagar,Excluir',
+    ],
+
     'tracking' => [
         'view_dedupe_minutes' => (int) env('VIP_GALLERY_VIEW_DEDUPE_MINUTES', 30),
         'download_dedupe_minutes' => (int) env('VIP_GALLERY_DOWNLOAD_DEDUPE_MINUTES', 30),
@@ -29,12 +48,15 @@ return [
     'images' => [
         'download_timeout' => (int) env('VIP_GALLERY_DOWNLOAD_TIMEOUT', 30),
         'max_bytes' => (int) env('VIP_GALLERY_IMAGE_MAX_BYTES', 15728640),
+        'logo_max_bytes' => 2097152,
         'allowed_mimes' => [
             'image/jpeg',
             'image/png',
             'image/webp',
         ],
         'jpeg_quality' => 90,
+        'default_logo_path' => 'vip-gallery/defaults/logo_vip.png',
+        'no_logo_sentinel' => '__none__',
         'logo_position' => 'bottom_right',
         'logo_margin_right_px' => 24,
         'logo_margin_bottom_px' => 24,

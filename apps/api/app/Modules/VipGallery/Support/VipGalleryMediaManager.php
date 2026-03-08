@@ -5,8 +5,10 @@ namespace App\Modules\VipGallery\Support;
 use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class VipGalleryMediaManager
@@ -171,6 +173,55 @@ class VipGalleryMediaManager
         return '/gallery/'.$event->gallery_slug;
     }
 
+    public function defaultLogoPath(): string
+    {
+        return trim((string) config('vip_gallery.images.default_logo_path', ''), '/');
+    }
+
+    public function defaultLogoUrl(): ?string
+    {
+        $path = $this->defaultLogoPath();
+
+        if ($path === '' || ! $this->pathExists($path)) {
+            return null;
+        }
+
+        return $this->publicUrl($path);
+    }
+
+    public function noLogoSentinel(): string
+    {
+        return (string) config('vip_gallery.images.no_logo_sentinel', '__none__');
+    }
+
+    public function isNoLogoPath(?string $path): bool
+    {
+        return is_string($path) && trim($path) === $this->noLogoSentinel();
+    }
+
+    public function storeUploadedLogo(UploadedFile $file, ?int $eventId = null): array
+    {
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+
+        if ($extension !== 'png') {
+            throw new RuntimeException('A logo personalizada deve ser enviada em PNG');
+        }
+
+        $baseDir = trim((string) config('vip_gallery.base_dir', 'vip-gallery'), '/');
+        $folder = $eventId
+            ? "{$baseDir}/logos/events/{$eventId}"
+            : "{$baseDir}/logos/uploads/".now()->format('Y/m');
+        $fileName = Str::uuid()->toString().'.png';
+        $path = "{$folder}/{$fileName}";
+
+        $this->storage()->put($path, (string) file_get_contents($file->getRealPath()));
+
+        return [
+            'path' => $path,
+            'url' => $this->publicUrl($path),
+        ];
+    }
+
     private function buildPath(int $eventId, string $segment, string $messageId, string $extension): string
     {
         $fileName = preg_replace('/[^A-Za-z0-9_-]+/', '-', $messageId) ?: uniqid('vip-gallery-', true);
@@ -281,11 +332,13 @@ class VipGalleryMediaManager
 
     private function loadLogoImage(ExternalEvent $event)
     {
-        if (! $event->custom_logo_path || ! $this->pathExists($event->custom_logo_path)) {
+        $logoPath = $this->resolveLogoPath($event);
+
+        if (! $logoPath || ! $this->pathExists($logoPath)) {
             return null;
         }
 
-        $logoBinary = $this->storage()->get($event->custom_logo_path);
+        $logoBinary = $this->storage()->get($logoPath);
         $logoInfo = @getimagesizefromstring($logoBinary);
 
         if (! is_array($logoInfo) || strtolower((string) ($logoInfo['mime'] ?? '')) !== 'image/png') {
@@ -295,6 +348,23 @@ class VipGalleryMediaManager
         $logo = @imagecreatefromstring($logoBinary);
 
         return $logo ?: null;
+    }
+
+    private function resolveLogoPath(ExternalEvent $event): ?string
+    {
+        $configuredPath = trim((string) ($event->custom_logo_path ?? ''));
+
+        if ($configuredPath === $this->noLogoSentinel()) {
+            return null;
+        }
+
+        if ($configuredPath !== '') {
+            return $configuredPath;
+        }
+
+        $defaultPath = $this->defaultLogoPath();
+
+        return $defaultPath !== '' ? $defaultPath : null;
     }
 
     private function resizeLogo($logo, int $imageWidth, int $imageHeight, int $requestedPercent): array

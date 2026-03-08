@@ -4,7 +4,9 @@ import {
     ExternalEvent,
     EventCategory,
     EventStatusData,
+    VipGalleryAdminOptions,
     VipCoverageEvent,
+    VipCoverageLogsResponse,
     VipCoverageStats,
     VipGalleryStatus,
 } from "@/types/externas";
@@ -124,6 +126,44 @@ export const externaService = {
         params?: ListParams & ExternalEventFilters
     ): Promise<PaginatedResponse<VipCoverageEvent>> => {
         const { data } = await api.get<PaginatedResponse<VipCoverageEvent>>("/externas/cobertura-vip", { params });
+        return data;
+    },
+
+    getVipGalleryOptions: async (): Promise<ApiResponse<VipGalleryAdminOptions>> => {
+        const { data } = await api.get<ApiResponse<VipGalleryAdminOptions>>("/vip-gallery/options");
+        return data;
+    },
+
+    getVipCoverageLogs: async (params?: {
+        search?: string;
+        routing_status?: string;
+        limit?: number;
+    }): Promise<ApiResponse<VipCoverageLogsResponse>> => {
+        const { data } = await api.get<ApiResponse<VipCoverageLogsResponse>>("/vip-gallery/logs", { params });
+        return data;
+    },
+
+    uploadVipGalleryLogo: async (
+        file: File,
+        eventId?: number
+    ): Promise<ApiResponse<{ path: string; url?: string | null }>> => {
+        const formData = new FormData();
+        formData.append("logo", file);
+
+        if (eventId) {
+            formData.append("event_id", String(eventId));
+        }
+
+        const { data } = await api.post<ApiResponse<{ path: string; url?: string | null }>>(
+            "/vip-gallery/logos/upload",
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+            }
+        );
+
         return data;
     },
 

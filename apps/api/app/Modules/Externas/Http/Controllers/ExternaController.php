@@ -571,6 +571,7 @@ class ExternaController extends BaseController
     {
         $gallerySlugRule = Rule::unique('external_events', 'gallery_slug');
         $groupIdRule = Rule::unique('external_events', 'whatsapp_group_id');
+        $groupIds = $this->vipGalleryGroupIds();
 
         if ($event) {
             $gallerySlugRule = $gallerySlugRule->ignore($event->id);
@@ -580,7 +581,13 @@ class ExternaController extends BaseController
         return [
             'is_vip_gallery' => ['sometimes', 'boolean'],
             'vip_gallery_status' => ['nullable', Rule::in(ExternalEvent::vipGalleryStatuses())],
-            'whatsapp_group_id' => ['nullable', 'string', 'max:120', $groupIdRule],
+            'whatsapp_group_id' => array_values(array_filter([
+                'nullable',
+                'string',
+                'max:120',
+                ! empty($groupIds) ? Rule::in($groupIds) : null,
+                $groupIdRule,
+            ])),
             'gallery_slug' => ['nullable', 'string', 'max:160', $gallerySlugRule],
             'custom_logo_path' => ['nullable', 'string', 'max:255'],
             'logo_size_percent' => ['nullable', 'integer', 'min:5', 'max:30'],
@@ -600,10 +607,6 @@ class ExternaController extends BaseController
         $errors = [];
         $gallerySlug = trim((string) ($validated['gallery_slug'] ?? $event?->gallery_slug ?? ''));
         $whatsappGroupId = trim((string) ($validated['whatsapp_group_id'] ?? $event?->whatsapp_group_id ?? ''));
-        $allowDeleteCommand = array_key_exists('allow_delete_command', $validated)
-            ? (bool) $validated['allow_delete_command']
-            : (bool) ($event?->allow_delete_command ?? false);
-        $deleteCommandKeyword = trim((string) ($validated['delete_command_keyword'] ?? $event?->delete_command_keyword ?? ''));
 
         if ($gallerySlug === '') {
             $errors['gallery_slug'] = ['O slug da galeria VIP e obrigatorio quando a cobertura VIP estiver ativa.'];
@@ -611,10 +614,6 @@ class ExternaController extends BaseController
 
         if ($whatsappGroupId === '') {
             $errors['whatsapp_group_id'] = ['O grupo do WhatsApp e obrigatorio quando a cobertura VIP estiver ativa.'];
-        }
-
-        if ($allowDeleteCommand && $deleteCommandKeyword === '') {
-            $errors['delete_command_keyword'] = ['A palavra-chave de apagar e obrigatoria quando o delete command estiver habilitado.'];
         }
 
         if (! empty($errors)) {
@@ -635,24 +634,26 @@ class ExternaController extends BaseController
                 'custom_logo_path' => null,
                 'logo_size_percent' => 15,
                 'allow_delete_command' => false,
-                'delete_command_keyword' => 'Apagar',
+                'delete_command_keyword' => $this->defaultDeleteCommandKeywords(),
             ]);
         }
 
         $allowDeleteCommand = array_key_exists('allow_delete_command', $validated)
             ? (bool) $validated['allow_delete_command']
-            : (bool) ($event?->allow_delete_command ?? false);
-        $deleteCommandKeyword = trim((string) ($validated['delete_command_keyword'] ?? $event?->delete_command_keyword ?? 'Apagar'));
+            : (bool) ($event?->allow_delete_command ?? true);
+        $deleteCommandKeyword = trim((string) ($validated['delete_command_keyword'] ?? $event?->delete_command_keyword ?? $this->defaultDeleteCommandKeywords()));
 
         return array_merge($validated, [
             'is_vip_gallery' => true,
             'vip_gallery_status' => $validated['vip_gallery_status'] ?? $event?->vip_gallery_status ?? ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
             'whatsapp_group_id' => $validated['whatsapp_group_id'] ?? $event?->whatsapp_group_id,
             'gallery_slug' => $validated['gallery_slug'] ?? $event?->gallery_slug,
-            'custom_logo_path' => $validated['custom_logo_path'] ?? $event?->custom_logo_path,
+            'custom_logo_path' => $this->normalizeVipGalleryLogoPath($validated['custom_logo_path'] ?? $event?->custom_logo_path),
             'logo_size_percent' => (int) ($validated['logo_size_percent'] ?? $event?->logo_size_percent ?? 15),
             'allow_delete_command' => $allowDeleteCommand,
-            'delete_command_keyword' => $allowDeleteCommand ? $deleteCommandKeyword : 'Apagar',
+            'delete_command_keyword' => $allowDeleteCommand
+                ? ($deleteCommandKeyword !== '' ? $deleteCommandKeyword : $this->defaultDeleteCommandKeywords())
+                : $this->defaultDeleteCommandKeywords(),
         ]);
     }
 
@@ -663,6 +664,31 @@ class ExternaController extends BaseController
         }
 
         return (bool) ($event?->is_vip_gallery ?? false);
+    }
+
+    private function vipGalleryGroupIds(): array
+    {
+        return collect(config('vip_gallery.groups', []))
+            ->pluck('id')
+            ->filter(fn ($groupId) => is_string($groupId) && trim($groupId) !== '')
+            ->values()
+            ->all();
+    }
+
+    private function defaultDeleteCommandKeywords(): string
+    {
+        return (string) config('vip_gallery.delete.default_keywords', 'Deletar,Apagar,Excluir');
+    }
+
+    private function normalizeVipGalleryLogoPath(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     /**

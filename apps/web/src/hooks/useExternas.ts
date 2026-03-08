@@ -9,6 +9,9 @@ const KEYS = {
     stats: () => [...KEYS.all, "stats"] as const,
     vipList: (filters?: ExternalEventFilters) => [...KEYS.all, "vip-list", filters] as const,
     vipStats: () => [...KEYS.all, "vip-stats"] as const,
+    vipOptions: () => [...KEYS.all, "vip-options"] as const,
+    vipLogs: (params?: { search?: string; routing_status?: string; limit?: number }) =>
+        [...KEYS.all, "vip-logs", params] as const,
     upcoming: (days?: number) => [...KEYS.all, "upcoming", days] as const,
     categories: () => [...KEYS.all, "categories"] as const,
     statuses: () => [...KEYS.all, "statuses"] as const,
@@ -52,6 +55,21 @@ export function useVipCoverageStats() {
     return useQuery({
         queryKey: KEYS.vipStats(),
         queryFn: () => externaService.getVipCoverageStats(),
+    });
+}
+
+export function useVipGalleryOptions() {
+    return useQuery({
+        queryKey: KEYS.vipOptions(),
+        queryFn: () => externaService.getVipGalleryOptions(),
+        staleTime: 1000 * 60 * 30,
+    });
+}
+
+export function useVipCoverageLogs(params?: { search?: string; routing_status?: string; limit?: number }) {
+    return useQuery({
+        queryKey: KEYS.vipLogs(params),
+        queryFn: () => externaService.getVipCoverageLogs(params),
     });
 }
 
@@ -247,6 +265,17 @@ export function useEventLogs(eventId: number) {
         queryKey: KEYS.logs(eventId),
         queryFn: () => externaService.getEventLogs(eventId),
         enabled: !!eventId,
+    });
+}
+
+export function useUploadVipGalleryLogo() {
+    return useMutation({
+        mutationFn: ({ file, eventId }: { file: File; eventId?: number }) =>
+            externaService.uploadVipGalleryLogo(file, eventId),
+        onSuccess: () => {
+            showToast.success("Logo enviada!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao enviar a logo"),
     });
 }
 

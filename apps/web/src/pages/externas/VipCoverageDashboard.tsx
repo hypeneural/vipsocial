@@ -12,6 +12,7 @@ import {
     Image,
     Link2,
     Loader2,
+    Logs,
     MapPin,
     MessageCircle,
     PauseCircle,
@@ -30,9 +31,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useVipCoverageEvents, useVipCoverageStats } from "@/hooks/useExternas";
+import { useVipCoverageEvents, useVipCoverageStats, useVipGalleryOptions } from "@/hooks/useExternas";
 import type { VipCoverageEvent, VipGalleryStatus } from "@/types/externas";
 import { cn } from "@/lib/utils";
+import { FALLBACK_VIP_GROUPS, vipGroupLabel } from "@/features/externas/vipGallery";
 
 const vipStatusConfig: Record<VipGalleryStatus, { label: string; color: string; tone: string }> = {
     draft: {
@@ -81,7 +83,13 @@ function formatEventDate(value: string): string {
     });
 }
 
-function VipCoverageCard({ event }: { event: VipCoverageEvent }) {
+function VipCoverageCard({
+    event,
+    vipGroups,
+}: {
+    event: VipCoverageEvent;
+    vipGroups: { value: string; label: string }[];
+}) {
     const navigate = useNavigate();
     const status = vipStatusConfig[event.vip_gallery_status || "draft"];
 
@@ -146,7 +154,7 @@ function VipCoverageCard({ event }: { event: VipCoverageEvent }) {
                 </p>
                 <p className="flex items-center gap-2">
                     <MessageCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{event.whatsapp_group_id || "Grupo não informado"}</span>
+                    <span className="truncate">{vipGroupLabel(event.whatsapp_group_id, vipGroups)}</span>
                 </p>
             </div>
 
@@ -178,6 +186,7 @@ const VipCoverageDashboard = () => {
     const [filterStatus, setFilterStatus] = useState<"all" | VipGalleryStatus>("all");
 
     const { data: statsData } = useVipCoverageStats();
+    const { data: vipOptionsData } = useVipGalleryOptions();
     const { data: eventsData, isLoading, error } = useVipCoverageEvents({
         per_page: 100,
         search: searchQuery || undefined,
@@ -186,6 +195,7 @@ const VipCoverageDashboard = () => {
 
     const stats = statsData?.data;
     const events = eventsData?.data || [];
+    const vipGroups = vipOptionsData?.data.groups || FALLBACK_VIP_GROUPS;
 
     if (error) {
         return (
@@ -216,10 +226,16 @@ const VipCoverageDashboard = () => {
                             Eventos com galeria VIP configurada dentro do módulo de Externas.
                         </p>
                     </div>
-                    <Button onClick={() => navigate("/externas/novo")} className="rounded-xl">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Novo Evento
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => navigate("/externas/cobertura-vip/logs")} className="rounded-xl">
+                            <Logs className="mr-2 h-4 w-4" />
+                            Log
+                        </Button>
+                        <Button onClick={() => navigate("/externas/novo")} className="rounded-xl">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Novo Evento
+                        </Button>
+                    </div>
                 </div>
             </motion.div>
 
@@ -318,7 +334,7 @@ const VipCoverageDashboard = () => {
                     className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
                 >
                     {events.map((event) => (
-                        <VipCoverageCard key={event.id} event={event} />
+                        <VipCoverageCard key={event.id} event={event} vipGroups={vipGroups} />
                     ))}
                 </motion.div>
             )}

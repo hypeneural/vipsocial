@@ -1,0 +1,1 @@
+import{j as e,bl as t,a5 as n,$ as o,al as p,ao as c,s as i}from"./index-BrTo4UiU.js";import{S as m}from"./smartphone-BEffpSy6.js";import{S as h}from"./shield-check-o_XS9GvX.js";const S={ShieldCheck:h,PenSquare:i,Newspaper:c,Smartphone:m,BarChart3:p,Shield:o,Eye:n,UserCheck:t};function f({name:a,className:r}){const s=a&&S[a]||o;return e.jsx(s,{className:r})}export{f as R};

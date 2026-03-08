@@ -148,12 +148,13 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
     private function matchesDeleteCommand(array $payload, ExternalEvent $event): bool
     {
         $receivedText = $this->normalizeCommandText(ZApiGalleryPayload::textBody($payload));
-        $expectedText = $this->normalizeCommandText((string) $event->delete_command_keyword);
-        $acceptedCommands = array_values(array_unique(array_filter([
-            $expectedText,
-            'apagar',
-            'deletar',
-        ])));
+        $acceptedCommands = collect(explode(',', (string) $event->delete_command_keyword))
+            ->map(fn (string $keyword) => $this->normalizeCommandText($keyword))
+            ->filter()
+            ->merge(['apagar', 'deletar', 'excluir'])
+            ->unique()
+            ->values()
+            ->all();
 
         return $receivedText !== '' && in_array($receivedText, $acceptedCommands, true);
     }

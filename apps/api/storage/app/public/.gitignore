@@ -1,2 +1,5 @@
 *
 !.gitignore
+!vip-gallery/
+!vip-gallery/defaults/
+!vip-gallery/defaults/logo_vip.png

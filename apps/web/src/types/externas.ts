@@ -27,12 +27,75 @@ export interface EventStatusData {
 }
 
 export type VipGalleryStatus = 'draft' | 'active' | 'paused' | 'archived';
+export type VipLogoMode = 'default' | 'custom' | 'none';
 
 export interface VipCoverageStats {
     total_galleries: number;
     active_galleries: number;
     total_views: number;
     total_downloads: number;
+}
+
+export interface VipGalleryGroupOption {
+    value: string;
+    label: string;
+}
+
+export interface VipGalleryStatusOption {
+    value: VipGalleryStatus;
+    label: string;
+}
+
+export interface VipGalleryAdminOptions {
+    groups: VipGalleryGroupOption[];
+    statuses: VipGalleryStatusOption[];
+    default_delete_keywords: string;
+    default_logo_url?: string | null;
+    no_logo_sentinel: string;
+}
+
+export interface VipCoverageLogSummary {
+    total_logs: number;
+    received_logs: number;
+    queued_logs: number;
+    published_logs: number;
+    failed_logs: number;
+    total_photos: number;
+    photos_processed: number;
+    photos_failed: number;
+    pending_jobs: number;
+    pending_webhook_jobs: number;
+    pending_processing_jobs: number;
+    failed_jobs: number;
+}
+
+export interface VipCoverageQueueStatus {
+    queue: string;
+    pending: number;
+}
+
+export interface VipCoverageLogEntry {
+    id: number;
+    message_id?: string | null;
+    phone?: string | null;
+    group_label?: string | null;
+    detected_type: string;
+    routing_status: string;
+    error_message?: string | null;
+    created_at: string;
+    event_id?: number | null;
+    event_title?: string | null;
+    photo_id?: number | null;
+    photo_processing_status?: string | null;
+    sender_name?: string | null;
+    participant_phone?: string | null;
+}
+
+export interface VipCoverageLogsResponse {
+    summary: VipCoverageLogSummary;
+    queues: VipCoverageQueueStatus[];
+    root_cause?: string | null;
+    logs: VipCoverageLogEntry[];
 }
 
 /**
