@@ -26,6 +26,8 @@ export interface EventStatusData {
     events_count?: number;
 }
 
+export type VipGalleryStatus = 'draft' | 'active' | 'paused' | 'archived';
+
 /**
  * Contato do cliente
  */
@@ -124,6 +126,15 @@ export interface ExternalEvent {
     contato_nome?: string;
     contato_whatsapp?: string;
     observacao_interna?: string;
+    is_vip_gallery: boolean;
+    vip_gallery_status?: VipGalleryStatus | null;
+    whatsapp_group_id?: string | null;
+    gallery_slug?: string | null;
+    custom_logo_path?: string | null;
+    logo_size_percent?: number | null;
+    views_count?: number;
+    allow_delete_command?: boolean;
+    delete_command_keyword?: string | null;
     collaborators: EventCollaborator[];
     equipment: EventEquipmentItem[];
     created_at: string;

@@ -11,6 +11,9 @@ use App\Modules\Social\Clients\NullApifyClient;
 use App\Modules\WhatsApp\Clients\NullWhatsAppClient;
 use App\Modules\WhatsApp\Clients\WhatsAppProviderInterface;
 use App\Modules\WhatsApp\Clients\ZApiClient;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -24,8 +27,8 @@ class AppServiceProvider extends ServiceProvider
             $propertyId = (string) config('analytics.property_id', '');
             $credentialsPath = (string) config('analytics.service_account_credentials_json', '');
 
-            if ($propertyId === '' || $credentialsPath === '' || !is_file($credentialsPath)) {
-                return new NullAnalyticsClient();
+            if ($propertyId === '' || $credentialsPath === '' || ! is_file($credentialsPath)) {
+                return new NullAnalyticsClient;
             }
 
             return new Ga4AnalyticsClient($propertyId, $credentialsPath);
@@ -38,10 +41,10 @@ class AppServiceProvider extends ServiceProvider
             $clientToken = trim((string) config('whatsapp.zapi.client_token', ''));
 
             if ($baseUrl === '' || $instance === '' || $token === '' || $clientToken === '') {
-                return new NullWhatsAppClient();
+                return new NullWhatsAppClient;
             }
 
-            return new ZApiClient();
+            return new ZApiClient;
         });
 
         $this->app->bind(ApifyClientInterface::class, function () {
@@ -50,10 +53,10 @@ class AppServiceProvider extends ServiceProvider
             $token = trim((string) config('social.apify.token', ''));
 
             if ($provider !== 'apify' || $baseUrl === '' || $token === '') {
-                return new NullApifyClient();
+                return new NullApifyClient;
             }
 
-            return new ApifyClient();
+            return new ApifyClient;
         });
     }
 
@@ -62,6 +65,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        RateLimiter::for('vip-gallery-view', function (Request $request) {
+            return Limit::perMinute(5)->by((string) $request->ip());
+        });
+
+        RateLimiter::for('vip-gallery-download', function (Request $request) {
+            $photo = $request->route('photo');
+            $suffix = is_object($photo) ? (string) $photo->id : (string) $photo;
+
+            return Limit::perMinute(5)->by((string) $request->ip().'|'.$suffix);
+        });
     }
 }

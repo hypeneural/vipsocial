@@ -2,7 +2,6 @@
 
 namespace App\Modules\Externas\Http\Controllers;
 
-use App\Models\User;
 use App\Modules\Config\Models\Equipment;
 use App\Modules\Externas\Models\EventActivityLog;
 use App\Modules\Externas\Models\EventCategory;
@@ -13,6 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ExternaController extends BaseController
 {
@@ -220,6 +221,7 @@ class ExternaController extends BaseController
             'contato_nome' => ['nullable', 'string', 'max:100'],
             'contato_whatsapp' => ['nullable', 'string', 'max:30'],
             'observacao_interna' => ['nullable', 'string'],
+            ...$this->vipGalleryRules(),
             'colaboradores' => ['nullable', 'array'],
             'colaboradores.*.user_id' => ['required', 'exists:users,id'],
             'colaboradores.*.funcao' => ['nullable', 'string', 'max:100'],
@@ -228,10 +230,13 @@ class ExternaController extends BaseController
             'equipamentos.*.checked' => ['nullable', 'boolean'],
         ]);
 
+        $this->assertValidVipGalleryConfiguration($validated);
+        $validated = $this->normalizeVipGalleryPayload($validated);
+
         $event = ExternalEvent::create(collect($validated)->except(['colaboradores', 'equipamentos'])->toArray());
 
         // Sync collaborators
-        if (!empty($validated['colaboradores'])) {
+        if (! empty($validated['colaboradores'])) {
             $collabSync = [];
             foreach ($validated['colaboradores'] as $colab) {
                 $collabSync[$colab['user_id']] = ['funcao' => $colab['funcao'] ?? null];
@@ -240,7 +245,7 @@ class ExternaController extends BaseController
         }
 
         // Sync equipment
-        if (!empty($validated['equipamentos'])) {
+        if (! empty($validated['equipamentos'])) {
             $equipSync = [];
             foreach ($validated['equipamentos'] as $equip) {
                 $equipSync[$equip['equipment_id']] = ['checked' => $equip['checked'] ?? false];
@@ -272,6 +277,7 @@ class ExternaController extends BaseController
             'contato_nome' => ['nullable', 'string', 'max:100'],
             'contato_whatsapp' => ['nullable', 'string', 'max:30'],
             'observacao_interna' => ['nullable', 'string'],
+            ...$this->vipGalleryRules($event),
             'colaboradores' => ['nullable', 'array'],
             'colaboradores.*.user_id' => ['required', 'exists:users,id'],
             'colaboradores.*.funcao' => ['nullable', 'string', 'max:100'],
@@ -279,6 +285,9 @@ class ExternaController extends BaseController
             'equipamentos.*.equipment_id' => ['required', 'exists:equipments,id'],
             'equipamentos.*.checked' => ['nullable', 'boolean'],
         ]);
+
+        $this->assertValidVipGalleryConfiguration($validated, $event);
+        $validated = $this->normalizeVipGalleryPayload($validated, $event);
 
         // Track changes for activity log
         $fieldLabels = [
@@ -293,6 +302,14 @@ class ExternaController extends BaseController
             'contato_nome' => 'Contato',
             'contato_whatsapp' => 'WhatsApp',
             'observacao_interna' => 'Observação interna',
+            'is_vip_gallery' => 'Cobertura VIP',
+            'vip_gallery_status' => 'Status da galeria VIP',
+            'whatsapp_group_id' => 'Grupo WhatsApp',
+            'gallery_slug' => 'Slug da galeria',
+            'custom_logo_path' => 'Logo customizada',
+            'logo_size_percent' => 'Tamanho da logo',
+            'allow_delete_command' => 'Comando de apagar',
+            'delete_command_keyword' => 'Palavra-chave apagar',
         ];
         $original = $event->getOriginal();
 
@@ -312,7 +329,7 @@ class ExternaController extends BaseController
             }
         }
 
-        if (!empty($changes)) {
+        if (! empty($changes)) {
             $changedFields = implode(', ', array_keys($changes));
             EventActivityLog::log($event->id, 'updated', "Campos alterados: {$changedFields}", $changes);
         }
@@ -400,9 +417,9 @@ class ExternaController extends BaseController
         $events = ExternalEvent::with(['category', 'status', 'collaborators'])
             ->where(function ($q) use ($now, $end) {
                 $q->whereBetween('data_hora', [$now, $end])
-                    ->orWhere(function ($q2) use ($now) {
+                    ->orWhere(function ($q2) {
                         // Also include events currently in progress
-                        $q2->whereHas('status', fn($sq) => $sq->where('slug', 'em-andamento'));
+                        $q2->whereHas('status', fn ($sq) => $sq->where('slug', 'em-andamento'));
                     });
             })
             ->orderBy('data_hora')
@@ -422,7 +439,7 @@ class ExternaController extends BaseController
         $byStatus = EventStatus::withCount('events')
             ->orderBy('sort_order')
             ->get()
-            ->map(fn($s) => [
+            ->map(fn ($s) => [
                 'id' => $s->id,
                 'name' => $s->name,
                 'slug' => $s->slug,
@@ -434,7 +451,7 @@ class ExternaController extends BaseController
         $byCategory = EventCategory::withCount('events')
             ->orderBy('sort_order')
             ->get()
-            ->map(fn($c) => [
+            ->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,
                 'slug' => $c->slug,
@@ -454,6 +471,104 @@ class ExternaController extends BaseController
     // ══════════════════════════════════════════
     // EQUIPMENT AVAILABILITY
     // ══════════════════════════════════════════
+
+    private function vipGalleryRules(?ExternalEvent $event = null): array
+    {
+        $gallerySlugRule = Rule::unique('external_events', 'gallery_slug');
+        $groupIdRule = Rule::unique('external_events', 'whatsapp_group_id');
+
+        if ($event) {
+            $gallerySlugRule = $gallerySlugRule->ignore($event->id);
+            $groupIdRule = $groupIdRule->ignore($event->id);
+        }
+
+        return [
+            'is_vip_gallery' => ['sometimes', 'boolean'],
+            'vip_gallery_status' => ['nullable', Rule::in(ExternalEvent::vipGalleryStatuses())],
+            'whatsapp_group_id' => ['nullable', 'string', 'max:120', $groupIdRule],
+            'gallery_slug' => ['nullable', 'string', 'max:160', $gallerySlugRule],
+            'custom_logo_path' => ['nullable', 'string', 'max:255'],
+            'logo_size_percent' => ['nullable', 'integer', 'min:5', 'max:30'],
+            'allow_delete_command' => ['sometimes', 'boolean'],
+            'delete_command_keyword' => ['nullable', 'string', 'max:100'],
+        ];
+    }
+
+    private function assertValidVipGalleryConfiguration(array $validated, ?ExternalEvent $event = null): void
+    {
+        $isVipGallery = $this->isVipGalleryEnabled($validated, $event);
+
+        if (! $isVipGallery) {
+            return;
+        }
+
+        $errors = [];
+        $gallerySlug = trim((string) ($validated['gallery_slug'] ?? $event?->gallery_slug ?? ''));
+        $whatsappGroupId = trim((string) ($validated['whatsapp_group_id'] ?? $event?->whatsapp_group_id ?? ''));
+        $allowDeleteCommand = array_key_exists('allow_delete_command', $validated)
+            ? (bool) $validated['allow_delete_command']
+            : (bool) ($event?->allow_delete_command ?? false);
+        $deleteCommandKeyword = trim((string) ($validated['delete_command_keyword'] ?? $event?->delete_command_keyword ?? ''));
+
+        if ($gallerySlug === '') {
+            $errors['gallery_slug'] = ['O slug da galeria VIP e obrigatorio quando a cobertura VIP estiver ativa.'];
+        }
+
+        if ($whatsappGroupId === '') {
+            $errors['whatsapp_group_id'] = ['O grupo do WhatsApp e obrigatorio quando a cobertura VIP estiver ativa.'];
+        }
+
+        if ($allowDeleteCommand && $deleteCommandKeyword === '') {
+            $errors['delete_command_keyword'] = ['A palavra-chave de apagar e obrigatoria quando o delete command estiver habilitado.'];
+        }
+
+        if (! empty($errors)) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    private function normalizeVipGalleryPayload(array $validated, ?ExternalEvent $event = null): array
+    {
+        $isVipGallery = $this->isVipGalleryEnabled($validated, $event);
+
+        if (! $isVipGallery) {
+            return array_merge($validated, [
+                'is_vip_gallery' => false,
+                'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
+                'whatsapp_group_id' => null,
+                'gallery_slug' => null,
+                'custom_logo_path' => null,
+                'logo_size_percent' => 15,
+                'allow_delete_command' => false,
+                'delete_command_keyword' => 'Apagar',
+            ]);
+        }
+
+        $allowDeleteCommand = array_key_exists('allow_delete_command', $validated)
+            ? (bool) $validated['allow_delete_command']
+            : (bool) ($event?->allow_delete_command ?? false);
+        $deleteCommandKeyword = trim((string) ($validated['delete_command_keyword'] ?? $event?->delete_command_keyword ?? 'Apagar'));
+
+        return array_merge($validated, [
+            'is_vip_gallery' => true,
+            'vip_gallery_status' => $validated['vip_gallery_status'] ?? $event?->vip_gallery_status ?? ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
+            'whatsapp_group_id' => $validated['whatsapp_group_id'] ?? $event?->whatsapp_group_id,
+            'gallery_slug' => $validated['gallery_slug'] ?? $event?->gallery_slug,
+            'custom_logo_path' => $validated['custom_logo_path'] ?? $event?->custom_logo_path,
+            'logo_size_percent' => (int) ($validated['logo_size_percent'] ?? $event?->logo_size_percent ?? 15),
+            'allow_delete_command' => $allowDeleteCommand,
+            'delete_command_keyword' => $allowDeleteCommand ? $deleteCommandKeyword : 'Apagar',
+        ]);
+    }
+
+    private function isVipGalleryEnabled(array $validated, ?ExternalEvent $event = null): bool
+    {
+        if (array_key_exists('is_vip_gallery', $validated)) {
+            return (bool) $validated['is_vip_gallery'];
+        }
+
+        return (bool) ($event?->is_vip_gallery ?? false);
+    }
 
     /**
      * Check equipment availability for a date range.
@@ -481,13 +596,13 @@ class ExternaController extends BaseController
                 // Event starts before our end AND event ends after our start (or has no end)
                 $q->where('data_hora', '<', $end)
                     ->where(function ($q2) use ($start) {
-                    $q2->where('data_hora_fim', '>', $start)
-                        ->orWhereNull('data_hora_fim');
-                });
+                        $q2->where('data_hora_fim', '>', $start)
+                            ->orWhereNull('data_hora_fim');
+                    });
             })
-            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
             // Only consider non-cancelled events
-            ->whereHas('status', fn($q) => $q->where('slug', '!=', 'cancelado'))
+            ->whereHas('status', fn ($q) => $q->where('slug', '!=', 'cancelado'))
             ->get();
 
         // Build map: equipment_id => [conflicting events info]
@@ -517,10 +632,10 @@ class ExternaController extends BaseController
         $equipment = Equipment::with(['category', 'status'])->findOrFail($equipmentId);
 
         $events = ExternalEvent::with(['category', 'status'])
-            ->whereHas('equipment', fn($q) => $q->where('equipments.id', $equipmentId))
+            ->whereHas('equipment', fn ($q) => $q->where('equipments.id', $equipmentId))
             ->orderBy('data_hora', 'desc')
             ->get()
-            ->map(fn($ev) => [
+            ->map(fn ($ev) => [
                 'id' => $ev->id,
                 'titulo' => $ev->titulo,
                 'data_hora' => $ev->data_hora?->toIso8601String(),

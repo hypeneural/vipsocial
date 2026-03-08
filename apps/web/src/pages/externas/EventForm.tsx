@@ -73,7 +73,7 @@ import {
 import { useColaboradores } from "@/hooks/useColaboradores";
 import { useEquipamentos } from "@/hooks/useEquipamentos";
 import type { CreateExternalEventDTO, EquipmentConflict } from "@/services/externa.service";
-import type { EventCategory, EventStatusData } from "@/types/externas";
+import type { EventCategory, EventStatusData, VipGalleryStatus } from "@/types/externas";
 import { generateGoogleCalendarUrl, ExternalEvent } from "@/types/externas";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +124,13 @@ const statusColorOptions = [
     { value: "bg-red-500", label: "Vermelho" },
     { value: "bg-purple-500", label: "Roxo" },
     { value: "bg-gray-500", label: "Cinza" },
+];
+
+const vipGalleryStatusOptions: Array<{ value: VipGalleryStatus; label: string }> = [
+    { value: "draft", label: "Draft" },
+    { value: "active", label: "Active" },
+    { value: "paused", label: "Paused" },
+    { value: "archived", label: "Archived" },
 ];
 
 // ==========================================
@@ -332,6 +339,14 @@ const EventForm = () => {
     const [contatoNome, setContatoNome] = useState("");
     const [contatoWhatsapp, setContatoWhatsapp] = useState("");
     const [observacaoInterna, setObservacaoInterna] = useState("");
+    const [isVipGallery, setIsVipGallery] = useState(false);
+    const [vipGalleryStatus, setVipGalleryStatus] = useState<VipGalleryStatus>("draft");
+    const [whatsappGroupId, setWhatsappGroupId] = useState("");
+    const [gallerySlug, setGallerySlug] = useState("");
+    const [customLogoPath, setCustomLogoPath] = useState("");
+    const [logoSizePercent, setLogoSizePercent] = useState("15");
+    const [allowDeleteCommand, setAllowDeleteCommand] = useState(false);
+    const [deleteCommandKeyword, setDeleteCommandKeyword] = useState("Apagar");
     const [selectedColabs, setSelectedColabs] = useState<Array<{ user_id: number; nome: string; funcao: string }>>([]);
     const [selectedEquips, setSelectedEquips] = useState<number[]>([]);
     const [savedEvent, setSavedEvent] = useState<ExternalEvent | null>(null);
@@ -364,6 +379,14 @@ const EventForm = () => {
             setContatoNome(ev.contato_nome || "");
             setContatoWhatsapp(ev.contato_whatsapp || "");
             setObservacaoInterna(ev.observacao_interna || "");
+            setIsVipGallery(!!ev.is_vip_gallery);
+            setVipGalleryStatus((ev.vip_gallery_status || "draft") as VipGalleryStatus);
+            setWhatsappGroupId(ev.whatsapp_group_id || "");
+            setGallerySlug(ev.gallery_slug || "");
+            setCustomLogoPath(ev.custom_logo_path || "");
+            setLogoSizePercent(String(ev.logo_size_percent || 15));
+            setAllowDeleteCommand(!!ev.allow_delete_command);
+            setDeleteCommandKeyword(ev.delete_command_keyword || "Apagar");
             setSelectedColabs(
                 ev.collaborators?.map((c) => ({
                     user_id: c.id,
@@ -387,6 +410,12 @@ const EventForm = () => {
             setStatusId(agendado ? agendado.id : statuses[0].id);
         }
     }, [isEditing, statuses, statusId]);
+
+    useEffect(() => {
+        if (!isVipGallery) {
+            setAllowDeleteCommand(false);
+        }
+    }, [isVipGallery]);
 
     // ── Handlers ──────────────────────────────
     const handleAddCollaborator = (userId: string) => {
@@ -427,6 +456,14 @@ const EventForm = () => {
             observacao_interna: observacaoInterna || undefined,
             colaboradores: selectedColabs.map((c) => ({ user_id: c.user_id, funcao: c.funcao })),
             equipamentos: selectedEquips.map((eid) => ({ equipment_id: eid, checked: false })),
+            is_vip_gallery: isVipGallery,
+            vip_gallery_status: isVipGallery ? vipGalleryStatus : null,
+            whatsapp_group_id: isVipGallery ? (whatsappGroupId || null) : null,
+            gallery_slug: isVipGallery ? (gallerySlug || null) : null,
+            custom_logo_path: isVipGallery ? (customLogoPath || null) : null,
+            logo_size_percent: isVipGallery ? Number(logoSizePercent || 15) : null,
+            allow_delete_command: isVipGallery ? allowDeleteCommand : false,
+            delete_command_keyword: isVipGallery && allowDeleteCommand ? (deleteCommandKeyword || null) : null,
         };
 
         if (isEditing) {
@@ -629,6 +666,129 @@ const EventForm = () => {
                                 Observações Internas
                             </h2>
                             <Textarea value={observacaoInterna} onChange={(e) => setObservacaoInterna(e.target.value)} placeholder="Notas internas da equipe..." rows={3} className="rounded-xl" />
+                        </div>
+
+                        <div className="bg-card rounded-xl border p-6 space-y-4">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h2 className="font-semibold flex items-center gap-2">
+                                        <Camera className="w-5 h-5" />
+                                        Cobertura VIP
+                                    </h2>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Configura a galeria publica, ingestao por grupo do WhatsApp e comando de apagar.
+                                    </p>
+                                </div>
+                                <label className="flex items-center gap-2 text-sm font-medium">
+                                    <Checkbox checked={isVipGallery} onCheckedChange={(checked) => setIsVipGallery(checked === true)} />
+                                    Ativar VIP
+                                </label>
+                            </div>
+
+                            <div className={cn("space-y-4", !isVipGallery && "opacity-60")}>
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Status da Galeria VIP</Label>
+                                        <Select
+                                            value={vipGalleryStatus}
+                                            onValueChange={(value) => setVipGalleryStatus(value as VipGalleryStatus)}
+                                            disabled={!isVipGallery}
+                                        >
+                                            <SelectTrigger className="rounded-xl">
+                                                <SelectValue placeholder="Selecione..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {vipGalleryStatusOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="logo_size_percent">Tamanho da Logo (%)</Label>
+                                        <Input
+                                            id="logo_size_percent"
+                                            type="number"
+                                            min={5}
+                                            max={30}
+                                            value={logoSizePercent}
+                                            onChange={(e) => setLogoSizePercent(e.target.value)}
+                                            disabled={!isVipGallery}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="gallery_slug">Slug da Galeria</Label>
+                                        <Input
+                                            id="gallery_slug"
+                                            value={gallerySlug}
+                                            onChange={(e) => setGallerySlug(e.target.value)}
+                                            placeholder="ex: casamento-vip"
+                                            required={isVipGallery}
+                                            disabled={!isVipGallery}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="whatsapp_group_id">WhatsApp Group ID</Label>
+                                        <Input
+                                            id="whatsapp_group_id"
+                                            value={whatsappGroupId}
+                                            onChange={(e) => setWhatsappGroupId(e.target.value)}
+                                            placeholder="120363027326371817-group"
+                                            required={isVipGallery}
+                                            disabled={!isVipGallery}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="custom_logo_path">Path da Logo PNG</Label>
+                                    <Input
+                                        id="custom_logo_path"
+                                        value={customLogoPath}
+                                        onChange={(e) => setCustomLogoPath(e.target.value)}
+                                        placeholder="vip-gallery/logos/evento.png"
+                                        disabled={!isVipGallery}
+                                        className="rounded-xl"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        A implementacao atual usa apenas `Storage::disk('public')` e logo PNG transparente.
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-dashed p-4 space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-medium">
+                                        <Checkbox
+                                            checked={allowDeleteCommand}
+                                            onCheckedChange={(checked) => setAllowDeleteCommand(checked === true)}
+                                            disabled={!isVipGallery}
+                                        />
+                                        Permitir delete command via WhatsApp
+                                    </label>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="delete_command_keyword">Palavra-chave para apagar</Label>
+                                        <Input
+                                            id="delete_command_keyword"
+                                            value={deleteCommandKeyword}
+                                            onChange={(e) => setDeleteCommandKeyword(e.target.value)}
+                                            placeholder="Apagar"
+                                            required={isVipGallery && allowDeleteCommand}
+                                            disabled={!isVipGallery || !allowDeleteCommand}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </motion.div>
 
