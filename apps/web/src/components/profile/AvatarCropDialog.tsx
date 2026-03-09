@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -60,6 +61,8 @@ export function AvatarCropDialog({
 
             await onConfirm(file, previewUrl);
             onClose();
+        } catch {
+            // O fluxo externo ja trata o erro. Mantemos o modal aberto para permitir nova tentativa.
         } finally {
             setIsSaving(false);
         }
@@ -71,9 +74,9 @@ export function AvatarCropDialog({
                 <div className="bg-gradient-to-br from-primary/10 via-background to-secondary/50 p-6">
                     <DialogHeader className="mb-5 space-y-2">
                         <DialogTitle>Ajustar foto de perfil</DialogTitle>
-                        <p className="text-sm text-muted-foreground">
+                        <DialogDescription className="text-sm text-muted-foreground">
                             Ajuste a imagem no enquadramento 1:1. O arquivo final sera salvo em 512x512.
-                        </p>
+                        </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-5">

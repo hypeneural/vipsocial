@@ -197,12 +197,19 @@ const ProfileEdit = () => {
 
                     <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
                         <div className="relative">
-                            <Avatar className="h-24 w-24 ring-4 ring-primary/10">
-                                <AvatarImage src={avatarSrc} alt={name || user.name} className="object-cover" />
-                                <AvatarFallback className={`${getAvatarColor(name || user.name)} text-2xl font-bold text-white`}>
-                                    {getUserInitials(name || user.name)}
-                                </AvatarFallback>
-                            </Avatar>
+                            <button
+                                type="button"
+                                onClick={handlePickFile}
+                                className="rounded-full transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2"
+                                aria-label="Alterar foto de perfil"
+                            >
+                                <Avatar className="h-24 w-24 ring-4 ring-primary/10">
+                                    <AvatarImage src={avatarSrc} alt={name || user.name} className="object-cover" />
+                                    <AvatarFallback className={`${getAvatarColor(name || user.name)} text-2xl font-bold text-white`}>
+                                        {getUserInitials(name || user.name)}
+                                    </AvatarFallback>
+                                </Avatar>
+                            </button>
                             <button
                                 type="button"
                                 onClick={handlePickFile}
