@@ -1,5 +1,11 @@
 <?php
 
+$defaultBroadcaster = env('BROADCAST_CONNECTION', 'null');
+
+if ($defaultBroadcaster === 'pusher' && ! class_exists(\Pusher\Pusher::class)) {
+    $defaultBroadcaster = env('BROADCAST_FALLBACK_CONNECTION', 'null');
+}
+
 return [
 
     /*
@@ -15,7 +21,7 @@ return [
     |
     */
 
-    'default' => env('BROADCAST_CONNECTION', 'null'),
+    'default' => $defaultBroadcaster,
 
     /*
     |--------------------------------------------------------------------------
