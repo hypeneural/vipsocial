@@ -262,25 +262,113 @@ export interface VipCoverageEvent extends ExternalEvent {
     vip_gallery_is_active: boolean;
 }
 
+const GOOGLE_CALENDAR_TIME_ZONE = "America/Sao_Paulo";
+
+const VIP_GALLERY_STATUS_TEXT: Record<VipGalleryStatus, string> = {
+    draft: "Rascunho",
+    active: "Ativa",
+    paused: "Pausada",
+    archived: "Arquivada",
+};
+
+const GOOGLE_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+    timeZone: GOOGLE_CALENDAR_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+});
+
+const parseEventDate = (dateStr: string): Date => {
+    const normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T");
+    const parsed = new Date(normalized);
+
+    return Number.isNaN(parsed.getTime()) ? new Date(dateStr) : parsed;
+};
+
+const formatGoogleCalendarDate = (value: string | Date): string => {
+    const date = value instanceof Date ? value : parseEventDate(value);
+    const parts = GOOGLE_DATE_FORMATTER.formatToParts(date);
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || "";
+
+    return `${part("year")}${part("month")}${part("day")}T${part("hour")}${part("minute")}${part("second")}`;
+};
+
+const formatCollaboratorLine = (collaborator: EventCollaborator): string => {
+    const role = collaborator.pivot?.funcao?.trim() || collaborator.role?.trim();
+    return role ? `- ${collaborator.name} (${role})` : `- ${collaborator.name}`;
+};
+
+const formatEquipmentLine = (equipment: EventEquipmentItem): string => {
+    const details = [equipment.nome, equipment.marca, equipment.modelo]
+        .filter((value): value is string => !!value && value.trim() !== "")
+        .join(" | ");
+
+    return `- ${details}`;
+};
+
+const buildGoogleCalendarDetails = (event: ExternalEvent): string => {
+    const sections: string[] = [];
+    const collaborators = event.collaborators?.map(formatCollaboratorLine) || [];
+    const equipment = event.equipment?.map(formatEquipmentLine) || [];
+
+    if (event.briefing?.trim()) {
+        sections.push(`📝 Briefing\n${event.briefing.trim()}`);
+    }
+
+    sections.push(
+        `👥 Colaboradores\n${collaborators.length > 0 ? collaborators.join("\n") : "- Nenhum colaborador vinculado"}`,
+        `🎒 Equipamentos\n${equipment.length > 0 ? equipment.join("\n") : "- Nenhum equipamento vinculado"}`
+    );
+
+    if (event.contato_nome?.trim() || event.contato_whatsapp?.trim()) {
+        const contactLines = [
+            event.contato_nome?.trim() ? `- Nome: ${event.contato_nome.trim()}` : null,
+            event.contato_whatsapp?.trim() ? `- WhatsApp: ${event.contato_whatsapp.trim()}` : null,
+        ].filter((line): line is string => line !== null);
+
+        sections.push(`📞 Contato do cliente\n${contactLines.join("\n")}`);
+    }
+
+    if (event.observacao_interna?.trim()) {
+        sections.push(`📌 Observacoes internas\n${event.observacao_interna.trim()}`);
+    }
+
+    if (event.is_vip_gallery) {
+        const vipLines = [
+            `- Status: ${VIP_GALLERY_STATUS_TEXT[event.vip_gallery_status || "draft"]}`,
+            event.gallery_slug?.trim() ? `- Galeria: https://www.coberturavip.com.br/${event.gallery_slug.trim()}` : null,
+            event.allow_delete_command ? `- Delete command: ${event.delete_command_keyword || "Ativo"}` : null,
+            event.allow_pause_command ? `- Pause command: ${event.pause_command_keyword || "Ativo"}` : null,
+        ].filter((line): line is string => line !== null);
+
+        sections.push(`📸 Cobertura VIP\n${vipLines.join("\n")}`);
+    }
+
+    return sections.join("\n\n");
+};
+
 /**
  * Helper: Gera URL do Google Calendar
  */
 export const generateGoogleCalendarUrl = (event: ExternalEvent): string => {
-    const formatDate = (dateStr: string): string => {
-        const date = new Date(dateStr);
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    };
-
-    const startDate = formatDate(event.data_hora);
-    const endDate = event.data_hora_fim
-        ? formatDate(event.data_hora_fim)
-        : formatDate(new Date(new Date(event.data_hora).getTime() + 2 * 60 * 60 * 1000).toISOString());
+    const start = parseEventDate(event.data_hora);
+    const end = event.data_hora_fim
+        ? parseEventDate(event.data_hora_fim)
+        : new Date(start.getTime() + 2 * 60 * 60 * 1000);
+    const startDate = formatGoogleCalendarDate(start);
+    const endDate = formatGoogleCalendarDate(end);
+    const categoryName = event.category?.name?.trim() || "Evento";
 
     const params = new URLSearchParams({
-        action: 'TEMPLATE',
-        text: event.titulo,
+        action: "TEMPLATE",
+        text: `${categoryName} | ${event.titulo}`,
         dates: `${startDate}/${endDate}`,
-        details: event.briefing || '',
+        ctz: GOOGLE_CALENDAR_TIME_ZONE,
+        details: buildGoogleCalendarDetails(event),
         location: event.endereco_completo || event.local,
     });
 

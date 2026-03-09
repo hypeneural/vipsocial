@@ -779,8 +779,23 @@ const EventForm = () => {
         );
     };
 
+    const validateRequiredAssignments = (): boolean => {
+        if (selectedColabs.length === 0) {
+            showToast.error("Selecione ao menos 1 colaborador para salvar o evento.");
+            return false;
+        }
+
+        if (selectedEquips.length === 0) {
+            showToast.error("Selecione ao menos 1 equipamento para salvar o evento.");
+            return false;
+        }
+
+        return true;
+    };
+
     const persistEvent = async () => {
         if (!categoryId || !statusId) return;
+        if (!validateRequiredAssignments()) return;
 
         if (isVipGallery && vipLogoMode === "custom" && !customLogoPath.trim()) {
             showToast.error("Envie a logo personalizada em PNG antes de salvar o evento.");
@@ -869,6 +884,10 @@ const EventForm = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validateRequiredAssignments()) {
+            return;
+        }
 
         if (vipGroupConflicts.length > 0) {
             setVipGroupConflictOpen(true);
@@ -1615,7 +1634,9 @@ const EventForm = () => {
                                     </div>
                                 ))}
                                 {selectedColabs.length === 0 && (
-                                    <p className="text-sm text-muted-foreground text-center py-2">Nenhum colaborador selecionado</p>
+                                    <p className="text-sm text-destructive text-center py-2">
+                                        Selecione ao menos 1 colaborador para salvar o evento.
+                                    </p>
                                 )}
                             </div>
                         </div>
@@ -1689,8 +1710,13 @@ const EventForm = () => {
                                 })}
                             </div>
 
-                            <p className="text-xs text-muted-foreground text-center">
-                                {selectedEquips.length} equipamento(s) selecionado(s)
+                            <p className={cn(
+                                "text-xs text-center",
+                                selectedEquips.length === 0 ? "text-destructive" : "text-muted-foreground"
+                            )}>
+                                {selectedEquips.length === 0
+                                    ? "Selecione ao menos 1 equipamento para salvar o evento."
+                                    : `${selectedEquips.length} equipamento(s) selecionado(s)`}
                             </p>
                         </div>
 

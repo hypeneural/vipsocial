@@ -269,13 +269,13 @@ class ExternaController extends BaseController
             'contato_whatsapp' => ['nullable', 'string', 'max:30'],
             'observacao_interna' => ['nullable', 'string'],
             ...$this->vipGalleryRules(),
-            'colaboradores' => ['nullable', 'array'],
+            'colaboradores' => ['required', 'array', 'min:1'],
             'colaboradores.*.user_id' => ['required', 'exists:users,id'],
             'colaboradores.*.funcao' => ['nullable', 'string', 'max:100'],
-            'equipamentos' => ['nullable', 'array'],
+            'equipamentos' => ['required', 'array', 'min:1'],
             'equipamentos.*.equipment_id' => ['required', 'exists:equipments,id'],
             'equipamentos.*.checked' => ['nullable', 'boolean'],
-        ]);
+        ], $this->eventValidationMessages());
 
         $this->assertValidVipGalleryConfiguration($validated);
         $validated = $this->normalizeVipGalleryPayload($validated);
@@ -331,13 +331,13 @@ class ExternaController extends BaseController
             'contato_whatsapp' => ['nullable', 'string', 'max:30'],
             'observacao_interna' => ['nullable', 'string'],
             ...$this->vipGalleryRules($event),
-            'colaboradores' => ['nullable', 'array'],
+            'colaboradores' => ['required', 'array', 'min:1'],
             'colaboradores.*.user_id' => ['required', 'exists:users,id'],
             'colaboradores.*.funcao' => ['nullable', 'string', 'max:100'],
-            'equipamentos' => ['nullable', 'array'],
+            'equipamentos' => ['required', 'array', 'min:1'],
             'equipamentos.*.equipment_id' => ['required', 'exists:equipments,id'],
             'equipamentos.*.checked' => ['nullable', 'boolean'],
-        ]);
+        ], $this->eventValidationMessages());
 
         $this->assertValidVipGalleryConfiguration($validated, $event);
         $validated = $this->normalizeVipGalleryPayload($validated, $event);
@@ -764,6 +764,18 @@ class ExternaController extends BaseController
     private function defaultDeleteCommandKeywords(): string
     {
         return (string) config('vip_gallery.delete.default_keywords', 'Deletar,Apagar,Excluir');
+    }
+
+    private function eventValidationMessages(): array
+    {
+        return [
+            'colaboradores.required' => 'Selecione ao menos 1 colaborador.',
+            'colaboradores.array' => 'Selecione ao menos 1 colaborador.',
+            'colaboradores.min' => 'Selecione ao menos 1 colaborador.',
+            'equipamentos.required' => 'Selecione ao menos 1 equipamento.',
+            'equipamentos.array' => 'Selecione ao menos 1 equipamento.',
+            'equipamentos.min' => 'Selecione ao menos 1 equipamento.',
+        ];
     }
 
     private function defaultPauseCommandKeywords(): string

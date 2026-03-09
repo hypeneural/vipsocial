@@ -172,11 +172,19 @@ const EventCard = ({ event, onClick }: EventCardProps) => {
 
             {/* Footer */}
             <div className="flex items-center justify-between pt-2 border-t">
-                {event.category && (
-                    <Badge variant="outline" className="text-xs">
-                        {event.category.name}
-                    </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                    {event.category && (
+                        <Badge variant="outline" className="text-xs">
+                            {event.category.name}
+                        </Badge>
+                    )}
+                    {event.is_vip_gallery && (
+                        <Badge variant="secondary" className="text-xs gap-1 bg-amber-500/10 text-amber-700 hover:bg-amber-500/10">
+                            <Camera className="w-3 h-3" />
+                            Cobertura VIP
+                        </Badge>
+                    )}
+                </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </div>
         </motion.div>

@@ -1,0 +1,13 @@
+const g="America/Sao_Paulo",f={draft:"Rascunho",active:"Ativa",paused:"Pausada",archived:"Arquivada"},T=new Intl.DateTimeFormat("en-CA",{timeZone:g,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:!1}),d=t=>{const a=t.includes("T")?t:t.replace(" ","T"),o=new Date(a);return Number.isNaN(o.getTime())?new Date(t):o},$=t=>{const a=t instanceof Date?t:d(t),o=T.formatToParts(a),n=r=>{var e;return((e=o.find(i=>i.type===r))==null?void 0:e.value)||""};return`${n("year")}${n("month")}${n("day")}T${n("hour")}${n("minute")}${n("second")}`},w=t=>{var o,n,r;const a=((n=(o=t.pivot)==null?void 0:o.funcao)==null?void 0:n.trim())||((r=t.role)==null?void 0:r.trim());return a?`- ${t.name} (${a})`:`- ${t.name}`},A=t=>`- ${[t.nome,t.marca,t.modelo].filter(o=>!!o&&o.trim()!=="").join(" | ")}`,E=t=>{var r,e,i,s,c,u,p,_,h;const a=[],o=((r=t.collaborators)==null?void 0:r.map(w))||[],n=((e=t.equipment)==null?void 0:e.map(A))||[];if((i=t.briefing)!=null&&i.trim()&&a.push(`📝 Briefing
+${t.briefing.trim()}`),a.push(`👥 Colaboradores
+${o.length>0?o.join(`
+`):"- Nenhum colaborador vinculado"}`,`🎒 Equipamentos
+${n.length>0?n.join(`
+`):"- Nenhum equipamento vinculado"}`),(s=t.contato_nome)!=null&&s.trim()||(c=t.contato_whatsapp)!=null&&c.trim()){const m=[(u=t.contato_nome)!=null&&u.trim()?`- Nome: ${t.contato_nome.trim()}`:null,(p=t.contato_whatsapp)!=null&&p.trim()?`- WhatsApp: ${t.contato_whatsapp.trim()}`:null].filter(l=>l!==null);a.push(`📞 Contato do cliente
+${m.join(`
+`)}`)}if((_=t.observacao_interna)!=null&&_.trim()&&a.push(`📌 Observacoes internas
+${t.observacao_interna.trim()}`),t.is_vip_gallery){const m=[`- Status: ${f[t.vip_gallery_status||"draft"]}`,(h=t.gallery_slug)!=null&&h.trim()?`- Galeria: https://www.coberturavip.com.br/${t.gallery_slug.trim()}`:null,t.allow_delete_command?`- Delete command: ${t.delete_command_keyword||"Ativo"}`:null,t.allow_pause_command?`- Pause command: ${t.pause_command_keyword||"Ativo"}`:null].filter(l=>l!==null);a.push(`📸 Cobertura VIP
+${m.join(`
+`)}`)}return a.join(`
+
+`)},y=t=>{var s,c;const a=d(t.data_hora),o=t.data_hora_fim?d(t.data_hora_fim):new Date(a.getTime()+2*60*60*1e3),n=$(a),r=$(o),e=((c=(s=t.category)==null?void 0:s.name)==null?void 0:c.trim())||"Evento";return`https://calendar.google.com/calendar/render?${new URLSearchParams({action:"TEMPLATE",text:`${e} | ${t.titulo}`,dates:`${n}/${r}`,ctz:g,details:E(t),location:t.endereco_completo||t.local}).toString()}`},D=(t,a,o)=>{const n=a.replace(/\D/g,""),r=n.startsWith("55")?n:`55${n}`,e=o?`&text=${encodeURIComponent(o)}`:"";return`https://wa.me/${r}${e}`};export{D as a,y as g};
