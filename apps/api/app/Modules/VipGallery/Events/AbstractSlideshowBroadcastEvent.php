@@ -4,11 +4,11 @@ namespace App\Modules\VipGallery\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-abstract class AbstractSlideshowBroadcastEvent implements ShouldBroadcast
+abstract class AbstractSlideshowBroadcastEvent implements ShouldBroadcastNow
 {
     use Dispatchable;
     use InteractsWithSockets;
@@ -38,8 +38,4 @@ abstract class AbstractSlideshowBroadcastEvent implements ShouldBroadcast
         return $this->payload;
     }
 
-    public function broadcastQueue(): string
-    {
-        return (string) config('vip_gallery.queues.broadcast', 'vip-gallery-broadcast');
-    }
 }

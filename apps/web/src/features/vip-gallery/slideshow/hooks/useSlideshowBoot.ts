@@ -4,7 +4,7 @@ import getSlideshowBoot from "../api/getSlideshowBoot";
 import getSlideshowState from "../api/getSlideshowState";
 import type { SlideshowBootData } from "../types";
 
-const RESYNC_INTERVAL_MS = 90_000;
+const RESYNC_INTERVAL_MS = 20_000;
 
 interface UseSlideshowBootOptions {
     code: string;

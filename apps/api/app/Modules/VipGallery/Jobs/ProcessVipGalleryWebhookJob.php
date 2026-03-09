@@ -98,8 +98,7 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
             return;
         }
 
-        IngestVipGalleryImageJob::dispatch($log->id, $eventId)
-            ->onQueue((string) config('vip_gallery.queues.processing', 'vip-gallery-processing'));
+        IngestVipGalleryImageJob::dispatchSync($log->id, $eventId);
 
         $log->update([
             'routing_status' => 'queued_ingest',
@@ -148,8 +147,7 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
             return;
         }
 
-        DeleteVipGalleryPhotoJob::dispatch($log->id, $event->id, $referenceMessageId)
-            ->onQueue((string) config('vip_gallery.queues.processing', 'vip-gallery-processing'));
+        DeleteVipGalleryPhotoJob::dispatchSync($log->id, $event->id, $referenceMessageId);
 
         $log->update([
             'routing_status' => 'queued_delete',
@@ -167,8 +165,7 @@ class ProcessVipGalleryWebhookJob implements ShouldQueue
             return;
         }
 
-        PauseVipGalleryEventJob::dispatch($log->id, $event->id)
-            ->onQueue((string) config('vip_gallery.queues.processing', 'vip-gallery-processing'));
+        PauseVipGalleryEventJob::dispatchSync($log->id, $event->id);
 
         $log->update([
             'routing_status' => 'queued_pause',

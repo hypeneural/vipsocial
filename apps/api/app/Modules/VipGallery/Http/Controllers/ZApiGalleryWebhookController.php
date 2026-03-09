@@ -31,8 +31,7 @@ class ZApiGalleryWebhookController extends BaseController
             'payload_json' => $payload,
         ]);
 
-        ProcessVipGalleryWebhookJob::dispatch($log->id)
-            ->onQueue((string) config('vip_gallery.queues.webhook', 'vip-gallery-webhook'));
+        ProcessVipGalleryWebhookJob::dispatchAfterResponse($log->id);
 
         return response()->json([
             'success' => true,
