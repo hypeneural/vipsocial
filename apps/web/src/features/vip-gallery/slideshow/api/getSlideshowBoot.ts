@@ -3,7 +3,7 @@ import slideshowApi from "./client";
 import type { SlideshowBootData } from "../types";
 
 export async function getSlideshowBoot(code: string): Promise<SlideshowBootData> {
-    const { data } = await slideshowApi.get<ApiResponse<SlideshowBootData>>(`/v1/slideshow/${code}/boot`);
+    const { data } = await slideshowApi.get<ApiResponse<SlideshowBootData>>(`/slideshow/${code}/boot`);
     return data.data;
 }
 
