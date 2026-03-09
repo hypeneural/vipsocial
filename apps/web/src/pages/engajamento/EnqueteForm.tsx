@@ -160,7 +160,6 @@ const EnqueteForm = () => {
   const isLoading = isEditing && pollQuery.isLoading;
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
-  const canAddOption = options.length < 10;
   const cleanedOptions = useMemo(
     () =>
       options.map((option, index) => ({
@@ -174,7 +173,6 @@ const EnqueteForm = () => {
   );
 
   const addOption = () => {
-    if (!canAddOption) return;
     setOptions((current) => [...current, makeBlankOption(current.length)]);
   };
 
@@ -377,9 +375,9 @@ const EnqueteForm = () => {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Opcoes</h2>
-              <p className="text-sm text-muted-foreground">Minimo 2, maximo 10 opcoes.</p>
+              <p className="text-sm text-muted-foreground">Minimo 2 opcoes.</p>
             </div>
-            <Button variant="outline" className="rounded-xl" onClick={addOption} disabled={!canAddOption}>
+            <Button variant="outline" className="rounded-xl" onClick={addOption}>
               <Plus className="mr-2 h-4 w-4" />
               Adicionar
             </Button>

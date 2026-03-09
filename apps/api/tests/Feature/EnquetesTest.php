@@ -247,6 +247,45 @@ test('enquetes admin endpoints require authentication', function () {
         ->assertStatus(401);
 });
 
+test('poll can be created with more than ten options', function () {
+    Sanctum::actingAs(makeAuthenticatedEnquetesUser());
+
+    $options = collect(range(1, 11))
+        ->map(fn (int $index) => [
+            'label' => "Opcao {$index}",
+            'description' => null,
+            'sort_order' => $index - 1,
+            'is_active' => true,
+        ])
+        ->all();
+
+    $response = $this->postJson('/api/v1/enquetes', [
+        'title' => 'Enquete sem limite maximo de opcoes',
+        'question' => 'Qual opcao voce prefere?',
+        'status' => 'draft',
+        'selection_type' => 'single',
+        'max_choices' => 1,
+        'vote_limit_mode' => 'once_ever',
+        'results_visibility' => 'live',
+        'after_end_behavior' => 'show_results_only',
+        'timezone' => 'America/Sao_Paulo',
+        'settings' => [
+            'widget_template' => 'clean_white',
+            'result_value_mode' => 'votes',
+        ],
+        'options' => $options,
+    ]);
+
+    $pollId = $response->json('data.id');
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.options_count', 11);
+
+    expect(Poll::query()->find($pollId))->not->toBeNull();
+    expect(PollOption::query()->where('poll_id', $pollId)->count())->toBe(11);
+});
+
 test('poll site and domains can be created and updated', function () {
     Sanctum::actingAs(makeAuthenticatedEnquetesUser());
 
