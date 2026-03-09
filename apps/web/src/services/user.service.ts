@@ -114,14 +114,15 @@ export const userService = {
     /**
      * Upload avatar
      */
-    uploadAvatar: async (file: File): Promise<ApiResponse<{ avatar_url: string }>> => {
+    uploadAvatar: async (
+        file: File
+    ): Promise<ApiResponse<{ avatar_url: string; avatar_thumb_url?: string; avatar_md_url?: string }>> => {
         const formData = new FormData();
         formData.append("avatar", file);
 
-        const { data } = await api.post<ApiResponse<{ avatar_url: string }>>(
+        const { data } = await api.post<ApiResponse<{ avatar_url: string; avatar_thumb_url?: string; avatar_md_url?: string }>>(
             "/users/avatar",
-            formData,
-            { headers: { "Content-Type": "multipart/form-data" } }
+            formData
         );
         return data;
     },

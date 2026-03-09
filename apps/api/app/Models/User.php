@@ -10,11 +10,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Image\Enums\Fit;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements HasMedia
 {
-    use HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes, Auditable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes, Auditable, InteractsWithMedia;
 
     protected $fillable = [
         'name',
@@ -88,5 +92,25 @@ class User extends Authenticatable
     public function getAuditResourceName(): string
     {
         return $this->name;
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('avatar')
+            ->useDisk('public')
+            ->singleFile();
+    }
+
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        $this->addMediaConversion('thumb')
+            ->fit(Fit::Crop, 128, 128)
+            ->performOnCollections('avatar')
+            ->nonQueued();
+
+        $this->addMediaConversion('md')
+            ->fit(Fit::Crop, 512, 512)
+            ->performOnCollections('avatar')
+            ->nonQueued();
     }
 }

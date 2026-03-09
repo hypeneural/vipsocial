@@ -24,7 +24,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 
 function getInitials(name: string): string {
@@ -75,17 +74,17 @@ export function Topbar() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 rounded-xl">
-            <DropdownMenuItem onClick={() => navigate("/roteiros/novo")} className="cursor-pointer rounded-lg">
+            <DropdownMenuItem onClick={() => navigate("/externas/novo")} className="cursor-pointer rounded-lg">
               <FileText className="w-4 h-4 mr-2" />
-              Criar Roteiro
+              Criar Evento
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/engajamento/enquetes")} className="cursor-pointer rounded-lg">
+            <DropdownMenuItem onClick={() => navigate("/engajamento/enquetes/nova")} className="cursor-pointer rounded-lg">
               <Vote className="w-4 h-4 mr-2" />
               Criar Enquete
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/alertas/novo")} className="cursor-pointer rounded-lg">
               <MessageCircle className="w-4 h-4 mr-2" />
-              Enviar Alerta
+              Criar Alerta
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -116,7 +115,11 @@ export function Topbar() {
               className="flex items-center gap-2 px-2 rounded-xl hover:bg-secondary"
             >
               <Avatar className="h-9 w-9 ring-2 ring-primary/20">
-                <AvatarImage src="" />
+                <AvatarImage
+                  src={user?.avatar_thumb_url ?? user?.avatar_url ?? undefined}
+                  alt={userName}
+                  className="object-cover"
+                />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-primary-dark text-primary-foreground text-sm font-semibold">
                   {userInitials}
                 </AvatarFallback>

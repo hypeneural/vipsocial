@@ -54,10 +54,13 @@ export const ROLE_CONFIG: Record<UserRole, { label: string; color: string; bgCol
 // USER
 // ==========================================
 export interface User {
-    user_id: number;
+    id?: number;
+    user_id?: number;
     name: string;
     email: string;
-    avatar_url?: string;
+    avatar_url?: string | null;
+    avatar_thumb_url?: string | null;
+    avatar_md_url?: string | null;
     role: UserRole;
     phone?: string;
     department?: string;

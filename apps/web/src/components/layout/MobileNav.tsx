@@ -7,10 +7,11 @@ import {
   Zap,
   Users,
   Menu,
-  X,
   ChevronRight,
   Bot,
   Settings,
+  MapPin,
+  Vote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoVipsocial from "@/assets/logo-vipsocial.png";
@@ -39,13 +40,23 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    icon: MapPin,
+    label: "Externas",
+    path: "/externas",
+    requiredPermission: "externas.view",
+    children: [
+      { label: "Agenda", path: "/externas" },
+      { label: "Cobertura VIP", path: "/externas/cobertura-vip" },
+      { label: "Novo Evento", path: "/externas/novo" },
+    ],
+  },
+  {
     icon: BarChart3,
     label: "Engajamento",
     path: "/engajamento",
     requiredPermission: "enquetes.view",
     children: [
       { label: "Enquetes", path: "/engajamento/enquetes" },
-      { label: "Relatórios", path: "/engajamento/relatorios" },
     ],
   },
   {
@@ -57,6 +68,7 @@ const navItems: NavItem[] = [
       { label: "Dashboard", path: "/alertas" },
       { label: "Destinos", path: "/alertas/destinos" },
       { label: "Alertas", path: "/alertas/lista" },
+      { label: "Status", path: "/alertas/status" },
       { label: "Logs", path: "/alertas/logs" },
     ],
   },
@@ -68,6 +80,7 @@ const navItems: NavItem[] = [
     children: [
       { label: "Central", path: "/distribuicao" },
       { label: "Notícias", path: "/distribuicao/noticias" },
+      { label: "Publicações", path: "/distribuicao/publicacoes" },
     ],
   },
   {
@@ -78,6 +91,7 @@ const navItems: NavItem[] = [
     children: [
       { label: "Feed ao Vivo", path: "/raspagem/feed" },
       { label: "Fontes", path: "/raspagem/fontes" },
+      { label: "Filtros", path: "/raspagem/filtros" },
     ],
   },
   {
@@ -88,6 +102,7 @@ const navItems: NavItem[] = [
     children: [
       { label: "Colaboradores", path: "/pessoas/colaboradores" },
       { label: "Permissões", path: "/pessoas/permissoes" },
+      { label: "Aniversários", path: "/pessoas/aniversarios" },
     ],
   },
   {
@@ -96,16 +111,17 @@ const navItems: NavItem[] = [
     path: "/config",
     requiredPermission: "users.view",
     children: [
-      { label: "Integrações", path: "/config/integracoes" },
+      { label: "Equipamentos", path: "/config/equipamentos" },
       { label: "Auditoria", path: "/config/auditoria" },
+      { label: "Parâmetros", path: "/config/parametros" },
     ],
   },
 ];
 
 const bottomNavItems = [
   { icon: LayoutDashboard, label: "Home", path: "/" },
-  { icon: Newspaper, label: "Pauta", path: "/pauta/roteiros" },
-  { icon: BarChart3, label: "Enquetes", path: "/engajamento/enquetes" },
+  { icon: MapPin, label: "Externas", path: "/externas" },
+  { icon: Vote, label: "Enquetes", path: "/engajamento/enquetes" },
   { icon: Zap, label: "Alertas", path: "/alertas" },
 ];
 
@@ -115,7 +131,6 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
-  // Filter menu items based on user permissions
   const userPermissions = user?.permissions || [];
   const isAdmin = user?.role === "admin";
   const filteredNavItems = navItems.filter((item) => {
@@ -131,60 +146,35 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Top Header */}
-      <header className="fixed top-0 left-0 right-0 h-14 bg-primary z-50 flex items-center justify-between px-4 safe-top">
+      <header className="safe-top fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between bg-primary px-4">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10 touch-btn"
-            >
-              <Menu className="w-6 h-6" />
+            <Button variant="ghost" size="icon" className="touch-btn text-white hover:bg-white/10">
+              <Menu className="h-6 w-6" />
             </Button>
           </SheetTrigger>
-          <SheetContent
-            side="left"
-            className="w-[85%] max-w-[320px] p-0 bg-primary border-none"
-          >
-            <div className="flex flex-col h-full">
-              {/* Logo */}
-              <div className="h-16 flex items-center justify-center border-b border-white/10">
-                <img
-                  src={logoVipsocial}
-                  alt="VipSocial"
-                  className="h-10 object-contain"
-                />
+          <SheetContent side="left" className="w-[85%] max-w-[320px] border-none bg-primary p-0">
+            <div className="flex h-full flex-col">
+              <div className="flex h-16 items-center justify-center border-b border-white/10">
+                <img src={logoVipsocial} alt="VipSocial" className="h-10 object-contain" />
               </div>
 
-              {/* Nav Items */}
-              <nav className="flex-1 overflow-y-auto py-4 px-3 no-scrollbar">
+              <nav className="no-scrollbar flex-1 overflow-y-auto px-3 py-4">
                 {filteredNavItems.map((item) => (
                   <div key={item.path} className="mb-1">
                     {item.children ? (
                       <>
                         <button
-                          onClick={() =>
-                            setExpandedItem(
-                              expandedItem === item.path ? null : item.path
-                            )
-                          }
-                          className={cn(
-                            "sidebar-item w-full",
-                            isParentActive(item) && "active"
-                          )}
+                          onClick={() => setExpandedItem(expandedItem === item.path ? null : item.path)}
+                          className={cn("sidebar-item w-full", isParentActive(item) && "active")}
                         >
-                          <item.icon className="w-5 h-5 flex-shrink-0" />
-                          <span className="flex-1 text-left font-medium">
-                            {item.label}
-                          </span>
+                          <item.icon className="h-5 w-5 flex-shrink-0" />
+                          <span className="flex-1 text-left font-medium">{item.label}</span>
                           <motion.div
-                            animate={{
-                              rotate: expandedItem === item.path ? 90 : 0,
-                            }}
+                            animate={{ rotate: expandedItem === item.path ? 90 : 0 }}
                             transition={{ duration: 0.2 }}
                           >
-                            <ChevronRight className="w-4 h-4" />
+                            <ChevronRight className="h-4 w-4" />
                           </motion.div>
                         </button>
                         <AnimatePresence>
@@ -203,9 +193,8 @@ export function MobileNav() {
                                     to={child.path}
                                     onClick={() => setOpen(false)}
                                     className={cn(
-                                      "block py-2.5 px-3 rounded-lg text-sm text-white/70 transition-colors",
-                                      isActive(child.path) &&
-                                      "bg-white/20 text-white font-medium"
+                                      "block rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors",
+                                      isActive(child.path) && "bg-white/20 font-medium text-white"
                                     )}
                                   >
                                     {child.label}
@@ -220,12 +209,9 @@ export function MobileNav() {
                       <Link
                         to={item.path}
                         onClick={() => setOpen(false)}
-                        className={cn(
-                          "sidebar-item",
-                          isActive(item.path) && "active"
-                        )}
+                        className={cn("sidebar-item", isActive(item.path) && "active")}
                       >
-                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        <item.icon className="h-5 w-5 flex-shrink-0" />
                         <span className="font-medium">{item.label}</span>
                       </Link>
                     )}
@@ -233,57 +219,34 @@ export function MobileNav() {
                 ))}
               </nav>
 
-              {/* Version */}
-              <div className="p-4 border-t border-white/10">
-                <p className="text-xs text-white/50 text-center">
-                  VipSocial Admin v1.0
-                </p>
+              <div className="border-t border-white/10 p-4">
+                <p className="text-center text-xs text-white/50">VipSocial Admin v1.0</p>
               </div>
             </div>
           </SheetContent>
         </Sheet>
 
-        <img
-          src={logoVipsocial}
-          alt="VipSocial"
-          className="h-8 object-contain"
-        />
+        <img src={logoVipsocial} alt="VipSocial" className="h-8 object-contain" />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-white hover:bg-white/10 touch-btn"
-        >
+        <Button variant="ghost" size="icon" className="touch-btn text-white hover:bg-white/10">
           <div className="relative">
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-primary text-[10px] font-bold rounded-full flex items-center justify-center">
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-primary">
               3
             </span>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
           </div>
         </Button>
       </header>
 
-      {/* Bottom Navigation */}
       <nav className="bottom-nav md:hidden">
         {bottomNavItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={cn(
-              "bottom-nav-item",
-              isActive(item.path) && "active"
-            )}
-          >
-            <item.icon className="w-5 h-5" />
+          <Link key={item.path} to={item.path} className={cn("bottom-nav-item", isActive(item.path) && "active")}>
+            <item.icon className="h-5 w-5" />
             <span className="text-[10px] font-medium">{item.label}</span>
           </Link>
         ))}
-        <button className="bottom-nav-item text-muted-foreground">
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] font-medium">Mais</span>
-        </button>
       </nav>
     </>
   );

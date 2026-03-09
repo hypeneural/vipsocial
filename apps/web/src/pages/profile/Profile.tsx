@@ -19,6 +19,7 @@ import {
     Cake,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -323,13 +324,12 @@ const Profile = () => {
 
                         <div className="px-6 pb-6 -mt-10 text-center">
                             {/* Avatar */}
-                            <div
-                                className={`w-20 h-20 rounded-full ${getAvatarColor(user.name)} flex items-center justify-center mx-auto ring-4 ring-card shadow-lg`}
-                            >
-                                <span className="text-2xl font-bold text-white">
+                            <Avatar className="mx-auto h-20 w-20 ring-4 ring-card shadow-lg">
+                                <AvatarImage src={user.avatar_md_url ?? user.avatar_url ?? undefined} alt={user.name} className="object-cover" />
+                                <AvatarFallback className={`${getAvatarColor(user.name)} text-2xl font-bold text-white`}>
                                     {getUserInitials(user.name)}
-                                </span>
-                            </div>
+                                </AvatarFallback>
+                            </Avatar>
 
                             {/* Name & Role */}
                             <h2 className="text-xl font-bold mt-3">{user.name}</h2>

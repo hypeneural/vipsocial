@@ -149,6 +149,7 @@ export interface EventCollaborator {
     name: string;
     email?: string;
     role?: string;
+    avatar_url?: string | null;
     pivot: {
         funcao?: string;
     };

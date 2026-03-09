@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
+use Throwable;
 
 class UserController extends BaseController
 {
@@ -55,6 +56,7 @@ class UserController extends BaseController
     public function show(int $id): JsonResponse
     {
         $user = User::with(['preferences', 'roles.permissions'])->findOrFail($id);
+
         return $this->jsonSuccess(new UserResource($user));
     }
 
@@ -77,6 +79,7 @@ class UserController extends BaseController
         }
 
         $user->load('preferences');
+
         return $this->jsonSuccess(new UserResource($user), 'Usuário atualizado');
     }
 
@@ -84,6 +87,7 @@ class UserController extends BaseController
     {
         $user = User::findOrFail($id);
         $user->delete();
+
         return $this->jsonDeleted('Usuário removido');
     }
 
@@ -114,5 +118,40 @@ class UserController extends BaseController
         ]));
 
         return $this->jsonSuccess($prefs, 'Preferências atualizadas');
+    }
+
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'avatar' => ['required', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120', 'dimensions:min_width=256,min_height=256'],
+        ]);
+
+        $user = $request->user();
+
+        try {
+            $user->clearMediaCollection('avatar');
+
+            $user
+                ->addMedia($validated['avatar'])
+                ->usingName("avatar-{$user->id}")
+                ->toMediaCollection('avatar');
+
+            $avatarUrl = $user->getFirstMediaUrl('avatar', 'md') ?: $user->getFirstMediaUrl('avatar');
+            $avatarThumbUrl = $user->getFirstMediaUrl('avatar', 'thumb') ?: $avatarUrl;
+
+            $user->forceFill([
+                'avatar_url' => $avatarUrl ?: null,
+            ])->saveQuietly();
+
+            return $this->jsonSuccess([
+                'avatar_url' => $avatarUrl,
+                'avatar_thumb_url' => $avatarThumbUrl,
+                'avatar_md_url' => $avatarUrl,
+            ], 'Avatar atualizado com sucesso');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->jsonError('Falha ao enviar avatar', 'USER_AVATAR_UPLOAD_FAILED', 500);
+        }
     }
 }

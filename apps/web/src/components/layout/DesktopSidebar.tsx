@@ -10,7 +10,6 @@ import {
   Zap,
   Users,
   Settings,
-  ChevronLeft,
   ChevronRight,
   Calendar,
   Vote,
@@ -34,7 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import logoVipsocial from "@/assets/logo-vipsocial.png";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface MenuItem {
@@ -74,7 +73,6 @@ const menuItems: MenuItem[] = [
     requiredPermission: "enquetes.view",
     children: [
       { icon: Vote, label: "Enquetes", path: "/engajamento/enquetes" },
-      { icon: BarChart3, label: "Relatórios", path: "/engajamento/relatorios" },
     ],
   },
   {
@@ -86,6 +84,7 @@ const menuItems: MenuItem[] = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/alertas" },
       { icon: MessageCircle, label: "Destinos", path: "/alertas/destinos" },
       { icon: FileText, label: "Alertas", path: "/alertas/lista" },
+      { icon: Clock, label: "Status", path: "/alertas/status" },
       { icon: FileSearch, label: "Logs", path: "/alertas/logs" },
     ],
   },
@@ -98,19 +97,6 @@ const menuItems: MenuItem[] = [
       { icon: LayoutDashboard, label: "Central", path: "/distribuicao" },
       { icon: FileText, label: "Notícias", path: "/distribuicao/noticias" },
       { icon: Newspaper, label: "Publicações", path: "/distribuicao/publicacoes" },
-    ],
-  },
-  {
-    icon: Bot,
-    label: "Automação",
-    path: "/automacao",
-    requiredPermission: "publicacoes.view",
-    children: [
-      { icon: MessageCircle, label: "Grupos WhatsApp", path: "/automacao/grupos" },
-      { icon: FileText, label: "Templates", path: "/automacao/templates" },
-      { icon: Clock, label: "Campanhas", path: "/automacao/campanhas" },
-      { icon: FileSearch, label: "Logs", path: "/automacao/logs" },
-      { icon: Clock, label: "Status Conexão", path: "/automacao/status" },
     ],
   },
   {
@@ -142,7 +128,6 @@ const menuItems: MenuItem[] = [
     requiredPermission: "users.view",
     children: [
       { icon: Package, label: "Equipamentos", path: "/config/equipamentos" },
-      { icon: Plug, label: "Integrações", path: "/config/integracoes" },
       { icon: FileSearch, label: "Auditoria", path: "/config/auditoria" },
       { icon: Sliders, label: "Parâmetros", path: "/config/parametros" },
     ],
@@ -164,18 +149,17 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
   const { user, logout } = useAuth();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
-  // Filter menu items based on user permissions
   const userPermissions = user?.permissions || [];
   const isAdmin = user?.role === "admin";
   const filteredMenuItems = menuItems.filter((item) => {
-    if (isAdmin) return true; // Admin sees everything
-    if (!item.requiredPermission) return true; // No permission required (Dashboard)
+    if (isAdmin) return true;
+    if (!item.requiredPermission) return true;
     return userPermissions.includes(item.requiredPermission);
   });
 
   const toggleExpanded = (path: string) => {
     setExpandedItems((prev) =>
-      prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path]
+      prev.includes(path) ? prev.filter((itemPath) => itemPath !== path) : [...prev, path]
     );
   };
 
@@ -192,10 +176,9 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
       initial={false}
       animate={{ width: collapsed ? 72 : 260 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="fixed left-0 top-0 z-40 h-screen bg-gradient-to-b from-primary to-primary-dark hidden md:flex flex-col shadow-2xl"
+      className="fixed left-0 top-0 z-40 hidden h-screen flex-col bg-gradient-to-b from-primary to-primary-dark shadow-2xl md:flex"
     >
-      {/* Logo */}
-      <div className="h-16 flex items-center justify-center border-b border-white/10 px-4">
+      <div className="flex h-16 items-center justify-center border-b border-white/10 px-4">
         <AnimatePresence mode="wait">
           {collapsed ? (
             <motion.div
@@ -203,9 +186,9 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-lg"
             >
-              <span className="text-primary font-bold text-xl">V</span>
+              <span className="text-xl font-bold text-primary">V</span>
             </motion.div>
           ) : (
             <motion.img
@@ -221,8 +204,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 no-scrollbar">
+      <nav className="no-scrollbar flex-1 overflow-y-auto px-2 py-4">
         {filteredMenuItems.map((item) => (
           <div key={item.path} className="mb-1">
             {item.children ? (
@@ -231,22 +213,17 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
                   <TooltipTrigger asChild>
                     <button
                       onClick={() => !collapsed && toggleExpanded(item.path)}
-                      className={cn(
-                        "sidebar-item w-full",
-                        isParentActive(item) && "active"
-                      )}
+                      className={cn("sidebar-item w-full", isParentActive(item) && "active")}
                     >
-                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      <item.icon className="h-5 w-5 flex-shrink-0" />
                       {!collapsed && (
                         <>
                           <span className="flex-1 text-left">{item.label}</span>
                           <motion.div
-                            animate={{
-                              rotate: expandedItems.includes(item.path) ? 90 : 0,
-                            }}
+                            animate={{ rotate: expandedItems.includes(item.path) ? 90 : 0 }}
                             transition={{ duration: 0.2 }}
                           >
-                            <ChevronRight className="w-4 h-4" />
+                            <ChevronRight className="h-4 w-4" />
                           </motion.div>
                         </>
                       )}
@@ -258,6 +235,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
                     </TooltipContent>
                   )}
                 </Tooltip>
+
                 <AnimatePresence>
                   {!collapsed && expandedItems.includes(item.path) && (
                     <motion.div
@@ -273,12 +251,11 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
                             key={child.path}
                             to={child.path}
                             className={cn(
-                              "flex items-center gap-2 py-2 px-3 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/10 transition-all",
-                              isActive(child.path) &&
-                              "bg-white/20 text-white font-medium"
+                              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-all hover:bg-white/10 hover:text-white",
+                              isActive(child.path) && "bg-white/20 font-medium text-white"
                             )}
                           >
-                            <child.icon className="w-4 h-4" />
+                            <child.icon className="h-4 w-4" />
                             <span>{child.label}</span>
                           </PrefetchLink>
                         ))}
@@ -290,14 +267,8 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
             ) : (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <PrefetchLink
-                    to={item.path}
-                    className={cn(
-                      "sidebar-item",
-                      isActive(item.path) && "active"
-                    )}
-                  >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                  <PrefetchLink to={item.path} className={cn("sidebar-item", isActive(item.path) && "active")}>
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
                     {!collapsed && <span>{item.label}</span>}
                   </PrefetchLink>
                 </TooltipTrigger>
@@ -312,24 +283,24 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
         ))}
       </nav>
 
-      {/* User Section */}
       {user && (
         <div className="border-t border-white/10">
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <button
                 onClick={() => navigate("/perfil")}
-                className="flex items-center gap-3 w-full px-3 py-3 text-white/80 hover:text-white hover:bg-white/10 transition-all"
+                className="flex w-full items-center gap-3 px-3 py-3 text-white/80 transition-all hover:bg-white/10 hover:text-white"
               >
                 <Avatar className="h-8 w-8 flex-shrink-0">
-                  <AvatarFallback className="bg-white/20 text-white text-xs font-bold">
+                  <AvatarImage src={user.avatar_thumb_url ?? user.avatar_url ?? undefined} alt={user.name} className="object-cover" />
+                  <AvatarFallback className="bg-white/20 text-xs font-bold text-white">
                     {getInitials(user.name)}
                   </AvatarFallback>
                 </Avatar>
                 {!collapsed && (
-                  <div className="text-left min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{user.name}</p>
-                    <p className="text-[10px] text-white/50 truncate">{user.email}</p>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="truncate text-sm font-medium">{user.name}</p>
+                    <p className="truncate text-[10px] text-white/50">{user.email}</p>
                   </div>
                 )}
               </button>
@@ -343,33 +314,39 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
         </div>
       )}
 
-      {/* Bottom: Logout + Collapse */}
       <div className="flex border-t border-white/10">
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center h-12 flex-1 text-white/60 hover:text-red-300 hover:bg-white/10 transition-all"
+              className="flex h-12 flex-1 items-center justify-center text-white/60 transition-all hover:bg-white/10 hover:text-red-300"
             >
-              <LogOut className="w-4 h-4" />
-              {!collapsed && <span className="text-xs ml-2">Sair</span>}
+              <LogOut className="h-4 w-4" />
+              {!collapsed && <span className="ml-2 text-xs">Sair</span>}
             </button>
           </TooltipTrigger>
           {collapsed && (
-            <TooltipContent side="right" className="font-medium">Sair</TooltipContent>
+            <TooltipContent side="right" className="font-medium">
+              Sair
+            </TooltipContent>
           )}
         </Tooltip>
-        <button
-          onClick={onToggle}
-          className="flex items-center justify-center h-12 flex-1 border-l border-white/10 text-white/80 hover:text-white hover:bg-white/10 transition-all touch-btn"
-        >
-          <motion.div
-            animate={{ rotate: collapsed ? 180 : 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </motion.div>
-        </button>
+
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <button
+              onClick={onToggle}
+              className="flex h-12 w-12 items-center justify-center border-l border-white/10 text-white/60 transition-all hover:bg-white/10 hover:text-white"
+            >
+              <motion.div animate={{ rotate: collapsed ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronRight className="h-4 w-4" />
+              </motion.div>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="font-medium">
+            {collapsed ? "Expandir" : "Recolher"}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </motion.aside>
   );

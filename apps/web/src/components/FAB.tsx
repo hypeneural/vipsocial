@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Newspaper, MessageCircle, Vote, Zap } from "lucide-react";
+import { Plus, Calendar, Vote, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { haptics } from "@/lib/haptics";
 
@@ -28,10 +28,10 @@ interface FABProps {
 
 const defaultActions: FABAction[] = [
     {
-        id: "roteiro",
-        label: "Novo Roteiro",
-        icon: Newspaper,
-        path: "/pauta/roteiros/novo",
+        id: "evento",
+        label: "Novo Evento",
+        icon: Calendar,
+        path: "/externas/novo",
         color: "bg-primary",
     },
     {
@@ -47,13 +47,6 @@ const defaultActions: FABAction[] = [
         icon: Vote,
         path: "/engajamento/enquetes/nova",
         color: "bg-info",
-    },
-    {
-        id: "destino",
-        label: "Novo Destino",
-        icon: MessageCircle,
-        path: "/alertas/destinos/novo",
-        color: "bg-success",
     },
 ];
 
@@ -199,7 +192,6 @@ export function useFABActions(): FABAction[] {
     if (location.pathname.startsWith("/alertas")) {
         return [
             { id: "alerta", label: "Novo Alerta", icon: Zap, path: "/alertas/novo", color: "bg-warning" },
-            { id: "destino", label: "Novo Destino", icon: MessageCircle, path: "/alertas/destinos/novo", color: "bg-success" },
         ];
     }
 
@@ -209,9 +201,9 @@ export function useFABActions(): FABAction[] {
         ];
     }
 
-    if (location.pathname.startsWith("/pauta") || location.pathname.startsWith("/roteiros")) {
+    if (location.pathname.startsWith("/externas")) {
         return [
-            { id: "roteiro", label: "Novo Roteiro", icon: Newspaper, path: "/pauta/roteiros/novo", color: "bg-primary" },
+            { id: "evento", label: "Novo Evento", icon: Calendar, path: "/externas/novo", color: "bg-primary" },
         ];
     }
 

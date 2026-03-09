@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -406,7 +407,7 @@ const EventForm = () => {
     const [pendingBannerFiles, setPendingBannerFiles] = useState<File[]>([]);
     const [uploadedVipBanners, setUploadedVipBanners] = useState<VipGalleryBanner[]>([]);
     const [gallerySlugTouched, setGallerySlugTouched] = useState(false);
-    const [selectedColabs, setSelectedColabs] = useState<Array<{ user_id: number; nome: string; funcao: string }>>([]);
+    const [selectedColabs, setSelectedColabs] = useState<Array<{ user_id: number; nome: string; funcao: string; avatar_url?: string | null }>>([]);
     const [selectedEquips, setSelectedEquips] = useState<number[]>([]);
     const [savedEvent, setSavedEvent] = useState<ExternalEvent | null>(null);
     const categorySelectValue = categoryId === "" ? "__select_category__" : String(categoryId);
@@ -483,6 +484,7 @@ const EventForm = () => {
                     user_id: c.id,
                     nome: c.name,
                     funcao: c.pivot?.funcao || "",
+                    avatar_url: c.avatar_url || null,
                 })) || []
             );
             setSelectedEquips(ev.equipment?.map((e) => e.id) || []);
@@ -623,7 +625,7 @@ const EventForm = () => {
         if (selectedColabs.some((sc) => sc.user_id === colab.id)) return;
         setSelectedColabs((prev) => [
             ...prev,
-            { user_id: colab.id, nome: colab.name, funcao: colab.role || "" },
+            { user_id: colab.id, nome: colab.name, funcao: colab.role || "", avatar_url: colab.avatar_url || null },
         ]);
     };
 
@@ -1579,7 +1581,15 @@ const EventForm = () => {
                                         .filter((c) => !selectedColabs.some((sc) => sc.user_id === c.id))
                                         .map((colab) => (
                                             <SelectItem key={colab.id} value={String(colab.id)}>
-                                                {colab.name} - {colab.role || colab.department || ""}
+                                                <div className="flex items-center gap-2">
+                                                    <Avatar className="h-7 w-7">
+                                                        <AvatarImage src={colab.avatar_url || undefined} alt={colab.name} className="object-cover" />
+                                                        <AvatarFallback className="text-[10px]">
+                                                            {colab.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <span>{colab.name} - {colab.role || colab.department || ""}</span>
+                                                </div>
                                             </SelectItem>
                                         ))}
                                 </SelectContent>
@@ -1587,9 +1597,17 @@ const EventForm = () => {
                             <div className="space-y-2">
                                 {selectedColabs.map((colab) => (
                                     <div key={colab.user_id} className="flex items-center justify-between p-2 bg-muted rounded-lg">
-                                        <div>
-                                            <p className="font-medium text-sm">{colab.nome}</p>
-                                            <p className="text-xs text-muted-foreground">{colab.funcao}</p>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-9 w-9">
+                                                <AvatarImage src={colab.avatar_url || undefined} alt={colab.nome} className="object-cover" />
+                                                <AvatarFallback className="text-xs">
+                                                    {colab.nome.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-medium text-sm">{colab.nome}</p>
+                                                <p className="text-xs text-muted-foreground">{colab.funcao}</p>
+                                            </div>
                                         </div>
                                         <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveCollaborator(colab.user_id)}>
                                             <X className="w-4 h-4" />

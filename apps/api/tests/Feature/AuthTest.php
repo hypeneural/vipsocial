@@ -3,6 +3,8 @@
 use App\Models\User;
 use App\Models\UserPreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -134,4 +136,31 @@ test('update password com senha atual errada retorna erro', function () {
             'new_password_confirmation' => 'newsecret123',
         ])
         ->assertStatus(422);
+});
+
+test('upload de avatar salva media e atualiza avatar_url', function () {
+    Storage::fake('public');
+
+    $user = createUser();
+
+    $response = $this->actingAs($user, 'sanctum')
+        ->postJson('/api/v1/users/avatar', [
+            'avatar' => UploadedFile::fake()->image('avatar.jpg', 900, 900),
+        ])
+        ->assertOk()
+        ->assertJsonStructure([
+            'success',
+            'data' => ['avatar_url', 'avatar_thumb_url', 'avatar_md_url'],
+        ]);
+
+    expect($response->json('data.avatar_url'))->toContain('/storage/');
+    expect($response->json('data.avatar_thumb_url'))->toContain('/storage/');
+
+    $this->assertDatabaseHas('media', [
+        'model_type' => User::class,
+        'model_id' => $user->id,
+        'collection_name' => 'avatar',
+    ]);
+
+    expect($user->fresh()->avatar_url)->not->toBeNull();
 });
