@@ -33,6 +33,7 @@ return [
         'webhook' => (string) env('VIP_GALLERY_QUEUE_WEBHOOK', 'vip-gallery-webhook'),
         'processing' => (string) env('VIP_GALLERY_QUEUE_PROCESSING', 'vip-gallery-processing'),
         'ack' => (string) env('VIP_GALLERY_QUEUE_ACK', 'vip-gallery-ack'),
+        'broadcast' => (string) env('VIP_GALLERY_QUEUE_BROADCAST', 'vip-gallery-broadcast'),
     ],
 
     'ack' => [
@@ -87,5 +88,23 @@ return [
         'banner_rendered_width' => 744,
         'banner_rendered_height' => 144,
         'banner_ratio_label' => '31:6',
+    ],
+
+    'slideshow' => [
+        'default_layout' => (string) env('VIP_GALLERY_SLIDESHOW_DEFAULT_LAYOUT', 'auto'),
+        'layouts' => [
+            'auto',
+            'polaroid',
+            'fullscreen',
+            'split',
+            'cinematic',
+        ],
+        'default_interval_ms' => (int) env('VIP_GALLERY_SLIDESHOW_DEFAULT_INTERVAL_MS', 10000),
+        'default_queue_limit' => (int) env('VIP_GALLERY_SLIDESHOW_DEFAULT_QUEUE_LIMIT', 100),
+        'default_show_neon' => (bool) env('VIP_GALLERY_SLIDESHOW_DEFAULT_SHOW_NEON', true),
+        'default_neon_text' => (string) env('VIP_GALLERY_SLIDESHOW_DEFAULT_NEON_TEXT', ''),
+        'default_instructions_text' => (string) env('VIP_GALLERY_SLIDESHOW_DEFAULT_INSTRUCTIONS_TEXT', 'Envio interno ativo. Assim que uma foto for aprovada, ela entra automaticamente no telao.'),
+        'public_path_prefix' => 'slideshow',
+        'code_length' => 6,
     ],
 ];

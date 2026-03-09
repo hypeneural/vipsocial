@@ -8,8 +8,10 @@ use App\Modules\VipGallery\Http\Resources\GalleryBannerResource;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryPhotoJob;
 use App\Modules\VipGallery\Models\VipGalleryBanner;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
+use App\Modules\VipGallery\Models\VipGallerySlideshow;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
+use App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster;
 use App\Support\Http\Controllers\BaseController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -58,6 +60,19 @@ class VipGalleryAdminController extends BaseController
                 'offset_percent' => (float) config('vip_gallery.images.logo_offset_percent_default', 3),
                 'anchors' => array_values(config('vip_gallery.images.logo_anchors', [])),
             ],
+            'slideshow_statuses' => collect(VipGallerySlideshow::statuses())
+                ->map(fn (string $status) => ['value' => $status, 'label' => ucfirst($status)])
+                ->values(),
+            'slideshow_layouts' => collect(VipGallerySlideshow::layouts())
+                ->map(fn (string $layout) => ['value' => $layout, 'label' => match ($layout) {
+                    VipGallerySlideshow::LAYOUT_AUTO => 'Automatico',
+                    VipGallerySlideshow::LAYOUT_POLAROID => 'Polaroid',
+                    VipGallerySlideshow::LAYOUT_FULLSCREEN => 'Tela cheia',
+                    VipGallerySlideshow::LAYOUT_SPLIT => 'Dividido',
+                    VipGallerySlideshow::LAYOUT_CINEMATIC => 'Cinematico',
+                    default => ucfirst($layout),
+                }])
+                ->values(),
         ]);
     }
 
@@ -143,7 +158,11 @@ class VipGalleryAdminController extends BaseController
         ]);
     }
 
-    public function updateEventStatus(Request $request, ExternalEvent $event): JsonResponse
+    public function updateEventStatus(
+        Request $request,
+        ExternalEvent $event,
+        VipGallerySlideshowBroadcaster $slideshowBroadcaster
+    ): JsonResponse
     {
         if (! $event->is_vip_gallery) {
             return $this->jsonError(
@@ -176,6 +195,14 @@ class VipGalleryAdminController extends BaseController
                     ],
                 ]
             );
+
+            $event->loadMissing('vipGallerySlideshow');
+
+            if ($nextStatus === ExternalEvent::VIP_GALLERY_STATUS_ARCHIVED) {
+                $slideshowBroadcaster->broadcastExpired($event, 'archived');
+            } else {
+                $slideshowBroadcaster->broadcastSettingsUpdated($event);
+            }
         }
 
         return $this->jsonSuccess([
@@ -423,6 +450,8 @@ class VipGalleryAdminController extends BaseController
                 'sender_name' => $photo->sender_name,
                 'participant_phone' => $photo->participant_phone,
                 'caption' => $photo->caption,
+                'short_text' => $photo->short_text,
+                'highlight_score' => (int) $photo->highlight_score,
                 'processing_status' => $photo->processing_status,
                 'is_approved' => (bool) $photo->is_approved,
                 'downloads_count' => (int) $photo->downloads_count,
@@ -436,7 +465,11 @@ class VipGalleryAdminController extends BaseController
         ]);
     }
 
-    public function updatePhotoApproval(Request $request, VipGalleryPhoto $photo): JsonResponse
+    public function updatePhotoApproval(
+        Request $request,
+        VipGalleryPhoto $photo,
+        VipGallerySlideshowBroadcaster $slideshowBroadcaster
+    ): JsonResponse
     {
         $validated = $request->validate([
             'is_approved' => ['required', 'boolean'],
@@ -469,13 +502,78 @@ class VipGalleryAdminController extends BaseController
             ]
         );
 
+        $photo->loadMissing('event.vipGallerySlideshow');
+
+        if ($nextState) {
+            $slideshowBroadcaster->broadcastNewMedia($photo);
+        } else {
+            $slideshowBroadcaster->broadcastMediaDeleted($photo);
+        }
+
         return $this->jsonSuccess([
             'photo_id' => $photo->id,
             'is_approved' => $nextState,
         ], $nextState ? 'Foto reativada com sucesso' : 'Foto desativada com sucesso');
     }
 
-    public function destroyCoverage(ExternalEvent $event, VipGalleryMediaManager $mediaManager): JsonResponse
+    public function updatePhotoSlideshowMetadata(
+        Request $request,
+        VipGalleryPhoto $photo,
+        VipGallerySlideshowBroadcaster $slideshowBroadcaster
+    ): JsonResponse
+    {
+        $validated = $request->validate([
+            'short_text' => ['nullable', 'string', 'max:255'],
+            'highlight_score' => ['nullable', 'integer', 'min:0', 'max:100'],
+        ]);
+
+        $previousShortText = $photo->short_text;
+        $previousHighlightScore = (int) $photo->highlight_score;
+        $nextShortText = array_key_exists('short_text', $validated)
+            ? (trim((string) $validated['short_text']) !== '' ? trim((string) $validated['short_text']) : null)
+            : $photo->short_text;
+        $nextHighlightScore = array_key_exists('highlight_score', $validated)
+            ? (int) $validated['highlight_score']
+            : (int) $photo->highlight_score;
+
+        $photo->forceFill([
+            'short_text' => $nextShortText,
+            'highlight_score' => $nextHighlightScore,
+        ])->save();
+
+        if ($previousShortText !== $nextShortText || $previousHighlightScore !== $nextHighlightScore) {
+            EventActivityLog::log(
+                $photo->external_event_id,
+                'vip_gallery_photo_slideshow_updated',
+                sprintf('Metadados do telao atualizados para a foto %s.', $photo->zapi_message_id),
+                [
+                    'Texto curto do telao' => [
+                        'de' => $previousShortText,
+                        'para' => $nextShortText,
+                    ],
+                    'Score de destaque' => [
+                        'de' => (string) $previousHighlightScore,
+                        'para' => (string) $nextHighlightScore,
+                    ],
+                ]
+            );
+
+            $photo->loadMissing('event.vipGallerySlideshow');
+            $slideshowBroadcaster->broadcastMediaUpdated($photo);
+        }
+
+        return $this->jsonSuccess([
+            'photo_id' => $photo->id,
+            'short_text' => $photo->short_text,
+            'highlight_score' => (int) $photo->highlight_score,
+        ], 'Metadados do telao atualizados com sucesso');
+    }
+
+    public function destroyCoverage(
+        ExternalEvent $event,
+        VipGalleryMediaManager $mediaManager,
+        VipGallerySlideshowBroadcaster $slideshowBroadcaster
+    ): JsonResponse
     {
         if (! $event->is_vip_gallery) {
             return $this->jsonError(
@@ -494,9 +592,12 @@ class VipGalleryAdminController extends BaseController
         $photoIds = $photos->pluck('id')->all();
         $deletedPhotos = $photos->count();
         $deletedBanners = $banners->count();
+        $slideshow = $event->vipGallerySlideshow()->first();
         $previousStatus = (string) $event->vip_gallery_status;
         $previousCustomLogoPath = is_string($event->custom_logo_path) ? $event->custom_logo_path : null;
         $baseDir = trim((string) config('vip_gallery.base_dir', 'vip-gallery'), '/');
+        $event->setRelation('vipGallerySlideshow', $slideshow);
+        $photos->each(fn (VipGalleryPhoto $photo) => $photo->setRelation('event', $event));
 
         DB::transaction(function () use ($event, $photoIds, $deletedPhotos, $deletedBanners, $previousStatus) {
             if (! empty($photoIds)) {
@@ -512,6 +613,10 @@ class VipGalleryAdminController extends BaseController
                 ->forceDelete();
 
             VipGalleryBanner::query()
+                ->where('external_event_id', $event->id)
+                ->delete();
+
+            VipGallerySlideshow::query()
                 ->where('external_event_id', $event->id)
                 ->delete();
 
@@ -560,6 +665,14 @@ class VipGalleryAdminController extends BaseController
                 ]
             );
         });
+
+        foreach ($photos as $photo) {
+            $slideshowBroadcaster->broadcastMediaDeleted($photo);
+        }
+
+        if ($slideshow) {
+            $slideshowBroadcaster->broadcastExpired($slideshow, 'coverage_deleted');
+        }
 
         foreach ($photos as $photo) {
             $mediaManager->deletePath($photo->original_image_path);

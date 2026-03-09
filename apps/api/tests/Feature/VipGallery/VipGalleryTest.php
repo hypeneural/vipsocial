@@ -2,6 +2,11 @@
 
 use App\Models\User;
 use App\Modules\Externas\Models\ExternalEvent;
+use App\Modules\VipGallery\Events\SlideshowExpired;
+use App\Modules\VipGallery\Events\SlideshowMediaDeleted;
+use App\Modules\VipGallery\Events\SlideshowMediaUpdated;
+use App\Modules\VipGallery\Events\SlideshowNewMedia;
+use App\Modules\VipGallery\Events\SlideshowSettingsUpdated;
 use App\Modules\VipGallery\Jobs\DeleteVipGalleryPhotoJob;
 use App\Modules\VipGallery\Jobs\IngestVipGalleryImageJob;
 use App\Modules\VipGallery\Jobs\PauseVipGalleryEventJob;
@@ -9,10 +14,12 @@ use App\Modules\VipGallery\Jobs\ProcessVipGalleryWebhookJob;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryPhotoJob;
 use App\Modules\VipGallery\Models\VipGalleryBanner;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
+use App\Modules\VipGallery\Models\VipGallerySlideshow;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -33,6 +40,7 @@ beforeEach(function () {
     Schema::dropIfExists('vip_gallery_webhook_logs');
     Schema::dropIfExists('vip_gallery_banners');
     Schema::dropIfExists('vip_gallery_photos');
+    Schema::dropIfExists('vip_gallery_slideshows');
     Schema::dropIfExists('event_equipment');
     Schema::dropIfExists('event_collaborators');
     Schema::dropIfExists('equipments');
@@ -150,9 +158,12 @@ beforeEach(function () {
         $table->string('participant_phone', 30);
         $table->string('sender_name', 100)->nullable();
         $table->text('caption')->nullable();
+        $table->string('short_text', 255)->nullable();
         $table->text('original_image_url')->nullable();
         $table->string('original_image_path')->nullable();
         $table->string('processed_image_path')->nullable();
+        $table->string('media_type', 16)->default('image');
+        $table->unsignedInteger('highlight_score')->default(0);
         $table->unsignedInteger('width')->default(0);
         $table->unsignedInteger('height')->default(0);
         $table->string('processing_status', 50)->default('received');
@@ -164,7 +175,26 @@ beforeEach(function () {
         $table->boolean('is_approved')->default(true);
         $table->timestamp('received_at')->nullable();
         $table->timestamp('published_at')->nullable();
+        $table->timestamp('slideshow_visible_at')->nullable();
         $table->softDeletes();
+        $table->timestamps();
+    });
+
+    Schema::create('vip_gallery_slideshows', function (Blueprint $table) {
+        $table->id();
+        $table->unsignedBigInteger('external_event_id')->unique();
+        $table->string('slideshow_code', 32)->unique();
+        $table->boolean('is_enabled')->default(false);
+        $table->string('status', 32)->default('draft');
+        $table->string('layout', 32)->default('auto');
+        $table->unsignedInteger('interval_ms')->default(10000);
+        $table->unsignedInteger('queue_limit')->default(100);
+        $table->string('background_url')->nullable();
+        $table->string('partner_logo_path')->nullable();
+        $table->boolean('show_neon')->default(true);
+        $table->string('neon_text')->nullable();
+        $table->text('instructions_text')->nullable();
+        $table->timestamp('expires_at')->nullable();
         $table->timestamps();
     });
 
@@ -288,6 +318,22 @@ function fakeJpegBinary(): string
     return $binary;
 }
 
+function createVipGallerySlideshow(ExternalEvent $event, array $overrides = []): VipGallerySlideshow
+{
+    return VipGallerySlideshow::query()->create(array_merge([
+        'external_event_id' => $event->id,
+        'slideshow_code' => 'M6NS6M',
+        'is_enabled' => true,
+        'status' => VipGallerySlideshow::STATUS_ACTIVE,
+        'layout' => VipGallerySlideshow::LAYOUT_POLAROID,
+        'interval_ms' => 10000,
+        'queue_limit' => 100,
+        'show_neon' => true,
+        'neon_text' => 'Casamento Teste',
+        'instructions_text' => 'Aponte a camera para o QR Code e envie suas fotos do evento!',
+    ], $overrides));
+}
+
 test('webhook gallery rejects invalid secret', function () {
     $this->postJson('/api/v1/webhook/zapi/gallery', [
         'messageId' => 'msg-1',
@@ -382,7 +428,10 @@ test('sample z-api image payload resolves event by group phone and stores sender
     (new ProcessVipGalleryWebhookJob($logId))->handle(app(\App\Modules\VipGallery\Support\VipGalleryEventResolver::class));
 
     expect($log->fresh()->routing_status)->toBe('queued_ingest');
-    (new IngestVipGalleryImageJob($logId, $event->id))->handle(app(\App\Modules\VipGallery\Support\VipGalleryMediaManager::class));
+    (new IngestVipGalleryImageJob($logId, $event->id))->handle(
+        app(\App\Modules\VipGallery\Support\VipGalleryMediaManager::class),
+        app(\App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster::class)
+    );
 
     $photo = VipGalleryPhoto::query()->where('zapi_message_id', '2AD96B84D25767193C35')->first();
 
@@ -392,6 +441,58 @@ test('sample z-api image payload resolves event by group phone and stores sender
     expect($photo?->sender_name)->toBe('Anderson Marques');
     expect($photo?->processing_status)->toBe(VipGalleryPhoto::STATUS_PUBLISHED_ORIGINAL);
     expect(Storage::disk('public')->exists((string) $photo?->original_image_path))->toBeTrue();
+});
+
+test('ingest published original creates slideshow-eligible photo and broadcaster emits new-media', function () {
+    Http::fake([
+        'https://example.com/*' => Http::response(fakeJpegBinary(), 200, [
+            'Content-Type' => 'image/jpeg',
+        ]),
+    ]);
+
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-slideshow-live',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+    createVipGallerySlideshow($event, [
+        'slideshow_code' => 'LIVE01',
+        'is_enabled' => true,
+        'status' => VipGallerySlideshow::STATUS_ACTIVE,
+    ]);
+
+    $log = VipGalleryWebhookLog::query()->create([
+        'message_id' => 'slide-live-1',
+        'phone' => $event->whatsapp_group_id,
+        'detected_type' => VipGalleryWebhookLog::TYPE_IMAGE,
+        'routing_status' => 'queued_ingest',
+        'payload_json' => [
+            'messageId' => 'slide-live-1',
+            'groupId' => $event->whatsapp_group_id,
+            'participantPhone' => '5591999999999',
+            'senderName' => 'Anderson Marques',
+            'imageUrl' => 'https://example.com/slide-live-1.jpg',
+        ],
+    ]);
+
+    (new IngestVipGalleryImageJob($log->id, $event->id))->handle(
+        app(\App\Modules\VipGallery\Support\VipGalleryMediaManager::class),
+        app(\App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster::class)
+    );
+
+    $photo = VipGalleryPhoto::query()->where('zapi_message_id', 'slide-live-1')->firstOrFail();
+    expect(in_array($photo->processing_status, [
+        VipGalleryPhoto::STATUS_PUBLISHED_ORIGINAL,
+        VipGalleryPhoto::STATUS_PROCESSED,
+    ], true))->toBeTrue();
+
+    Event::fake([SlideshowNewMedia::class]);
+
+    app(\App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster::class)
+        ->broadcastNewMedia($photo->fresh()->load('event.vipGallerySlideshow'));
+
+    Event::assertDispatched(SlideshowNewMedia::class, function (SlideshowNewMedia $eventBroadcast) {
+        return $eventBroadcast->slideshowCode === 'LIVE01';
+    });
 });
 
 test('public gallery detail and photos expose only visible records', function () {
@@ -529,6 +630,129 @@ test('public gallery discovery lists only active galleries with visible photos a
         ->assertJsonPath('data.has_visible_photos', false);
 });
 
+test('slideshow boot and state expose event files and settings for active slideshow', function () {
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'casamento-slideshow',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+    createVipGallerySlideshow($event, [
+        'slideshow_code' => 'M6NS6M',
+        'layout' => VipGallerySlideshow::LAYOUT_POLAROID,
+        'interval_ms' => 10000,
+        'queue_limit' => 5,
+        'show_neon' => true,
+        'neon_text' => 'Casamento Teste',
+        'instructions_text' => 'Envie suas fotos para o grupo do evento!',
+    ]);
+
+    Storage::disk('public')->put('vip-gallery/events/'.$event->id.'/processed/slide-1.jpg', 'slide-1');
+
+    VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'slide-1',
+        'participant_phone' => '5591999999999',
+        'sender_name' => 'Anderson Marques',
+        'short_text' => 'Entrada dos noivos',
+        'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/slide-1.jpg',
+        'media_type' => VipGalleryPhoto::MEDIA_TYPE_IMAGE,
+        'highlight_score' => 70,
+        'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
+        'received_at' => now()->subMinute(),
+        'published_at' => now()->subSeconds(30),
+        'slideshow_visible_at' => now()->subSeconds(30),
+    ]);
+
+    VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'slide-hidden',
+        'participant_phone' => '5591888888888',
+        'sender_name' => 'Bruna',
+        'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/slide-hidden.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_FAILED,
+        'received_at' => now()->subMinutes(2),
+        'published_at' => now()->subMinutes(2),
+    ]);
+
+    foreach (['boot', 'state'] as $endpoint) {
+        $this->getJson("/api/v1/slideshow/M6NS6M/{$endpoint}")
+            ->assertOk()
+            ->assertJsonPath('data.event.id', $event->id)
+            ->assertJsonPath('data.event.title', 'Casamento VIP')
+            ->assertJsonPath('data.event.slug', 'casamento-slideshow')
+            ->assertJsonPath('data.event.slideshow_code', 'M6NS6M')
+            ->assertJsonPath('data.event.status', VipGallerySlideshow::STATUS_ACTIVE)
+            ->assertJsonPath('data.event.public_url', 'https://adm.tvvip.social/slideshow/M6NS6M')
+            ->assertJsonPath('data.settings.intervalo', 10000)
+            ->assertJsonPath('data.settings.limite', 5)
+            ->assertJsonPath('data.settings.layout', 'polaroid')
+            ->assertJsonPath('data.settings.showNeon', true)
+            ->assertJsonPath('data.settings.neonText', 'Casamento Teste')
+            ->assertJsonPath('data.settings.instructionsText', 'Envie suas fotos para o grupo do evento!')
+            ->assertJsonCount(1, 'data.files')
+            ->assertJsonPath('data.files.0.id', 'photo_1')
+            ->assertJsonPath('data.files.0.url', 'https://adm.tvvip.social/storage/vip-gallery/events/'.$event->id.'/processed/slide-1.jpg')
+            ->assertJsonPath('data.files.0.type', 'image')
+            ->assertJsonPath('data.files.0.sender_name', 'Anderson Marques')
+            ->assertJsonPath('data.files.0.texto_curto', 'Entrada dos noivos')
+            ->assertJsonPath('data.files.0.highlight_score', 70);
+    }
+});
+
+test('slideshow boot returns gone when slideshow is disabled', function () {
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'casamento-slideshow-off',
+        'whatsapp_group_id' => '120363425148164142-group',
+    ]);
+    createVipGallerySlideshow($event, [
+        'slideshow_code' => 'OFF123',
+        'is_enabled' => false,
+        'status' => VipGallerySlideshow::STATUS_DRAFT,
+    ]);
+
+    $this->getJson('/api/v1/slideshow/OFF123/boot')
+        ->assertStatus(410)
+        ->assertJsonPath('code', 'SLIDESHOW_UNAVAILABLE');
+});
+
+test('processing approved photo dispatches slideshow media-updated', function () {
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-processamento',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+    createVipGallerySlideshow($event, [
+        'slideshow_code' => 'PROC01',
+        'is_enabled' => true,
+        'status' => VipGallerySlideshow::STATUS_ACTIVE,
+    ]);
+
+    Storage::disk('public')->put('vip-gallery/events/'.$event->id.'/originals/processed-slide.jpg', fakeJpegBinary());
+
+    $photo = VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'processed-slide',
+        'participant_phone' => '5591999999999',
+        'sender_name' => 'Anderson Marques',
+        'original_image_path' => 'vip-gallery/events/'.$event->id.'/originals/processed-slide.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PUBLISHED_ORIGINAL,
+        'published_at' => now()->subSeconds(15),
+        'received_at' => now()->subMinute(),
+    ]);
+
+    Event::fake([SlideshowMediaUpdated::class]);
+
+    (new ProcessVipGalleryPhotoJob($photo->id))->handle(
+        app(\App\Modules\VipGallery\Support\VipGalleryMediaManager::class),
+        app(\App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster::class)
+    );
+
+    expect($photo->fresh()->processing_status)->toBe(VipGalleryPhoto::STATUS_PROCESSED);
+
+    Event::assertDispatched(SlideshowMediaUpdated::class, function (SlideshowMediaUpdated $eventBroadcast) use ($photo) {
+        return $eventBroadcast->slideshowCode === 'PROC01'
+            && $eventBroadcast->payload['id'] === 'photo_'.$photo->id;
+    });
+});
+
 test('gallery tracking increments counters once per requester window', function () {
     $event = createVipGalleryEvent([
         'views_count' => 0,
@@ -573,6 +797,149 @@ test('gallery tracking increments counters once per requester window', function 
     expect($photo->fresh()->downloads_count)->toBe(1);
 });
 
+test('admin can manage slideshow settings and broadcast updates and expiration', function () {
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-admin-slideshow',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson("/api/v1/vip-gallery/events/{$event->id}/slideshow")
+        ->assertOk()
+        ->assertJsonPath('data.exists', false)
+        ->assertJsonPath('data.slideshow.is_enabled', false)
+        ->assertJsonPath('data.meta.layouts.0.value', 'auto');
+
+    Event::fake([SlideshowSettingsUpdated::class, SlideshowExpired::class]);
+
+    $this->actingAs($user, 'sanctum')
+        ->patchJson("/api/v1/vip-gallery/events/{$event->id}/slideshow", [
+            'is_enabled' => true,
+            'status' => VipGallerySlideshow::STATUS_ACTIVE,
+            'layout' => VipGallerySlideshow::LAYOUT_SPLIT,
+            'interval_ms' => 12000,
+            'queue_limit' => 80,
+            'show_neon' => false,
+            'neon_text' => 'Teste',
+            'instructions_text' => 'Envio interno ativo para o grupo do evento.',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.exists', true)
+        ->assertJsonPath('data.slideshow.is_enabled', true)
+        ->assertJsonPath('data.slideshow.layout', 'split')
+        ->assertJsonPath('data.slideshow.interval_ms', 12000)
+        ->assertJsonPath('data.slideshow.queue_limit', 80);
+
+    $slideshow = VipGallerySlideshow::query()->where('external_event_id', $event->id)->first();
+    expect($slideshow)->not->toBeNull();
+    expect($slideshow?->slideshow_code)->not->toBe('');
+
+    Event::assertDispatched(SlideshowSettingsUpdated::class);
+
+    $backgroundResponse = $this->actingAs($user, 'sanctum')
+        ->post("/api/v1/vip-gallery/events/{$event->id}/slideshow/background", [
+            'background' => UploadedFile::fake()->image('background.jpg', 1920, 1080),
+        ]);
+
+    $backgroundResponse->assertOk();
+    expect((string) $backgroundResponse->json('data.slideshow.background_url'))
+        ->toContain('/storage/vip-gallery/slideshows/events/'.$event->id.'/backgrounds/');
+
+    $partnerLogoResponse = $this->actingAs($user, 'sanctum')
+        ->post("/api/v1/vip-gallery/events/{$event->id}/slideshow/partner-logo", [
+            'partner_logo' => UploadedFile::fake()->image('partner.png', 600, 300),
+        ]);
+
+    $partnerLogoResponse->assertOk();
+    expect((string) $partnerLogoResponse->json('data.slideshow.partner_logo_url'))
+        ->toContain('/storage/vip-gallery/slideshows/events/'.$event->id.'/partner-logos/');
+
+    $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/vip-gallery/events/{$event->id}/slideshow/reset")
+        ->assertOk()
+        ->assertJsonPath('data.slideshow.layout', 'auto')
+        ->assertJsonPath('data.slideshow.background_url', null)
+        ->assertJsonPath('data.slideshow.partner_logo_path', null);
+
+    $this->actingAs($user, 'sanctum')
+        ->postJson("/api/v1/vip-gallery/events/{$event->id}/slideshow/expire", [
+            'reason' => 'manual',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.slideshow.status', VipGallerySlideshow::STATUS_EXPIRED);
+
+    Event::assertDispatched(SlideshowExpired::class, function (SlideshowExpired $eventBroadcast) use ($slideshow) {
+        return $eventBroadcast->slideshowCode === $slideshow?->slideshow_code
+            && $eventBroadcast->payload['reason'] === 'manual';
+    });
+});
+
+test('photo approval and pause command dispatch slideshow delete new and settings events', function () {
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-dispatch',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+    createVipGallerySlideshow($event, [
+        'slideshow_code' => 'DSPT01',
+        'is_enabled' => true,
+        'status' => VipGallerySlideshow::STATUS_ACTIVE,
+    ]);
+
+    $photo = VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'approval-slide',
+        'participant_phone' => '5591999999999',
+        'sender_name' => 'Anderson',
+        'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/approval-slide.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
+        'published_at' => now()->subMinute(),
+        'received_at' => now()->subMinutes(2),
+    ]);
+
+    Storage::disk('public')->put((string) $photo->processed_image_path, fakeJpegBinary());
+
+    $log = VipGalleryWebhookLog::query()->create([
+        'message_id' => 'pause-slide-log',
+        'phone' => $event->whatsapp_group_id,
+        'detected_type' => VipGalleryWebhookLog::TYPE_TEXT_COMMAND,
+        'routing_status' => 'queued_pause',
+        'payload_json' => [
+            'messageId' => 'pause-slide-log',
+            'groupId' => $event->whatsapp_group_id,
+            'body' => 'Pausar',
+        ],
+    ]);
+
+    $user = User::factory()->make(['role' => 'admin']);
+
+    Event::fake([
+        SlideshowMediaDeleted::class,
+        SlideshowNewMedia::class,
+        SlideshowSettingsUpdated::class,
+    ]);
+
+    $this->actingAs($user, 'sanctum')
+        ->patchJson("/api/v1/vip-gallery/photos/{$photo->id}/approval", [
+            'is_approved' => false,
+        ])
+        ->assertOk();
+
+    $this->actingAs($user, 'sanctum')
+        ->patchJson("/api/v1/vip-gallery/photos/{$photo->id}/approval", [
+            'is_approved' => true,
+        ])
+        ->assertOk();
+
+    (new PauseVipGalleryEventJob($log->id, $event->id))->handle(
+        app(\App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster::class)
+    );
+
+    Event::assertDispatched(SlideshowMediaDeleted::class, fn (SlideshowMediaDeleted $eventBroadcast) => $eventBroadcast->slideshowCode === 'DSPT01');
+    Event::assertDispatched(SlideshowNewMedia::class, fn (SlideshowNewMedia $eventBroadcast) => $eventBroadcast->slideshowCode === 'DSPT01');
+    Event::assertDispatched(SlideshowSettingsUpdated::class, fn (SlideshowSettingsUpdated $eventBroadcast) => $eventBroadcast->slideshowCode === 'DSPT01');
+});
+
 test('delete command reply by referenceMessageId soft deletes photo and removes files', function () {
     $event = createVipGalleryEvent();
 
@@ -607,7 +974,10 @@ test('delete command reply by referenceMessageId soft deletes photo and removes 
     ]);
 
     $job = new DeleteVipGalleryPhotoJob($log->id, $event->id, 'msg-delete-target');
-    $job->handle(app(\App\Modules\VipGallery\Support\VipGalleryMediaManager::class));
+    $job->handle(
+        app(\App\Modules\VipGallery\Support\VipGalleryMediaManager::class),
+        app(\App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster::class)
+    );
 
     expect(VipGalleryPhoto::query()->find($photo->id))->toBeNull();
     expect(VipGalleryPhoto::withTrashed()->find($photo->id)?->processing_status)->toBe(VipGalleryPhoto::STATUS_DELETED);
@@ -753,7 +1123,9 @@ test('pause command accepts comma separated keywords and pauses active gallery',
     expect($log->fresh()->routing_status)->toBe('queued_pause');
 
     Queue::fake();
-    (new PauseVipGalleryEventJob($log->id, $event->id))->handle();
+    (new PauseVipGalleryEventJob($log->id, $event->id))->handle(
+        app(\App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster::class)
+    );
 
     expect($event->fresh()->vip_gallery_status)->toBe(ExternalEvent::VIP_GALLERY_STATUS_PAUSED);
     expect($log->fresh()->routing_status)->toBe('paused');
@@ -1165,6 +1537,72 @@ test('admin can inspect vip gallery photos, deactivate one photo and remove cove
         'event_id' => $event->id,
         'user_id' => 9001,
         'action' => 'vip_gallery_deleted',
+    ]);
+});
+
+test('admin can update slideshow metadata for an approved photo and broadcast media-updated', function () {
+    Event::fake([SlideshowMediaUpdated::class]);
+
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-metadata',
+        'whatsapp_group_id' => '120363423950458112-group',
+    ]);
+    createVipGallerySlideshow($event, [
+        'slideshow_code' => 'META01',
+        'is_enabled' => true,
+        'status' => VipGallerySlideshow::STATUS_ACTIVE,
+    ]);
+
+    $photo = VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'metadata-photo-1',
+        'participant_phone' => '5548999991111',
+        'sender_name' => 'Anderson',
+        'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/metadata-photo-1.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
+        'short_text' => null,
+        'highlight_score' => 25,
+        'received_at' => now()->subMinutes(5),
+        'published_at' => now()->subMinutes(4),
+        'is_approved' => true,
+    ]);
+
+    Storage::disk('public')->put((string) $photo->processed_image_path, fakeJpegBinary());
+
+    $user = User::factory()->make([
+        'id' => 9002,
+        'name' => 'Operador Telão',
+    ]);
+
+    $this->actingAs($user, 'sanctum')
+        ->patchJson("/api/v1/vip-gallery/photos/{$photo->id}/slideshow", [
+            'short_text' => 'Entrada dos noivos',
+            'highlight_score' => 88,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.photo_id', $photo->id)
+        ->assertJsonPath('data.short_text', 'Entrada dos noivos')
+        ->assertJsonPath('data.highlight_score', 88);
+
+    expect($photo->fresh()->short_text)->toBe('Entrada dos noivos');
+    expect((int) $photo->fresh()->highlight_score)->toBe(88);
+
+    Event::assertDispatched(SlideshowMediaUpdated::class, function (SlideshowMediaUpdated $event) {
+        return $event->slideshowCode === 'META01'
+            && ($event->payload['texto_curto'] ?? null) === 'Entrada dos noivos'
+            && ($event->payload['highlight_score'] ?? null) === 88;
+    });
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson("/api/v1/vip-gallery/events/{$event->id}/photos")
+        ->assertOk()
+        ->assertJsonPath('data.photos.0.short_text', 'Entrada dos noivos')
+        ->assertJsonPath('data.photos.0.highlight_score', 88);
+
+    $this->assertDatabaseHas('event_activity_logs', [
+        'event_id' => $event->id,
+        'user_id' => 9002,
+        'action' => 'vip_gallery_photo_slideshow_updated',
     ]);
 });
 

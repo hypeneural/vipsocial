@@ -270,6 +270,16 @@ class VipGalleryMediaManager
         ];
     }
 
+    public function storeUploadedSlideshowBackground(UploadedFile $file, int $eventId): array
+    {
+        return $this->storeUploadedSlideshowAsset($file, $eventId, 'backgrounds');
+    }
+
+    public function storeUploadedSlideshowPartnerLogo(UploadedFile $file, int $eventId): array
+    {
+        return $this->storeUploadedSlideshowAsset($file, $eventId, 'partner-logos');
+    }
+
     private function buildPath(int $eventId, string $segment, string $messageId, string $extension): string
     {
         $fileName = preg_replace('/[^A-Za-z0-9_-]+/', '-', $messageId) ?: uniqid('vip-gallery-', true);
@@ -317,6 +327,37 @@ class VipGalleryMediaManager
         if (! in_array($mime, $allowedMimes, true)) {
             throw new RuntimeException('Tipo de imagem nao suportado');
         }
+    }
+
+    private function storeUploadedSlideshowAsset(UploadedFile $file, int $eventId, string $segment): array
+    {
+        $binary = (string) file_get_contents($file->getRealPath());
+
+        if ($binary === '') {
+            throw new RuntimeException('O arquivo enviado esta vazio');
+        }
+
+        if (strlen($binary) > (int) config('vip_gallery.images.banner_max_bytes', 5242880)) {
+            throw new RuntimeException('O arquivo excede o limite de tamanho permitido');
+        }
+
+        $imageInfo = $this->detectImageInfo($binary);
+        $mime = strtolower((string) ($imageInfo['mime'] ?? ''));
+        $this->assertMimeAllowed($mime);
+
+        $baseDir = trim((string) config('vip_gallery.base_dir', 'vip-gallery'), '/');
+        $extension = $this->extensionFromMime($mime);
+        $path = "{$baseDir}/slideshows/events/{$eventId}/{$segment}/".Str::uuid()->toString().".{$extension}";
+
+        $this->storage()->put($path, $binary);
+
+        return [
+            'path' => $path,
+            'url' => $this->publicUrl($path),
+            'width' => (int) ($imageInfo[0] ?? 0),
+            'height' => (int) ($imageInfo[1] ?? 0),
+            'mime' => $mime,
+        ];
     }
 
     private function normalizeJpegOrientation(string $binary, string $mime): string

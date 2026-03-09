@@ -27,6 +27,8 @@ export interface EventStatusData {
 }
 
 export type VipGalleryStatus = 'draft' | 'active' | 'paused' | 'archived';
+export type VipSlideshowStatus = 'draft' | 'active' | 'paused' | 'archived' | 'expired';
+export type VipSlideshowLayout = 'auto' | 'polaroid' | 'fullscreen' | 'split' | 'cinematic';
 export type VipLogoMode = 'default' | 'custom' | 'none';
 export type VipLogoAnchor =
     | 'top_left'
@@ -58,6 +60,8 @@ export interface VipCoveragePhotoDetail {
     sender_name?: string | null;
     participant_phone?: string | null;
     caption?: string | null;
+    short_text?: string | null;
+    highlight_score: number;
     processing_status: string;
     is_approved: boolean;
     downloads_count: number;
@@ -122,6 +126,43 @@ export interface VipGalleryAdminOptions {
         offset_percent: number;
         anchors: VipLogoAnchor[];
     };
+    slideshow_statuses?: VipSlideshowOption<VipSlideshowStatus>[];
+    slideshow_layouts?: VipSlideshowOption<VipSlideshowLayout>[];
+}
+
+export interface VipSlideshowOption<T extends string = string> {
+    value: T;
+    label: string;
+}
+
+export interface VipGallerySlideshowMeta {
+    statuses: VipSlideshowOption<VipSlideshowStatus>[];
+    layouts: VipSlideshowOption<VipSlideshowLayout>[];
+}
+
+export interface VipGallerySlideshowData {
+    id?: number | null;
+    external_event_id: number;
+    slideshow_code?: string | null;
+    public_url?: string | null;
+    is_enabled: boolean;
+    status: VipSlideshowStatus;
+    layout: VipSlideshowLayout;
+    interval_ms: number;
+    queue_limit: number;
+    background_url?: string | null;
+    partner_logo_path?: string | null;
+    partner_logo_url?: string | null;
+    show_neon: boolean;
+    neon_text: string;
+    instructions_text: string;
+    expires_at?: string | null;
+}
+
+export interface VipGallerySlideshowResponse {
+    exists: boolean;
+    slideshow: VipGallerySlideshowData;
+    meta: VipGallerySlideshowMeta;
 }
 
 export interface VipCoverageLogSummary {

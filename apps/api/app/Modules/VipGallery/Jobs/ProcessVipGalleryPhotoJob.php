@@ -4,6 +4,7 @@ namespace App\Modules\VipGallery\Jobs;
 
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
+use App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,7 +27,7 @@ class ProcessVipGalleryPhotoJob implements ShouldQueue
         public readonly int $photoId
     ) {}
 
-    public function handle(VipGalleryMediaManager $mediaManager): void
+    public function handle(VipGalleryMediaManager $mediaManager, VipGallerySlideshowBroadcaster $slideshowBroadcaster): void
     {
         $photo = VipGalleryPhoto::query()->with('event')->find($this->photoId);
 
@@ -42,6 +43,9 @@ class ProcessVipGalleryPhotoJob implements ShouldQueue
                 'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
                 'processing_error' => null,
             ]);
+
+            $photo->refresh()->loadMissing('event.vipGallerySlideshow');
+            $slideshowBroadcaster->broadcastMediaUpdated($photo);
         } catch (Throwable $e) {
             $photo->update([
                 'processing_status' => $this->fallbackStatus($photo),

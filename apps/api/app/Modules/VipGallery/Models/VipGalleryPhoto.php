@@ -12,6 +12,10 @@ class VipGalleryPhoto extends Model
 {
     use SoftDeletes;
 
+    public const MEDIA_TYPE_IMAGE = 'image';
+
+    public const MEDIA_TYPE_VIDEO = 'video';
+
     public const STATUS_RECEIVED = 'received';
 
     public const STATUS_PUBLISHED_ORIGINAL = 'published_original';
@@ -30,9 +34,12 @@ class VipGalleryPhoto extends Model
         'participant_phone',
         'sender_name',
         'caption',
+        'short_text',
         'original_image_url',
         'original_image_path',
         'processed_image_path',
+        'media_type',
+        'highlight_score',
         'width',
         'height',
         'processing_status',
@@ -44,9 +51,11 @@ class VipGalleryPhoto extends Model
         'is_approved',
         'received_at',
         'published_at',
+        'slideshow_visible_at',
     ];
 
     protected $casts = [
+        'highlight_score' => 'integer',
         'width' => 'integer',
         'height' => 'integer',
         'processing_attempts' => 'integer',
@@ -55,6 +64,7 @@ class VipGalleryPhoto extends Model
         'is_approved' => 'boolean',
         'received_at' => 'datetime',
         'published_at' => 'datetime',
+        'slideshow_visible_at' => 'datetime',
         'last_processing_attempt_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
@@ -74,6 +84,16 @@ class VipGalleryPhoto extends Model
             ]);
     }
 
+    public function scopeSlideshowVisible($query)
+    {
+        return $query
+            ->publiclyVisible()
+            ->whereIn('media_type', [
+                self::MEDIA_TYPE_IMAGE,
+                self::MEDIA_TYPE_VIDEO,
+            ]);
+    }
+
     public function publicImagePath(): ?string
     {
         if ($this->processing_status === self::STATUS_PROCESSED && $this->processed_image_path) {
@@ -86,6 +106,30 @@ class VipGalleryPhoto extends Model
     public function publicImageUrl(): ?string
     {
         return app(VipGalleryMediaManager::class)->publicUrl($this->publicImagePath());
+    }
+
+    public function slideshowIdentifier(): string
+    {
+        return 'photo_'.$this->id;
+    }
+
+    public function slideshowText(): string
+    {
+        return trim((string) ($this->short_text ?: $this->caption ?: ''));
+    }
+
+    public function slideshowType(): string
+    {
+        $type = trim((string) ($this->media_type ?: self::MEDIA_TYPE_IMAGE));
+
+        return in_array($type, [self::MEDIA_TYPE_IMAGE, self::MEDIA_TYPE_VIDEO], true)
+            ? $type
+            : self::MEDIA_TYPE_IMAGE;
+    }
+
+    public function slideshowCreatedAt()
+    {
+        return $this->received_at ?: $this->published_at ?: $this->created_at;
     }
 
     public function isProcessed(): bool

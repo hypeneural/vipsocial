@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { externaService, CreateExternalEventDTO, ExternalEventFilters } from "@/services/externa.service";
+import { externaService, CreateExternalEventDTO, ExternalEventFilters, UpdateVipGallerySlideshowDTO } from "@/services/externa.service";
 import showToast from "@/lib/toast";
 import type { VipGalleryStatus } from "@/types/externas";
 
@@ -14,6 +14,7 @@ const KEYS = {
     vipLogs: (params?: { search?: string; routing_status?: string; limit?: number }) =>
         [...KEYS.all, "vip-logs", params] as const,
     vipPhotos: (eventId: number) => [...KEYS.all, "vip-photos", eventId] as const,
+    vipSlideshow: (eventId: number) => [...KEYS.all, "vip-slideshow", eventId] as const,
     upcoming: (days?: number) => [...KEYS.all, "upcoming", days] as const,
     categories: () => [...KEYS.all, "categories"] as const,
     statuses: () => [...KEYS.all, "statuses"] as const,
@@ -79,6 +80,14 @@ export function useVipCoveragePhotos(eventId: number) {
     return useQuery({
         queryKey: KEYS.vipPhotos(eventId),
         queryFn: () => externaService.getVipCoveragePhotos(eventId),
+        enabled: !!eventId,
+    });
+}
+
+export function useVipGallerySlideshow(eventId: number) {
+    return useQuery({
+        queryKey: KEYS.vipSlideshow(eventId),
+        queryFn: () => externaService.getVipGallerySlideshow(eventId),
         enabled: !!eventId,
     });
 }
@@ -365,6 +374,30 @@ export function useUpdateVipGalleryPhotoApproval() {
     });
 }
 
+export function useUpdateVipGalleryPhotoSlideshowMetadata() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({
+            photoId,
+            shortText,
+            highlightScore,
+        }: {
+            photoId: number;
+            shortText?: string | null;
+            highlightScore?: number | null;
+        }) => externaService.updateVipGalleryPhotoSlideshowMetadata(photoId, {
+            short_text: shortText ?? null,
+            highlight_score: highlightScore ?? 0,
+        }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            showToast.success("Metadados do telao atualizados!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao atualizar os metadados do telao"),
+    });
+}
+
 export function useDeleteVipCoverage() {
     const qc = useQueryClient();
 
@@ -375,6 +408,83 @@ export function useDeleteVipCoverage() {
             showToast.success("Cobertura VIP removida!");
         },
         onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao remover a Cobertura VIP"),
+    });
+}
+
+export function useUpdateVipGallerySlideshow() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ eventId, dto }: { eventId: number; dto: UpdateVipGallerySlideshowDTO }) =>
+            externaService.updateVipGallerySlideshow(eventId, dto),
+        onSuccess: (_response, variables) => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            qc.invalidateQueries({ queryKey: KEYS.vipSlideshow(variables.eventId) });
+            showToast.success("Configuracoes do telão atualizadas!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao atualizar o telão"),
+    });
+}
+
+export function useUploadVipGallerySlideshowBackground() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ eventId, file }: { eventId: number; file: File }) =>
+            externaService.uploadVipGallerySlideshowBackground(eventId, file),
+        onSuccess: (_response, variables) => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            qc.invalidateQueries({ queryKey: KEYS.vipSlideshow(variables.eventId) });
+            showToast.success("Background do telão enviado!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao enviar o background"),
+    });
+}
+
+export function useUploadVipGallerySlideshowPartnerLogo() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ eventId, file }: { eventId: number; file: File }) =>
+            externaService.uploadVipGallerySlideshowPartnerLogo(eventId, file),
+        onSuccess: (_response, variables) => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            qc.invalidateQueries({ queryKey: KEYS.vipSlideshow(variables.eventId) });
+            showToast.success("Logo do parceiro enviada!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao enviar a logo do parceiro"),
+    });
+}
+
+export function useExpireVipGallerySlideshow() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ eventId, reason, expiresAt }: { eventId: number; reason?: string; expiresAt?: string | null }) =>
+            externaService.expireVipGallerySlideshow(eventId, {
+                reason,
+                expires_at: expiresAt ?? null,
+            }),
+        onSuccess: (_response, variables) => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            qc.invalidateQueries({ queryKey: KEYS.vipSlideshow(variables.eventId) });
+            showToast.success("Telão encerrado!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao encerrar o telão"),
+    });
+}
+
+export function useResetVipGallerySlideshow() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: (eventId: number) => externaService.resetVipGallerySlideshow(eventId),
+        onSuccess: (_response, eventId) => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            qc.invalidateQueries({ queryKey: KEYS.vipSlideshow(eventId) });
+            showToast.success("Configurações do telão resetadas!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao resetar o telão"),
     });
 }
 

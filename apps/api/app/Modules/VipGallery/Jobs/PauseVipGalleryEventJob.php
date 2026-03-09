@@ -5,6 +5,7 @@ namespace App\Modules\VipGallery\Jobs;
 use App\Modules\Externas\Models\EventActivityLog;
 use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
+use App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -29,7 +30,7 @@ class PauseVipGalleryEventJob implements ShouldQueue
     ) {
     }
 
-    public function handle(): void
+    public function handle(VipGallerySlideshowBroadcaster $slideshowBroadcaster): void
     {
         $log = VipGalleryWebhookLog::query()->find($this->logId);
         $event = ExternalEvent::query()->find($this->eventId);
@@ -68,6 +69,9 @@ class PauseVipGalleryEventJob implements ShouldQueue
                 'routing_status' => 'paused',
                 'error_message' => null,
             ]);
+
+            $event->loadMissing('vipGallerySlideshow');
+            $slideshowBroadcaster->broadcastSettingsUpdated($event);
         } catch (Throwable $e) {
             $log->update([
                 'routing_status' => 'failed',

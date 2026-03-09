@@ -11,6 +11,9 @@ import {
     VipCoverageStats,
     VipCoveragePhotoDetailsResponse,
     VipGalleryStatus,
+    VipGallerySlideshowResponse,
+    VipSlideshowLayout,
+    VipSlideshowStatus,
     VipLogoAnchor,
 } from "@/types/externas";
 
@@ -54,6 +57,20 @@ export interface ExternalEventFilters {
     data_fim?: string;
     is_vip_gallery?: boolean;
     vip_gallery_status?: VipGalleryStatus;
+}
+
+export interface UpdateVipGallerySlideshowDTO {
+    is_enabled?: boolean;
+    status?: VipSlideshowStatus;
+    layout?: VipSlideshowLayout;
+    interval_ms?: number;
+    queue_limit?: number;
+    show_neon?: boolean;
+    neon_text?: string | null;
+    instructions_text?: string | null;
+    expires_at?: string | null;
+    background_url?: string | null;
+    partner_logo_path?: string | null;
 }
 
 export interface EventStats {
@@ -159,6 +176,11 @@ export const externaService = {
         return data;
     },
 
+    getVipGallerySlideshow: async (eventId: number): Promise<ApiResponse<VipGallerySlideshowResponse>> => {
+        const { data } = await api.get<ApiResponse<VipGallerySlideshowResponse>>(`/vip-gallery/events/${eventId}/slideshow`);
+        return data;
+    },
+
     updateVipCoverageStatus: async (
         eventId: number,
         vipGalleryStatus: VipGalleryStatus
@@ -168,6 +190,80 @@ export const externaService = {
             {
                 vip_gallery_status: vipGalleryStatus,
             }
+        );
+
+        return data;
+    },
+
+    updateVipGallerySlideshow: async (
+        eventId: number,
+        dto: UpdateVipGallerySlideshowDTO
+    ): Promise<ApiResponse<VipGallerySlideshowResponse>> => {
+        const { data } = await api.patch<ApiResponse<VipGallerySlideshowResponse>>(
+            `/vip-gallery/events/${eventId}/slideshow`,
+            dto
+        );
+
+        return data;
+    },
+
+    uploadVipGallerySlideshowBackground: async (
+        eventId: number,
+        file: File
+    ): Promise<ApiResponse<{ slideshow: VipGallerySlideshowResponse["slideshow"] }>> => {
+        const formData = new FormData();
+        formData.append("background", file);
+
+        const { data } = await api.post<ApiResponse<{ slideshow: VipGallerySlideshowResponse["slideshow"] }>>(
+            `/vip-gallery/events/${eventId}/slideshow/background`,
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+            }
+        );
+
+        return data;
+    },
+
+    uploadVipGallerySlideshowPartnerLogo: async (
+        eventId: number,
+        file: File
+    ): Promise<ApiResponse<{ slideshow: VipGallerySlideshowResponse["slideshow"] }>> => {
+        const formData = new FormData();
+        formData.append("partner_logo", file);
+
+        const { data } = await api.post<ApiResponse<{ slideshow: VipGallerySlideshowResponse["slideshow"] }>>(
+            `/vip-gallery/events/${eventId}/slideshow/partner-logo`,
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+            }
+        );
+
+        return data;
+    },
+
+    expireVipGallerySlideshow: async (
+        eventId: number,
+        payload?: { reason?: string; expires_at?: string | null }
+    ): Promise<ApiResponse<{ slideshow: VipGallerySlideshowResponse["slideshow"] }>> => {
+        const { data } = await api.post<ApiResponse<{ slideshow: VipGallerySlideshowResponse["slideshow"] }>>(
+            `/vip-gallery/events/${eventId}/slideshow/expire`,
+            payload ?? {}
+        );
+
+        return data;
+    },
+
+    resetVipGallerySlideshow: async (
+        eventId: number
+    ): Promise<ApiResponse<VipGallerySlideshowResponse>> => {
+        const { data } = await api.post<ApiResponse<VipGallerySlideshowResponse>>(
+            `/vip-gallery/events/${eventId}/slideshow/reset`
         );
 
         return data;
@@ -260,6 +356,18 @@ export const externaService = {
             {
                 is_approved: isApproved,
             }
+        );
+
+        return data;
+    },
+
+    updateVipGalleryPhotoSlideshowMetadata: async (
+        photoId: number,
+        payload: { short_text?: string | null; highlight_score?: number | null }
+    ): Promise<ApiResponse<{ photo_id: number; short_text?: string | null; highlight_score: number }>> => {
+        const { data } = await api.patch<ApiResponse<{ photo_id: number; short_text?: string | null; highlight_score: number }>>(
+            `/vip-gallery/photos/${photoId}/slideshow`,
+            payload
         );
 
         return data;

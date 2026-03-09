@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -7,6 +7,7 @@ import {
     Camera,
     CheckCircle2,
     Clock,
+    Copy,
     Download,
     Edit,
     ExternalLink,
@@ -17,9 +18,12 @@ import {
     Logs,
     MapPin,
     MessageCircle,
+    Monitor,
     PauseCircle,
     Phone,
     Plus,
+    RotateCcw,
+    Save,
     Search,
     Trash2,
     Users,
@@ -29,6 +33,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -36,6 +41,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog,
     DialogContent,
@@ -47,14 +54,29 @@ import {
 import {
     useDeleteVipCoverage,
     useDownloadAllVipGalleryPhotos,
+    useExpireVipGallerySlideshow,
+    useResetVipGallerySlideshow,
+    useUpdateVipGallerySlideshow,
     useUpdateVipGalleryPhotoApproval,
+    useUpdateVipGalleryPhotoSlideshowMetadata,
     useUpdateVipCoverageStatus,
+    useUploadVipGallerySlideshowBackground,
+    useUploadVipGallerySlideshowPartnerLogo,
     useVipCoverageEvents,
     useVipCoveragePhotos,
     useVipCoverageStats,
     useVipGalleryOptions,
+    useVipGallerySlideshow,
 } from "@/hooks/useExternas";
-import type { VipCoverageEvent, VipCoveragePhotoDetail, VipGalleryStatus } from "@/types/externas";
+import type {
+    VipCoverageEvent,
+    VipCoveragePhotoDetail,
+    VipGallerySlideshowData,
+    VipGalleryStatus,
+    VipSlideshowLayout,
+    VipSlideshowStatus,
+} from "@/types/externas";
+import showToast from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { FALLBACK_VIP_GROUPS, vipGroupLabel } from "@/features/externas/vipGallery";
 
@@ -80,6 +102,32 @@ const vipStatusConfig: Record<VipGalleryStatus, { label: string; color: string; 
         tone: "text-zinc-600",
     },
 };
+
+const vipSlideshowStatusLabels: Record<VipSlideshowStatus, string> = {
+    draft: "Rascunho",
+    active: "Ativo",
+    paused: "Pausado",
+    archived: "Arquivado",
+    expired: "Encerrado",
+};
+
+const vipSlideshowLayoutLabels: Record<VipSlideshowLayout, string> = {
+    auto: "Automatico",
+    polaroid: "Polaroid",
+    fullscreen: "Tela cheia",
+    split: "Dividido",
+    cinematic: "Cinemático",
+};
+
+const defaultSlideshowStatusOptions = (Object.keys(vipSlideshowStatusLabels) as VipSlideshowStatus[]).map((value) => ({
+    value,
+    label: vipSlideshowStatusLabels[value],
+}));
+
+const defaultSlideshowLayoutOptions = (Object.keys(vipSlideshowLayoutLabels) as VipSlideshowLayout[]).map((value) => ({
+    value,
+    label: vipSlideshowLayoutLabels[value],
+}));
 
 function VipStatusIcon({ status, className }: { status: VipGalleryStatus; className?: string }) {
     if (status === "active") {
@@ -127,6 +175,513 @@ function photoSentAt(photo: VipCoveragePhotoDetail): string | null {
     return photo.received_at || photo.published_at || photo.created_at || null;
 }
 
+type VipSlideshowFormState = {
+    is_enabled: boolean;
+    status: VipSlideshowStatus;
+    layout: VipSlideshowLayout;
+    interval_ms: number;
+    queue_limit: number;
+    show_neon: boolean;
+    neon_text: string;
+    instructions_text: string;
+    expires_at: string;
+};
+
+function formatDateTimeLocalInput(value?: string | null): string {
+    if (!value) {
+        return "";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return "";
+    }
+
+    const local = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+
+    return local.toISOString().slice(0, 16);
+}
+
+function createSlideshowFormState(slideshow?: VipGallerySlideshowData | null): VipSlideshowFormState {
+    return {
+        is_enabled: slideshow?.is_enabled ?? false,
+        status: slideshow?.status ?? "draft",
+        layout: slideshow?.layout ?? "auto",
+        interval_ms: slideshow?.interval_ms ?? 10000,
+        queue_limit: slideshow?.queue_limit ?? 100,
+        show_neon: slideshow?.show_neon ?? true,
+        neon_text: slideshow?.neon_text ?? "",
+        instructions_text: slideshow?.instructions_text ?? "",
+        expires_at: formatDateTimeLocalInput(slideshow?.expires_at),
+    };
+}
+
+function VipSlideshowDialog({
+    event,
+    open,
+    onOpenChange,
+}: {
+    event: VipCoverageEvent | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    const eventId = event?.id || 0;
+    const { data, isLoading, error } = useVipGallerySlideshow(eventId);
+    const updateVipGallerySlideshow = useUpdateVipGallerySlideshow();
+    const uploadVipGallerySlideshowBackground = useUploadVipGallerySlideshowBackground();
+    const uploadVipGallerySlideshowPartnerLogo = useUploadVipGallerySlideshowPartnerLogo();
+    const expireVipGallerySlideshow = useExpireVipGallerySlideshow();
+    const resetVipGallerySlideshow = useResetVipGallerySlideshow();
+    const slideshowResponse = data?.data;
+    const slideshow = slideshowResponse?.slideshow ?? null;
+    const [form, setForm] = useState<VipSlideshowFormState>(() => createSlideshowFormState());
+    const [hydratedEventId, setHydratedEventId] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!open) {
+            setHydratedEventId(null);
+            return;
+        }
+
+        if (!slideshow || hydratedEventId === eventId) {
+            return;
+        }
+
+        setForm(createSlideshowFormState(slideshow));
+        setHydratedEventId(eventId);
+    }, [eventId, hydratedEventId, open, slideshow]);
+
+    const statusOptions = slideshowResponse?.meta.statuses?.map((option) => ({
+        value: option.value,
+        label: vipSlideshowStatusLabels[option.value] ?? option.label,
+    })) || defaultSlideshowStatusOptions;
+
+    const layoutOptions = slideshowResponse?.meta.layouts?.map((option) => ({
+        value: option.value,
+        label: vipSlideshowLayoutLabels[option.value] ?? option.label,
+    })) || defaultSlideshowLayoutOptions;
+
+    const isMutating =
+        updateVipGallerySlideshow.isPending
+        || uploadVipGallerySlideshowBackground.isPending
+        || uploadVipGallerySlideshowPartnerLogo.isPending
+        || expireVipGallerySlideshow.isPending
+        || resetVipGallerySlideshow.isPending;
+
+    const handleSave = () => {
+        if (!event) {
+            return;
+        }
+
+        updateVipGallerySlideshow.mutate(
+            {
+                eventId: event.id,
+                dto: {
+                    is_enabled: form.is_enabled,
+                    status: form.status,
+                    layout: form.layout,
+                    interval_ms: Math.max(3000, Math.min(60000, form.interval_ms)),
+                    queue_limit: Math.max(1, Math.min(500, form.queue_limit)),
+                    show_neon: form.show_neon,
+                    neon_text: form.neon_text.trim() || null,
+                    instructions_text: form.instructions_text.trim() || null,
+                    expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
+                },
+            },
+            {
+                onSuccess: (response) => {
+                    setForm(createSlideshowFormState(response.data.slideshow));
+                },
+            }
+        );
+    };
+
+    const handleCopyLink = async () => {
+        if (!slideshow?.public_url) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(slideshow.public_url);
+            showToast.success("Link do telão copiado!");
+        } catch {
+            showToast.error("Não foi possível copiar o link do telão");
+        }
+    };
+
+    const handleBackgroundUpload = (file?: File | null) => {
+        if (!event || !file) {
+            return;
+        }
+
+        uploadVipGallerySlideshowBackground.mutate({
+            eventId: event.id,
+            file,
+        });
+    };
+
+    const handlePartnerLogoUpload = (file?: File | null) => {
+        if (!event || !file) {
+            return;
+        }
+
+        uploadVipGallerySlideshowPartnerLogo.mutate({
+            eventId: event.id,
+            file,
+        });
+    };
+
+    const handleExpire = () => {
+        if (!event) {
+            return;
+        }
+
+        expireVipGallerySlideshow.mutate(
+            {
+                eventId: event.id,
+                reason: "manual",
+                expiresAt: form.expires_at ? new Date(form.expires_at).toISOString() : null,
+            },
+            {
+                onSuccess: (response) => {
+                    setForm(createSlideshowFormState(response.data.slideshow));
+                },
+            }
+        );
+    };
+
+    const handleReset = () => {
+        if (!event) {
+            return;
+        }
+
+        resetVipGallerySlideshow.mutate(event.id, {
+            onSuccess: (response) => {
+                setForm(createSlideshowFormState(response.data.slideshow));
+            },
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[920px]">
+                <DialogHeader>
+                    <DialogTitle>Telão / Slideshow</DialogTitle>
+                    <DialogDescription>
+                        {event
+                            ? `Configure o player público em tempo real do evento ${event.titulo}.`
+                            : "Configure o player público da Cobertura VIP."}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                    {isLoading ? (
+                        <div className="flex items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-5">
+                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                            <div>
+                                <p className="font-medium">Carregando telão</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Buscando as configurações atuais e a URL pública do player.
+                                </p>
+                            </div>
+                        </div>
+                    ) : error ? (
+                        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-4 text-sm text-destructive">
+                            Não foi possível carregar as configurações do telão agora. Tente novamente em alguns instantes.
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex flex-col gap-4 rounded-2xl border bg-muted/20 p-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="space-y-1">
+                                    <p className="font-medium">Ativar Telão</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Quando ativo, o link público do player pode abrir o slideshow e receber atualizações em tempo real.
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={form.is_enabled}
+                                    onCheckedChange={(checked) => setForm((current) => ({
+                                        ...current,
+                                        is_enabled: checked,
+                                        status: checked && current.status === "draft" ? "active" : current.status,
+                                    }))}
+                                    disabled={isMutating}
+                                />
+                            </div>
+
+                            <div className="grid gap-4 lg:grid-cols-2">
+                                <div className="space-y-4 rounded-2xl border p-4">
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <Label>Status do Telão</Label>
+                                            <Select
+                                                value={form.status}
+                                                onValueChange={(value) => setForm((current) => ({
+                                                    ...current,
+                                                    status: value as VipSlideshowStatus,
+                                                }))}
+                                                disabled={isMutating}
+                                            >
+                                                <SelectTrigger className="rounded-xl">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {statusOptions.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Layout</Label>
+                                            <Select
+                                                value={form.layout}
+                                                onValueChange={(value) => setForm((current) => ({
+                                                    ...current,
+                                                    layout: value as VipSlideshowLayout,
+                                                }))}
+                                                disabled={isMutating}
+                                            >
+                                                <SelectTrigger className="rounded-xl">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {layoutOptions.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="slideshow-interval">Velocidade (ms)</Label>
+                                            <Input
+                                                id="slideshow-interval"
+                                                type="number"
+                                                min={3000}
+                                                max={60000}
+                                                step={1000}
+                                                value={form.interval_ms}
+                                                onChange={(e) => setForm((current) => ({
+                                                    ...current,
+                                                    interval_ms: Number(e.target.value || 0),
+                                                }))}
+                                                disabled={isMutating}
+                                                className="rounded-xl"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="slideshow-limit">Limite da fila</Label>
+                                            <Input
+                                                id="slideshow-limit"
+                                                type="number"
+                                                min={1}
+                                                max={500}
+                                                value={form.queue_limit}
+                                                onChange={(e) => setForm((current) => ({
+                                                    ...current,
+                                                    queue_limit: Number(e.target.value || 0),
+                                                }))}
+                                                disabled={isMutating}
+                                                className="rounded-xl"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="slideshow-expires-at">Expira em</Label>
+                                            <Input
+                                                id="slideshow-expires-at"
+                                                type="datetime-local"
+                                                value={form.expires_at}
+                                                onChange={(e) => setForm((current) => ({
+                                                    ...current,
+                                                    expires_at: e.target.value,
+                                                }))}
+                                                disabled={isMutating}
+                                                className="rounded-xl"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Mostrar placa neon</Label>
+                                            <div className="flex h-10 items-center rounded-xl border px-3">
+                                                <Switch
+                                                    checked={form.show_neon}
+                                                    onCheckedChange={(checked) => setForm((current) => ({
+                                                        ...current,
+                                                        show_neon: checked,
+                                                    }))}
+                                                    disabled={isMutating}
+                                                />
+                                                <span className="ml-3 text-sm text-muted-foreground">
+                                                    {form.show_neon ? "Ligada" : "Desligada"}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="slideshow-neon-text">Texto da placa</Label>
+                                        <Input
+                                            id="slideshow-neon-text"
+                                            value={form.neon_text}
+                                            onChange={(e) => setForm((current) => ({
+                                                ...current,
+                                                neon_text: e.target.value,
+                                            }))}
+                                            placeholder="Ex.: Casamento Anderson e Maria"
+                                            disabled={isMutating}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="slideshow-instructions">Texto de instrução</Label>
+                                        <Textarea
+                                            id="slideshow-instructions"
+                                            value={form.instructions_text}
+                                            onChange={(e) => setForm((current) => ({
+                                                ...current,
+                                                instructions_text: e.target.value,
+                                            }))}
+                                            placeholder="Envio interno ativo. Assim que uma foto for aprovada, ela entra automaticamente no telao."
+                                            rows={4}
+                                            disabled={isMutating}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 rounded-2xl border p-4">
+                                    <div className="space-y-2">
+                                        <Label>Código do Telão</Label>
+                                        <Input value={slideshow?.slideshow_code || "Será gerado ao salvar pela primeira vez"} readOnly className="rounded-xl" />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>URL pública</Label>
+                                        <Input value={slideshow?.public_url || "Salve ou ative o telão para gerar a URL pública"} readOnly className="rounded-xl" />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="rounded-xl"
+                                            onClick={handleCopyLink}
+                                            disabled={!slideshow?.public_url}
+                                        >
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Copiar link
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="rounded-xl"
+                                            onClick={() => window.open(slideshow?.public_url || "", "_blank", "noopener,noreferrer")}
+                                            disabled={!slideshow?.public_url}
+                                        >
+                                            <Monitor className="mr-2 h-4 w-4" />
+                                            Abrir telão
+                                        </Button>
+                                    </div>
+
+                                    <div className="space-y-3 rounded-2xl bg-muted/20 p-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="slideshow-background">Background</Label>
+                                            {slideshow?.background_url ? (
+                                                <div className="overflow-hidden rounded-xl border bg-muted">
+                                                    <img src={slideshow.background_url} alt="Background do telão" className="h-28 w-full object-cover" />
+                                                </div>
+                                            ) : (
+                                                <div className="flex h-28 items-center justify-center rounded-xl border border-dashed bg-muted/40 text-sm text-muted-foreground">
+                                                    Nenhum background enviado
+                                                </div>
+                                            )}
+                                            <Input
+                                                id="slideshow-background"
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp"
+                                                onChange={(e) => handleBackgroundUpload(e.target.files?.[0])}
+                                                disabled={isMutating}
+                                                className="rounded-xl"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="slideshow-partner-logo">Logo do parceiro</Label>
+                                            {slideshow?.partner_logo_url ? (
+                                                <div className="flex h-28 items-center justify-center rounded-xl border bg-muted p-4">
+                                                    <img src={slideshow.partner_logo_url} alt="Logo do parceiro" className="max-h-full max-w-full object-contain" />
+                                                </div>
+                                            ) : (
+                                                <div className="flex h-28 items-center justify-center rounded-xl border border-dashed bg-muted/40 text-sm text-muted-foreground">
+                                                    Nenhuma logo do parceiro enviada
+                                                </div>
+                                            )}
+                                            <Input
+                                                id="slideshow-partner-logo"
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp"
+                                                onChange={(e) => handlePartnerLogoUpload(e.target.files?.[0])}
+                                                disabled={isMutating}
+                                                className="rounded-xl"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border bg-muted/20 p-4">
+                                        <p className="font-medium">Operação rápida</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            Use estas ações para encerrar o player ou voltar às configurações padrão do evento.
+                                        </p>
+
+                                        <div className="mt-4 flex flex-wrap gap-2">
+                                            <Button
+                                                variant="outline"
+                                                className="rounded-xl"
+                                                onClick={handleReset}
+                                                disabled={isMutating}
+                                            >
+                                                <RotateCcw className="mr-2 h-4 w-4" />
+                                                Resetar
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                className="rounded-xl"
+                                                onClick={handleExpire}
+                                                disabled={isMutating}
+                                            >
+                                                <XCircle className="mr-2 h-4 w-4" />
+                                                Encerrar Telão
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <DialogFooter className="gap-2">
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                        Fechar
+                    </Button>
+                    <Button onClick={handleSave} disabled={isLoading || !!error || isMutating || !event}>
+                        {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Salvar configurações
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function VipCoverageCard({
     event,
     vipGroups,
@@ -134,6 +689,7 @@ function VipCoverageCard({
     isUpdatingStatus,
     onStartEditStatus,
     onChangeStatus,
+    onOpenSlideshow,
     onDownloadAll,
     onOpenPhotos,
     onOpenDelete,
@@ -144,6 +700,7 @@ function VipCoverageCard({
     isUpdatingStatus: boolean;
     onStartEditStatus: (eventId: number | null) => void;
     onChangeStatus: (event: VipCoverageEvent, status: VipGalleryStatus) => void;
+    onOpenSlideshow: (event: VipCoverageEvent) => void;
     onDownloadAll: (event: VipCoverageEvent) => void;
     onOpenPhotos: (event: VipCoverageEvent) => void;
     onOpenDelete: (event: VipCoverageEvent) => void;
@@ -328,6 +885,10 @@ function VipCoverageCard({
                     <Edit className="mr-2 h-4 w-4" />
                     Editar
                 </Button>
+                <Button variant="outline" className="rounded-xl" onClick={() => onOpenSlideshow(event)}>
+                    <Monitor className="mr-2 h-4 w-4" />
+                    Telão
+                </Button>
                 {event.vip_gallery_public_url && (
                     <Button
                         className="rounded-xl"
@@ -374,6 +935,8 @@ const VipCoverageDashboard = () => {
     const [downloadEvent, setDownloadEvent] = useState<VipCoverageEvent | null>(null);
     const [photosEvent, setPhotosEvent] = useState<VipCoverageEvent | null>(null);
     const [deleteEvent, setDeleteEvent] = useState<VipCoverageEvent | null>(null);
+    const [slideshowEvent, setSlideshowEvent] = useState<VipCoverageEvent | null>(null);
+    const [photoMetadataDrafts, setPhotoMetadataDrafts] = useState<Record<number, { short_text: string; highlight_score: number }>>({});
     const [downloadResult, setDownloadResult] = useState<{
         download_url: string;
         file_name: string;
@@ -386,6 +949,7 @@ const VipCoverageDashboard = () => {
     const downloadAllVipGalleryPhotos = useDownloadAllVipGalleryPhotos();
     const updateVipCoverageStatus = useUpdateVipCoverageStatus();
     const updateVipGalleryPhotoApproval = useUpdateVipGalleryPhotoApproval();
+    const updateVipGalleryPhotoSlideshowMetadata = useUpdateVipGalleryPhotoSlideshowMetadata();
     const deleteVipCoverage = useDeleteVipCoverage();
     const { data: eventsData, isLoading, error } = useVipCoverageEvents({
         per_page: 100,
@@ -402,6 +966,25 @@ const VipCoverageDashboard = () => {
     const earliestPhoto = photoDetails?.photos?.length
         ? photoDetails.photos[photoDetails.photos.length - 1]
         : null;
+
+    useEffect(() => {
+        if (!photoDetails) {
+            setPhotoMetadataDrafts({});
+            return;
+        }
+
+        setPhotoMetadataDrafts(
+            Object.fromEntries(
+                photoDetails.photos.map((photo) => [
+                    photo.id,
+                    {
+                        short_text: photo.short_text || "",
+                        highlight_score: photo.highlight_score ?? 0,
+                    },
+                ])
+            )
+        );
+    }, [photoDetails]);
 
     const handleOpenDownloadAll = (event: VipCoverageEvent) => {
         setDownloadEvent(event);
@@ -446,6 +1029,32 @@ const VipCoverageDashboard = () => {
         updateVipGalleryPhotoApproval.mutate({
             photoId: photo.id,
             isApproved: true,
+        });
+    };
+
+    const handlePhotoDraftChange = (
+        photoId: number,
+        changes: Partial<{ short_text: string; highlight_score: number }>
+    ) => {
+        setPhotoMetadataDrafts((current) => ({
+            ...current,
+            [photoId]: {
+                short_text: changes.short_text ?? current[photoId]?.short_text ?? "",
+                highlight_score: changes.highlight_score ?? current[photoId]?.highlight_score ?? 0,
+            },
+        }));
+    };
+
+    const handleSavePhotoMetadata = (photo: VipCoveragePhotoDetail) => {
+        const draft = photoMetadataDrafts[photo.id] ?? {
+            short_text: photo.short_text || "",
+            highlight_score: photo.highlight_score ?? 0,
+        };
+
+        updateVipGalleryPhotoSlideshowMetadata.mutate({
+            photoId: photo.id,
+            shortText: draft.short_text.trim() || null,
+            highlightScore: Math.max(0, Math.min(100, Number(draft.highlight_score || 0))),
         });
     };
 
@@ -635,6 +1244,7 @@ const VipCoverageDashboard = () => {
                             isUpdatingStatus={updateVipCoverageStatus.isPending}
                             onStartEditStatus={setStatusEditorEventId}
                             onChangeStatus={handleStatusChange}
+                            onOpenSlideshow={setSlideshowEvent}
                             onDownloadAll={handleOpenDownloadAll}
                             onOpenPhotos={handleOpenPhotos}
                             onOpenDelete={setDeleteEvent}
@@ -642,6 +1252,16 @@ const VipCoverageDashboard = () => {
                     ))}
                 </motion.div>
             )}
+
+            <VipSlideshowDialog
+                event={slideshowEvent}
+                open={!!slideshowEvent}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSlideshowEvent(null);
+                    }
+                }}
+            />
 
             <Dialog open={!!downloadEvent} onOpenChange={handleCloseDownloadModal}>
                 <DialogContent className="sm:max-w-[420px]">
@@ -860,36 +1480,89 @@ const VipCoverageDashboard = () => {
                                                             <p>Tamanho: {photo.width || 0}x{photo.height || 0}</p>
                                                         </div>
 
-                                                        <div className="flex flex-wrap items-center justify-between gap-3">
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {photo.caption?.trim() ? `Legenda: ${photo.caption}` : "Sem legenda"}
-                                                            </p>
-                                                            {photo.is_approved ? (
+                                                        <div className="grid gap-3 rounded-2xl border bg-muted/20 p-3 md:grid-cols-[1.3fr_180px_auto]">
+                                                            <div className="space-y-2">
+                                                                <Label htmlFor={`photo-short-text-${photo.id}`} className="text-xs uppercase tracking-wide text-muted-foreground">
+                                                                    Texto curto do telão
+                                                                </Label>
+                                                                <Input
+                                                                    id={`photo-short-text-${photo.id}`}
+                                                                    value={photoMetadataDrafts[photo.id]?.short_text ?? ""}
+                                                                    onChange={(event) => handlePhotoDraftChange(photo.id, {
+                                                                        short_text: event.target.value,
+                                                                    })}
+                                                                    className="rounded-xl bg-background"
+                                                                    maxLength={255}
+                                                                    placeholder="Ex.: Entrada dos noivos"
+                                                                />
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {photo.caption?.trim() ? `Legenda original: ${photo.caption}` : "Sem legenda original no WhatsApp"}
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <Label htmlFor={`photo-highlight-${photo.id}`} className="text-xs uppercase tracking-wide text-muted-foreground">
+                                                                    Score de destaque
+                                                                </Label>
+                                                                <Input
+                                                                    id={`photo-highlight-${photo.id}`}
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={100}
+                                                                    value={photoMetadataDrafts[photo.id]?.highlight_score ?? 0}
+                                                                    onChange={(event) => handlePhotoDraftChange(photo.id, {
+                                                                        highlight_score: Number(event.target.value || 0),
+                                                                    })}
+                                                                    className="rounded-xl bg-background"
+                                                                />
+                                                                <div className="flex items-center gap-2">
+                                                                    <Badge variant="outline">
+                                                                        {photoMetadataDrafts[photo.id]?.highlight_score ?? 0}/100
+                                                                    </Badge>
+                                                                    {(photoMetadataDrafts[photo.id]?.highlight_score ?? 0) >= 80 ? (
+                                                                        <Badge className="bg-orange-500 text-white">Destaque</Badge>
+                                                                    ) : null}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex flex-col justify-between gap-3">
                                                                 <Button
                                                                     variant="outline"
                                                                     className="rounded-xl"
-                                                                    onClick={() => handleDeactivatePhoto(photo)}
-                                                                    disabled={updateVipGalleryPhotoApproval.isPending}
+                                                                    onClick={() => handleSavePhotoMetadata(photo)}
+                                                                    disabled={updateVipGalleryPhotoSlideshowMetadata.isPending}
                                                                 >
-                                                                    <XCircle className="mr-2 h-4 w-4" />
-                                                                    Desativar foto
+                                                                    <Save className="mr-2 h-4 w-4" />
+                                                                    Salvar dados
                                                                 </Button>
-                                                            ) : (
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <Badge variant="outline" className="border-destructive/30 text-destructive">
-                                                                        Foto desativada manualmente
-                                                                    </Badge>
+
+                                                                {photo.is_approved ? (
                                                                     <Button
                                                                         variant="outline"
-                                                                        className="rounded-xl border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-700"
-                                                                        onClick={() => handleActivatePhoto(photo)}
+                                                                        className="rounded-xl"
+                                                                        onClick={() => handleDeactivatePhoto(photo)}
                                                                         disabled={updateVipGalleryPhotoApproval.isPending}
                                                                     >
-                                                                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                                                                        Ativar foto
+                                                                        <XCircle className="mr-2 h-4 w-4" />
+                                                                        Desativar foto
                                                                     </Button>
-                                                                </div>
-                                                            )}
+                                                                ) : (
+                                                                    <div className="flex flex-col gap-2">
+                                                                        <Badge variant="outline" className="border-destructive/30 text-destructive">
+                                                                            Foto desativada manualmente
+                                                                        </Badge>
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            className="rounded-xl border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-700"
+                                                                            onClick={() => handleActivatePhoto(photo)}
+                                                                            disabled={updateVipGalleryPhotoApproval.isPending}
+                                                                        >
+                                                                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                                            Ativar foto
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>

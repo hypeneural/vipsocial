@@ -6,6 +6,7 @@ use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
+use App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster;
 use App\Modules\VipGallery\Support\ZApiGalleryPayload;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,7 +34,7 @@ class IngestVipGalleryImageJob implements ShouldQueue
         public readonly int $eventId
     ) {}
 
-    public function handle(VipGalleryMediaManager $mediaManager): void
+    public function handle(VipGalleryMediaManager $mediaManager, VipGallerySlideshowBroadcaster $slideshowBroadcaster): void
     {
         $log = VipGalleryWebhookLog::query()->find($this->logId);
         $event = ExternalEvent::query()->find($this->eventId);
@@ -76,6 +77,9 @@ class IngestVipGalleryImageJob implements ShouldQueue
                 'vip_gallery_photo_id' => $photo->id,
                 'error_message' => null,
             ]);
+
+            $photo->loadMissing('event.vipGallerySlideshow');
+            $slideshowBroadcaster->broadcastNewMedia($photo);
 
             ProcessVipGalleryPhotoJob::dispatch($photo->id)
                 ->onQueue((string) config('vip_gallery.queues.processing', 'vip-gallery-processing'));

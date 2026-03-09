@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { ShimmerPage } from "@/components/Shimmer";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -64,6 +64,7 @@ const ExternasEventForm = lazy(() => import("./pages/externas/EventForm"));
 const ExternasEventDetail = lazy(() => import("./pages/externas/EventDetail"));
 const ExternasVipCoverageDashboard = lazy(() => import("./pages/externas/VipCoverageDashboard"));
 const ExternasVipCoverageLogs = lazy(() => import("./pages/externas/VipCoverageLogs"));
+const SlideshowPage = lazy(() => import("./pages/public/SlideshowPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,6 +83,16 @@ const LegacyVipEventRedirect = ({ edit = false }: { edit?: boolean }) => {
   return <Navigate to={target} replace />;
 };
 
+const RouteAwareOfflineIndicator = () => {
+  const location = useLocation();
+
+  if (location.pathname.startsWith("/slideshow/")) {
+    return null;
+  }
+
+  return <OfflineIndicator />;
+};
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -89,13 +100,14 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <OfflineIndicator />
           <BrowserRouter>
+            <RouteAwareOfflineIndicator />
             <AuthProvider>
               <Suspense fallback={<ShimmerPage />}>
                 <Routes>
                   <Route path="/auth/login" element={<Login />} />
                   <Route path="/auth/recuperar-senha" element={<ForgotPassword />} />
+                  <Route path="/slideshow/:code" element={<SlideshowPage />} />
 
                   <Route element={<ProtectedRoute />}>
                     <Route path="/" element={<Index />} />

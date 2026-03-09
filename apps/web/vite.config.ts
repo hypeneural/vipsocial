@@ -78,6 +78,49 @@ export default defineConfig(({ mode }) => ({
               },
             },
           },
+          {
+            urlPattern: /\/api\/v1\/slideshow\/[^/]+\/(boot|state)$/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "slideshow-api-v1",
+              networkTimeoutSeconds: 4,
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /\/storage\/vip-gallery\/.+\.(png|jpg|jpeg|webp)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "slideshow-images-v1",
+              expiration: {
+                maxEntries: 400,
+                maxAgeSeconds: 60 * 60 * 24 * 14,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /\/storage\/vip-gallery\/.+\.(mp4|webm)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "slideshow-videos-v1",
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 3,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
         ],
       },
     }),
@@ -86,6 +129,10 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  test: {
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.ts",
   },
   define: {
     __APP_BUILD_ID__: JSON.stringify(buildId),

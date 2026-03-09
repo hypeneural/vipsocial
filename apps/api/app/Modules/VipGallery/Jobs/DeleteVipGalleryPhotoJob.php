@@ -6,6 +6,7 @@ use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
+use App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -31,7 +32,7 @@ class DeleteVipGalleryPhotoJob implements ShouldQueue
     ) {
     }
 
-    public function handle(VipGalleryMediaManager $mediaManager): void
+    public function handle(VipGalleryMediaManager $mediaManager, VipGallerySlideshowBroadcaster $slideshowBroadcaster): void
     {
         $log = VipGalleryWebhookLog::query()->find($this->logId);
         $event = ExternalEvent::query()->find($this->eventId);
@@ -63,6 +64,7 @@ class DeleteVipGalleryPhotoJob implements ShouldQueue
         }
 
         try {
+            $photo->loadMissing('event.vipGallerySlideshow');
             $mediaManager->deletePhotoFiles($photo);
 
             $photo->forceFill([
@@ -77,6 +79,8 @@ class DeleteVipGalleryPhotoJob implements ShouldQueue
                 'vip_gallery_photo_id' => $photo->id,
                 'error_message' => null,
             ]);
+
+            $slideshowBroadcaster->broadcastMediaDeleted($photo);
         } catch (Throwable $e) {
             $log->update([
                 'routing_status' => 'failed',

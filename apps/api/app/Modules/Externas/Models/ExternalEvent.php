@@ -6,9 +6,11 @@ use App\Models\User;
 use App\Modules\Config\Models\Equipment;
 use App\Modules\VipGallery\Models\VipGalleryBanner;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
+use App\Modules\VipGallery\Models\VipGallerySlideshow;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
 use App\Support\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ExternalEvent extends Model
 {
@@ -117,6 +119,11 @@ class ExternalEvent extends Model
         return $this->hasMany(VipGalleryBanner::class, 'external_event_id');
     }
 
+    public function vipGallerySlideshow(): HasOne
+    {
+        return $this->hasOne(VipGallerySlideshow::class, 'external_event_id');
+    }
+
     public function isVipGalleryActive(): bool
     {
         return $this->is_vip_gallery && $this->vip_gallery_status === self::VIP_GALLERY_STATUS_ACTIVE;
@@ -145,6 +152,15 @@ class ExternalEvent extends Model
     public function isVipGalleryPubliclyActive(): bool
     {
         return $this->publicVipGalleryStatus() === self::VIP_GALLERY_STATUS_ACTIVE;
+    }
+
+    public function hasEnabledVipGallerySlideshow(): bool
+    {
+        $slideshow = $this->relationLoaded('vipGallerySlideshow')
+            ? $this->getRelation('vipGallerySlideshow')
+            : $this->vipGallerySlideshow()->first();
+
+        return $slideshow?->is_enabled === true;
     }
 
     public static function vipGalleryStatuses(): array
