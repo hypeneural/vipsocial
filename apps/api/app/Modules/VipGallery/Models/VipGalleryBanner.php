@@ -11,6 +11,10 @@ class VipGalleryBanner extends Model
 {
     protected $table = 'vip_gallery_banners';
 
+    protected $appends = [
+        'image_url',
+    ];
+
     protected $fillable = [
         'external_event_id',
         'image_path',
@@ -55,5 +59,10 @@ class VipGalleryBanner extends Model
     public function imageUrl(): string
     {
         return (string) app(VipGalleryMediaManager::class)->publicUrl($this->image_path);
+    }
+
+    public function getImageUrlAttribute(): string
+    {
+        return $this->imageUrl();
     }
 }

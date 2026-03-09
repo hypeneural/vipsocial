@@ -10,6 +10,7 @@ import {
     VipCoverageLogsResponse,
     VipCoverageStats,
     VipGalleryStatus,
+    VipLogoAnchor,
 } from "@/types/externas";
 
 // ==========================================
@@ -33,6 +34,9 @@ export interface CreateExternalEventDTO {
     gallery_slug?: string | null;
     custom_logo_path?: string | null;
     logo_size_percent?: number | null;
+    logo_anchor?: VipLogoAnchor | null;
+    logo_offset_x_percent?: number | null;
+    logo_offset_y_percent?: number | null;
     allow_pause_command?: boolean;
     allow_delete_command?: boolean;
     pause_command_keyword?: string | null;
@@ -199,6 +203,21 @@ export const externaService = {
 
     deleteVipGalleryBanner: async (bannerId: number): Promise<ApiResponse<void>> => {
         const { data } = await api.delete<ApiResponse<void>>(`/vip-gallery/banners/${bannerId}`);
+        return data;
+    },
+
+    reorderVipGalleryBanners: async (
+        eventId: number,
+        bannerIds: number[]
+    ): Promise<ApiResponse<{ banners: VipGalleryBanner[] }>> => {
+        const { data } = await api.patch<ApiResponse<{ banners: VipGalleryBanner[] }>>(
+            "/vip-gallery/banners/reorder",
+            {
+                event_id: eventId,
+                banner_ids: bannerIds,
+            }
+        );
+
         return data;
     },
 

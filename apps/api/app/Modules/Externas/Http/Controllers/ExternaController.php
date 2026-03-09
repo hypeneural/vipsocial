@@ -361,6 +361,9 @@ class ExternaController extends BaseController
             'gallery_slug' => 'Slug da galeria',
             'custom_logo_path' => 'Logo customizada',
             'logo_size_percent' => 'Tamanho da logo',
+            'logo_anchor' => 'Posicao da logo',
+            'logo_offset_x_percent' => 'Espacamento lateral da logo',
+            'logo_offset_y_percent' => 'Espacamento vertical da logo',
             'allow_pause_command' => 'Comando de pausar',
             'allow_delete_command' => 'Comando de apagar',
             'pause_command_keyword' => 'Palavras-chave pausar',
@@ -620,7 +623,10 @@ class ExternaController extends BaseController
             ])),
             'gallery_slug' => ['nullable', 'string', 'max:160', $gallerySlugRule],
             'custom_logo_path' => ['nullable', 'string', 'max:255'],
-            'logo_size_percent' => ['nullable', 'integer', 'min:5', 'max:30'],
+            'logo_size_percent' => ['nullable', 'integer', 'min:5', 'max:25'],
+            'logo_anchor' => ['nullable', Rule::in($this->vipGalleryLogoAnchors())],
+            'logo_offset_x_percent' => ['nullable', 'numeric', 'min:0', 'max:25'],
+            'logo_offset_y_percent' => ['nullable', 'numeric', 'min:0', 'max:25'],
             'allow_pause_command' => ['sometimes', 'boolean'],
             'allow_delete_command' => ['sometimes', 'boolean'],
             'pause_command_keyword' => ['nullable', 'string', 'max:100'],
@@ -693,7 +699,10 @@ class ExternaController extends BaseController
                 'whatsapp_group_id' => null,
                 'gallery_slug' => null,
                 'custom_logo_path' => null,
-                'logo_size_percent' => 15,
+                'logo_size_percent' => $this->defaultLogoSizePercent(),
+                'logo_anchor' => $this->defaultLogoAnchor(),
+                'logo_offset_x_percent' => $this->defaultLogoOffsetPercent(),
+                'logo_offset_y_percent' => $this->defaultLogoOffsetPercent(),
                 'allow_pause_command' => false,
                 'allow_delete_command' => false,
                 'pause_command_keyword' => $this->defaultPauseCommandKeywords(),
@@ -719,7 +728,10 @@ class ExternaController extends BaseController
                 $validated['titulo'] ?? $event?->titulo
             ),
             'custom_logo_path' => $this->normalizeVipGalleryLogoPath($validated['custom_logo_path'] ?? $event?->custom_logo_path),
-            'logo_size_percent' => (int) ($validated['logo_size_percent'] ?? $event?->logo_size_percent ?? 15),
+            'logo_size_percent' => $this->normalizeLogoSizePercent($validated['logo_size_percent'] ?? $event?->logo_size_percent),
+            'logo_anchor' => $this->normalizeLogoAnchor($validated['logo_anchor'] ?? $event?->logo_anchor),
+            'logo_offset_x_percent' => $this->normalizeLogoOffsetPercent($validated['logo_offset_x_percent'] ?? $event?->logo_offset_x_percent),
+            'logo_offset_y_percent' => $this->normalizeLogoOffsetPercent($validated['logo_offset_y_percent'] ?? $event?->logo_offset_y_percent),
             'allow_pause_command' => $allowPauseCommand,
             'allow_delete_command' => $allowDeleteCommand,
             'pause_command_keyword' => $allowPauseCommand
@@ -759,6 +771,29 @@ class ExternaController extends BaseController
         return (string) config('vip_gallery.pause.default_keywords', 'Parar,Pausar');
     }
 
+    private function defaultLogoAnchor(): string
+    {
+        return (string) config('vip_gallery.images.logo_position', 'bottom_center');
+    }
+
+    private function defaultLogoSizePercent(): int
+    {
+        return (int) config('vip_gallery.images.logo_size_percent_default', 12);
+    }
+
+    private function defaultLogoOffsetPercent(): float
+    {
+        return (float) config('vip_gallery.images.logo_offset_percent_default', 3);
+    }
+
+    private function vipGalleryLogoAnchors(): array
+    {
+        return collect(config('vip_gallery.images.logo_anchors', []))
+            ->filter(fn ($anchor) => is_string($anchor) && trim($anchor) !== '')
+            ->values()
+            ->all();
+    }
+
     private function normalizeVipGalleryLogoPath(mixed $value): ?string
     {
         if (! is_string($value)) {
@@ -768,6 +803,34 @@ class ExternaController extends BaseController
         $normalized = trim($value);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizeLogoAnchor(mixed $value): string
+    {
+        $anchor = trim((string) $value);
+
+        if ($anchor === '' || ! in_array($anchor, $this->vipGalleryLogoAnchors(), true)) {
+            return $this->defaultLogoAnchor();
+        }
+
+        return $anchor;
+    }
+
+    private function normalizeLogoSizePercent(mixed $value): int
+    {
+        $min = (int) config('vip_gallery.images.logo_size_percent_min', 5);
+        $max = (int) config('vip_gallery.images.logo_size_percent_max', 25);
+        $size = is_numeric($value) ? (int) round((float) $value) : $this->defaultLogoSizePercent();
+
+        return min(max($size, $min), $max);
+    }
+
+    private function normalizeLogoOffsetPercent(mixed $value): float
+    {
+        $safeArea = (float) config('vip_gallery.images.logo_safe_area_percent', 2);
+        $offset = is_numeric($value) ? round((float) $value, 2) : $this->defaultLogoOffsetPercent();
+
+        return max($safeArea, $offset);
     }
 
     private function normalizeVipGallerySlug(mixed $value, mixed $fallbackTitle = null): ?string

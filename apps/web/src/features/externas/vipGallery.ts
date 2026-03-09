@@ -1,5 +1,6 @@
 import type {
     VipGalleryGroupOption,
+    VipLogoAnchor,
     VipGalleryStatus,
     VipLogoMode,
 } from "@/types/externas";
@@ -20,6 +21,21 @@ export const FALLBACK_VIP_GROUPS: VipGalleryGroupOption[] = [
 export const DEFAULT_VIP_DELETE_KEYWORDS = "Deletar,Apagar,Excluir";
 export const DEFAULT_VIP_PAUSE_KEYWORDS = "Parar,Pausar";
 export const VIP_NO_LOGO_SENTINEL = "__none__";
+export const DEFAULT_VIP_LOGO_ANCHOR: VipLogoAnchor = "bottom_center";
+export const DEFAULT_VIP_LOGO_OFFSET_PERCENT = 3;
+export const DEFAULT_VIP_LOGO_SAFE_AREA_PERCENT = 2;
+export const DEFAULT_VIP_LOGO_SIZE_PERCENT = 12;
+export const VIP_LOGO_ANCHOR_PRESETS: Array<{ value: VipLogoAnchor; label: string }> = [
+    { value: "top_left", label: "Superior esquerdo" },
+    { value: "top_center", label: "Superior centro" },
+    { value: "top_right", label: "Superior direito" },
+    { value: "center_left", label: "Centro esquerdo" },
+    { value: "center", label: "Centro" },
+    { value: "center_right", label: "Centro direito" },
+    { value: "bottom_left", label: "Inferior esquerdo" },
+    { value: "bottom_center", label: "Inferior centro" },
+    { value: "bottom_right", label: "Inferior direito" },
+];
 
 export function vipGalleryStatusLabel(status?: VipGalleryStatus | null): string {
     return VIP_GALLERY_STATUS_LABELS[status || "draft"];

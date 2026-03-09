@@ -101,15 +101,17 @@ class VipGalleryMediaManager
                     $logo,
                     $width,
                     $height,
-                    (int) ($event->logo_size_percent ?: config('vip_gallery.images.logo_size_percent_default', 15))
+                    (int) ($event->logo_size_percent ?: config('vip_gallery.images.logo_size_percent_default', 12)),
+                    $event
                 );
+                [$destinationX, $destinationY] = $this->logoDestination($event, $width, $height, $logoWidth, $logoHeight);
 
                 imagealphablending($output, true);
                 imagecopy(
                     $output,
                     $resizedLogo,
-                    $this->logoDestinationX($width, $logoWidth),
-                    $this->logoDestinationY($height, $logoHeight),
+                    $destinationX,
+                    $destinationY,
                     0,
                     0,
                     $logoWidth,
@@ -413,16 +415,17 @@ class VipGalleryMediaManager
         return $defaultPath !== '' ? $defaultPath : null;
     }
 
-    private function resizeLogo($logo, int $imageWidth, int $imageHeight, int $requestedPercent): array
+    private function resizeLogo($logo, int $imageWidth, int $imageHeight, int $requestedPercent, ExternalEvent $event): array
     {
         $logoWidth = max(1, imagesx($logo));
         $logoHeight = max(1, imagesy($logo));
         $logoSizePercent = min(
             max($requestedPercent, (int) config('vip_gallery.images.logo_size_percent_min', 5)),
-            (int) config('vip_gallery.images.logo_size_percent_max', 30)
+            (int) config('vip_gallery.images.logo_size_percent_max', 25)
         );
-        $maxWidth = max(1, $imageWidth - ($this->logoMarginRight() * 2));
-        $maxHeight = max(1, $imageHeight - ($this->logoMarginBottom() * 2));
+        $safeArea = $this->safeAreaPercent();
+        $maxWidth = max(1, $imageWidth - ($this->percentToPixels($imageWidth, $safeArea) * 2));
+        $maxHeight = max(1, $imageHeight - ($this->percentToPixels($imageHeight, $safeArea) * 2));
         $targetWidth = max(1, (int) round($imageWidth * ($logoSizePercent / 100)));
         $scale = min(
             $targetWidth / $logoWidth,
@@ -464,28 +467,59 @@ class VipGalleryMediaManager
         imagefilledrectangle($image, 0, 0, $width, $height, $transparent);
     }
 
-    private function logoDestinationX(int $imageWidth, int $logoWidth): int
+    private function logoDestination(ExternalEvent $event, int $imageWidth, int $imageHeight, int $logoWidth, int $logoHeight): array
     {
-        if ((string) config('vip_gallery.images.logo_position', 'bottom_center') === 'bottom_center') {
-            return max(0, (int) floor(($imageWidth - $logoWidth) / 2));
+        $anchor = $this->normalizedAnchor((string) ($event->logo_anchor ?: config('vip_gallery.images.logo_position', 'bottom_center')));
+        [$row, $column] = explode('_', $anchor, 2) + [1 => 'center'];
+        $offsetXPercent = $this->normalizedOffsetPercent($event->logo_offset_x_percent);
+        $offsetYPercent = $this->normalizedOffsetPercent($event->logo_offset_y_percent);
+        $offsetXPixels = $this->percentToPixels($imageWidth, $offsetXPercent);
+        $offsetYPixels = $this->percentToPixels($imageHeight, $offsetYPercent);
+
+        $x = match ($column) {
+            'left' => $offsetXPixels,
+            'right' => max(0, $imageWidth - $logoWidth - $offsetXPixels),
+            default => max(0, (int) floor(($imageWidth - $logoWidth) / 2)),
+        };
+
+        $y = match ($row) {
+            'top' => $offsetYPixels,
+            'bottom' => max(0, $imageHeight - $logoHeight - $offsetYPixels),
+            default => max(0, (int) floor(($imageHeight - $logoHeight) / 2)),
+        };
+
+        return [$x, $y];
+    }
+
+    private function percentToPixels(int $dimension, float $percent): int
+    {
+        return max(0, (int) round($dimension * ($percent / 100)));
+    }
+
+    private function safeAreaPercent(): float
+    {
+        return max(0, (float) config('vip_gallery.images.logo_safe_area_percent', 2));
+    }
+
+    private function normalizedOffsetPercent(mixed $value): float
+    {
+        $offset = is_numeric($value)
+            ? (float) $value
+            : (float) config('vip_gallery.images.logo_offset_percent_default', 3);
+
+        return max($this->safeAreaPercent(), $offset);
+    }
+
+    private function normalizedAnchor(string $anchor): string
+    {
+        $allowedAnchors = config('vip_gallery.images.logo_anchors', []);
+        $normalized = trim($anchor);
+
+        if (! in_array($normalized, $allowedAnchors, true)) {
+            return (string) config('vip_gallery.images.logo_position', 'bottom_center');
         }
 
-        return max(0, $imageWidth - $logoWidth - $this->logoMarginRight());
-    }
-
-    private function logoDestinationY(int $imageHeight, int $logoHeight): int
-    {
-        return max(0, $imageHeight - $logoHeight - $this->logoMarginBottom());
-    }
-
-    private function logoMarginRight(): int
-    {
-        return max(0, (int) config('vip_gallery.images.logo_margin_right_px', 24));
-    }
-
-    private function logoMarginBottom(): int
-    {
-        return max(0, (int) config('vip_gallery.images.logo_margin_bottom_px', 24));
+        return $normalized;
     }
 
     private function storage(): Filesystem

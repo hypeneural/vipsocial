@@ -103,6 +103,9 @@ beforeEach(function () {
         $table->string('gallery_slug', 160)->nullable()->unique();
         $table->string('custom_logo_path')->nullable();
         $table->unsignedInteger('logo_size_percent')->default(15);
+        $table->string('logo_anchor', 32)->default('bottom_center');
+        $table->decimal('logo_offset_x_percent', 5, 2)->default(3);
+        $table->decimal('logo_offset_y_percent', 5, 2)->default(3);
         $table->unsignedBigInteger('views_count')->default(0);
         $table->boolean('allow_pause_command')->default(true);
         $table->boolean('allow_delete_command')->default(false);
@@ -253,7 +256,10 @@ function createVipGalleryEvent(array $overrides = []): ExternalEvent
         'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_ACTIVE,
         'whatsapp_group_id' => '120363027326371817-group',
         'gallery_slug' => 'casamento-vip',
-        'logo_size_percent' => 15,
+        'logo_size_percent' => 12,
+        'logo_anchor' => 'bottom_center',
+        'logo_offset_x_percent' => 3,
+        'logo_offset_y_percent' => 3,
         'allow_pause_command' => true,
         'allow_delete_command' => true,
         'pause_command_keyword' => 'Parar,Pausar',
@@ -994,7 +1000,13 @@ test('vip gallery admin options and logs expose operational context', function (
         ->assertJsonPath('data.groups.0.label', 'Galeria 1')
         ->assertJsonPath('data.default_delete_keywords', 'Deletar,Apagar,Excluir')
         ->assertJsonPath('data.default_pause_keywords', 'Parar,Pausar')
-        ->assertJsonPath('data.no_logo_sentinel', '__none__');
+        ->assertJsonPath('data.no_logo_sentinel', '__none__')
+        ->assertJsonPath('data.banner_guidelines.rendered_width', 744)
+        ->assertJsonPath('data.banner_guidelines.rendered_height', 144)
+        ->assertJsonPath('data.banner_guidelines.ratio_label', '31:6')
+        ->assertJsonPath('data.logo_defaults.anchor', 'bottom_center')
+        ->assertJsonPath('data.logo_defaults.size_percent', 12)
+        ->assertJsonPath('data.logo_defaults.safe_area_percent', 2);
 
     $this->actingAs($user, 'sanctum')
         ->getJson('/api/v1/vip-gallery/logs')
@@ -1050,4 +1062,50 @@ test('admin can upload vip banners and generate zip download for event photos', 
 
     $fileName = (string) $zipResponse->json('data.file_name');
     expect(Storage::disk('public')->exists("vip-gallery/exports/events/{$event->id}/{$fileName}"))->toBeTrue();
+});
+
+test('admin show payload exposes banner preview urls for edit screen and can reorder banners', function () {
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-edit-preview',
+        'custom_logo_path' => 'vip-gallery/logos/events/1/logo.png',
+    ]);
+
+    Storage::disk('public')->put('vip-gallery/logos/events/1/logo.png', 'logo');
+
+    $bannerOne = VipGalleryBanner::query()->create([
+        'external_event_id' => $event->id,
+        'image_path' => 'vip-gallery/banners/events/'.$event->id.'/banner-1.jpg',
+        'alt_text' => 'Banner 1',
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+    $bannerTwo = VipGalleryBanner::query()->create([
+        'external_event_id' => $event->id,
+        'image_path' => 'vip-gallery/banners/events/'.$event->id.'/banner-2.jpg',
+        'alt_text' => 'Banner 2',
+        'sort_order' => 2,
+        'is_active' => true,
+    ]);
+
+    Storage::disk('public')->put($bannerOne->image_path, 'banner-1');
+    Storage::disk('public')->put($bannerTwo->image_path, 'banner-2');
+
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson("/api/v1/externas/{$event->id}")
+        ->assertOk()
+        ->assertJsonPath('data.custom_logo_url', 'https://adm.tvvip.social/storage/vip-gallery/logos/events/1/logo.png')
+        ->assertJsonPath('data.vip_gallery_banners.0.image_url', 'https://adm.tvvip.social/storage/vip-gallery/banners/events/'.$event->id.'/banner-1.jpg');
+
+    $this->actingAs($user, 'sanctum')
+        ->patchJson('/api/v1/vip-gallery/banners/reorder', [
+            'event_id' => $event->id,
+            'banner_ids' => [$bannerTwo->id, $bannerOne->id],
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.banners.0.id', $bannerTwo->id)
+        ->assertJsonPath('data.banners.0.sort_order', 1)
+        ->assertJsonPath('data.banners.1.id', $bannerOne->id)
+        ->assertJsonPath('data.banners.1.sort_order', 2);
 });

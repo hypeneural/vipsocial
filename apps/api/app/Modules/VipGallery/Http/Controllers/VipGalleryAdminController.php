@@ -42,6 +42,20 @@ class VipGalleryAdminController extends BaseController
             'default_pause_keywords' => (string) config('vip_gallery.pause.default_keywords', 'Parar,Pausar'),
             'default_logo_url' => $mediaManager->defaultLogoUrl(),
             'no_logo_sentinel' => $mediaManager->noLogoSentinel(),
+            'banner_guidelines' => [
+                'rendered_width' => (int) config('vip_gallery.images.banner_rendered_width', 744),
+                'rendered_height' => (int) config('vip_gallery.images.banner_rendered_height', 144),
+                'ratio_label' => (string) config('vip_gallery.images.banner_ratio_label', '31:6'),
+            ],
+            'logo_defaults' => [
+                'anchor' => (string) config('vip_gallery.images.logo_position', 'bottom_center'),
+                'size_percent' => (int) config('vip_gallery.images.logo_size_percent_default', 12),
+                'min_size_percent' => (int) config('vip_gallery.images.logo_size_percent_min', 5),
+                'max_size_percent' => (int) config('vip_gallery.images.logo_size_percent_max', 25),
+                'safe_area_percent' => (float) config('vip_gallery.images.logo_safe_area_percent', 2),
+                'offset_percent' => (float) config('vip_gallery.images.logo_offset_percent_default', 3),
+                'anchors' => array_values(config('vip_gallery.images.logo_anchors', [])),
+            ],
         ]);
     }
 
@@ -195,6 +209,50 @@ class VipGalleryAdminController extends BaseController
         $banner->delete();
 
         return $this->jsonDeleted('Banner removido com sucesso');
+    }
+
+    public function reorderBanners(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'event_id' => ['required', 'integer', 'exists:external_events,id'],
+            'banner_ids' => ['required', 'array', 'min:1'],
+            'banner_ids.*' => ['required', 'integer', 'distinct', 'exists:vip_gallery_banners,id'],
+        ]);
+
+        $eventId = (int) $validated['event_id'];
+        $orderedIds = array_values(array_map('intval', $validated['banner_ids']));
+        $banners = VipGalleryBanner::query()
+            ->where('external_event_id', $eventId)
+            ->whereIn('id', $orderedIds)
+            ->get()
+            ->keyBy('id');
+
+        if ($banners->count() !== count($orderedIds)) {
+            return $this->jsonError(
+                'Um ou mais banners informados nao pertencem ao evento selecionado',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        DB::transaction(function () use ($orderedIds, $banners) {
+            foreach ($orderedIds as $index => $bannerId) {
+                $banner = $banners->get($bannerId);
+                $banner?->forceFill([
+                    'sort_order' => $index + 1,
+                ])->save();
+            }
+        });
+
+        $orderedBanners = VipGalleryBanner::query()
+            ->where('external_event_id', $eventId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return $this->jsonSuccess([
+            'banners' => GalleryBannerResource::collection($orderedBanners)->resolve($request),
+        ], 'Ordem dos banners atualizada com sucesso');
     }
 
     public function downloadAll(ExternalEvent $event, VipGalleryMediaManager $mediaManager): JsonResponse

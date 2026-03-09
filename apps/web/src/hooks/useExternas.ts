@@ -306,6 +306,20 @@ export function useDeleteVipGalleryBanner() {
     });
 }
 
+export function useReorderVipGalleryBanners() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ eventId, bannerIds }: { eventId: number; bannerIds: number[] }) =>
+            externaService.reorderVipGalleryBanners(eventId, bannerIds),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            showToast.success("Ordem dos banners atualizada!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao reordenar os banners"),
+    });
+}
+
 export function useDownloadAllVipGalleryPhotos() {
     return useMutation({
         mutationFn: (eventId: number) => externaService.downloadAllVipGalleryPhotos(eventId),

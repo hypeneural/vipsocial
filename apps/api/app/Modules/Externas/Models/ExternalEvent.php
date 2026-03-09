@@ -6,12 +6,17 @@ use App\Models\User;
 use App\Modules\Config\Models\Equipment;
 use App\Modules\VipGallery\Models\VipGalleryBanner;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
+use App\Modules\VipGallery\Support\VipGalleryMediaManager;
 use App\Support\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class ExternalEvent extends Model
 {
     use Auditable;
+
+    protected $appends = [
+        'custom_logo_url',
+    ];
 
     public const VIP_GALLERY_STATUS_DRAFT = 'draft';
 
@@ -41,6 +46,9 @@ class ExternalEvent extends Model
         'gallery_slug',
         'custom_logo_path',
         'logo_size_percent',
+        'logo_anchor',
+        'logo_offset_x_percent',
+        'logo_offset_y_percent',
         'allow_pause_command',
         'allow_delete_command',
         'pause_command_keyword',
@@ -52,6 +60,8 @@ class ExternalEvent extends Model
         'data_hora_fim' => 'datetime',
         'is_vip_gallery' => 'boolean',
         'logo_size_percent' => 'integer',
+        'logo_offset_x_percent' => 'float',
+        'logo_offset_y_percent' => 'float',
         'views_count' => 'integer',
         'allow_pause_command' => 'boolean',
         'allow_delete_command' => 'boolean',
@@ -150,6 +160,17 @@ class ExternalEvent extends Model
     public static function getAuditModule(): string
     {
         return 'externas';
+    }
+
+    public function getCustomLogoUrlAttribute(): ?string
+    {
+        $path = trim((string) ($this->custom_logo_path ?? ''));
+
+        if ($path === '' || app(VipGalleryMediaManager::class)->isNoLogoPath($path)) {
+            return null;
+        }
+
+        return app(VipGalleryMediaManager::class)->publicUrl($path);
     }
 
     public function getAuditResourceName(): string

@@ -28,6 +28,16 @@ export interface EventStatusData {
 
 export type VipGalleryStatus = 'draft' | 'active' | 'paused' | 'archived';
 export type VipLogoMode = 'default' | 'custom' | 'none';
+export type VipLogoAnchor =
+    | 'top_left'
+    | 'top_center'
+    | 'top_right'
+    | 'center_left'
+    | 'center'
+    | 'center_right'
+    | 'bottom_left'
+    | 'bottom_center'
+    | 'bottom_right';
 
 export interface VipCoverageStats {
     total_galleries: number;
@@ -63,6 +73,20 @@ export interface VipGalleryAdminOptions {
     default_pause_keywords: string;
     default_logo_url?: string | null;
     no_logo_sentinel: string;
+    banner_guidelines?: {
+        rendered_width: number;
+        rendered_height: number;
+        ratio_label: string;
+    };
+    logo_defaults?: {
+        anchor: VipLogoAnchor;
+        size_percent: number;
+        min_size_percent: number;
+        max_size_percent: number;
+        safe_area_percent: number;
+        offset_percent: number;
+        anchors: VipLogoAnchor[];
+    };
 }
 
 export interface VipCoverageLogSummary {
@@ -212,7 +236,11 @@ export interface ExternalEvent {
     whatsapp_group_id?: string | null;
     gallery_slug?: string | null;
     custom_logo_path?: string | null;
+    custom_logo_url?: string | null;
     logo_size_percent?: number | null;
+    logo_anchor?: VipLogoAnchor | null;
+    logo_offset_x_percent?: number | null;
+    logo_offset_y_percent?: number | null;
     views_count?: number;
     allow_pause_command?: boolean;
     allow_delete_command?: boolean;

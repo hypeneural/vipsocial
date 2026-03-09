@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
 import {
     ArrowLeft,
+    ArrowDown,
+    ArrowUp,
     Save,
     Calendar,
     MapPin,
@@ -37,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
 import {
     Select,
     SelectContent,
@@ -73,6 +76,7 @@ import {
     useEquipmentAvailability,
     useVipGalleryOptions,
     useDeleteVipGalleryBanner,
+    useReorderVipGalleryBanners,
     useUploadVipGalleryBanners,
     useUploadVipGalleryLogo,
 } from "@/hooks/useExternas";
@@ -80,15 +84,20 @@ import { useColaboradores } from "@/hooks/useColaboradores";
 import { useEquipamentos } from "@/hooks/useEquipamentos";
 import showToast from "@/lib/toast";
 import type { CreateExternalEventDTO, EquipmentConflict } from "@/services/externa.service";
-import type { EventCategory, EventStatusData, VipGalleryBanner, VipGalleryStatus, VipLogoMode } from "@/types/externas";
+import type { EventCategory, EventStatusData, VipGalleryBanner, VipGalleryStatus, VipLogoAnchor, VipLogoMode } from "@/types/externas";
 import { generateGoogleCalendarUrl, ExternalEvent } from "@/types/externas";
 import { cn } from "@/lib/utils";
 import {
     DEFAULT_VIP_DELETE_KEYWORDS,
+    DEFAULT_VIP_LOGO_ANCHOR,
+    DEFAULT_VIP_LOGO_OFFSET_PERCENT,
+    DEFAULT_VIP_LOGO_SAFE_AREA_PERCENT,
+    DEFAULT_VIP_LOGO_SIZE_PERCENT,
     DEFAULT_VIP_PAUSE_KEYWORDS,
     FALLBACK_VIP_GROUPS,
     deriveVipLogoMode,
     suggestVipGallerySlug,
+    VIP_LOGO_ANCHOR_PRESETS,
     VIP_GALLERY_STATUS_LABELS,
     VIP_NO_LOGO_SENTINEL,
 } from "@/features/externas/vipGallery";
@@ -336,6 +345,17 @@ const EventForm = () => {
     const defaultDeleteKeywords = vipOptions?.default_delete_keywords || DEFAULT_VIP_DELETE_KEYWORDS;
     const defaultPauseKeywords = vipOptions?.default_pause_keywords || DEFAULT_VIP_PAUSE_KEYWORDS;
     const noLogoSentinel = vipOptions?.no_logo_sentinel || VIP_NO_LOGO_SENTINEL;
+    const bannerGuidelines = vipOptions?.banner_guidelines;
+    const logoDefaults = vipOptions?.logo_defaults;
+    const logoAnchorOptions = logoDefaults?.anchors?.length
+        ? VIP_LOGO_ANCHOR_PRESETS.filter((preset) => logoDefaults.anchors.includes(preset.value))
+        : VIP_LOGO_ANCHOR_PRESETS;
+    const logoSizeMin = logoDefaults?.min_size_percent ?? 5;
+    const logoSizeMax = logoDefaults?.max_size_percent ?? 25;
+    const logoSafeAreaPercent = logoDefaults?.safe_area_percent ?? DEFAULT_VIP_LOGO_SAFE_AREA_PERCENT;
+    const logoDefaultOffsetPercent = logoDefaults?.offset_percent ?? DEFAULT_VIP_LOGO_OFFSET_PERCENT;
+    const logoDefaultSizePercent = logoDefaults?.size_percent ?? DEFAULT_VIP_LOGO_SIZE_PERCENT;
+    const logoDefaultAnchor = logoDefaults?.anchor ?? DEFAULT_VIP_LOGO_ANCHOR;
 
     // ── Mutations ─────────────────────────────
     const createEvent = useCreateExterna();
@@ -349,6 +369,7 @@ const EventForm = () => {
     const uploadVipGalleryLogo = useUploadVipGalleryLogo();
     const uploadVipGalleryBanners = useUploadVipGalleryBanners();
     const deleteVipGalleryBanner = useDeleteVipGalleryBanner();
+    const reorderVipGalleryBanners = useReorderVipGalleryBanners();
 
     // ── Modal state ───────────────────────────
     const [catModalOpen, setCatModalOpen] = useState(false);
@@ -373,7 +394,11 @@ const EventForm = () => {
     const [gallerySlug, setGallerySlug] = useState("");
     const [vipLogoMode, setVipLogoMode] = useState<VipLogoMode>("default");
     const [customLogoPath, setCustomLogoPath] = useState("");
-    const [logoSizePercent, setLogoSizePercent] = useState("15");
+    const [customLogoPreviewUrl, setCustomLogoPreviewUrl] = useState<string | null>(null);
+    const [logoSizePercent, setLogoSizePercent] = useState<number>(DEFAULT_VIP_LOGO_SIZE_PERCENT);
+    const [logoAnchor, setLogoAnchor] = useState<VipLogoAnchor>(DEFAULT_VIP_LOGO_ANCHOR);
+    const [logoOffsetXPercent, setLogoOffsetXPercent] = useState<number>(DEFAULT_VIP_LOGO_OFFSET_PERCENT);
+    const [logoOffsetYPercent, setLogoOffsetYPercent] = useState<number>(DEFAULT_VIP_LOGO_OFFSET_PERCENT);
     const [allowPauseCommand, setAllowPauseCommand] = useState(true);
     const [allowDeleteCommand, setAllowDeleteCommand] = useState(true);
     const [pauseCommandKeyword, setPauseCommandKeyword] = useState(DEFAULT_VIP_PAUSE_KEYWORDS);
@@ -387,6 +412,7 @@ const EventForm = () => {
     const categorySelectValue = categoryId === "" ? "__select_category__" : String(categoryId);
     const statusSelectValue = statusId === "" ? "__select_status__" : String(statusId);
     const whatsappGroupSelectValue = whatsappGroupId === "" ? "__select_vip_group__" : whatsappGroupId;
+    const persistedEventId = savedEvent?.id || existingEvent?.data?.id || (isEditing ? Number(id) : null);
 
     // ── Equipment availability check ──────────
     const availabilityParams = useMemo(() => {
@@ -440,8 +466,12 @@ const EventForm = () => {
             setWhatsappGroupId(ev.whatsapp_group_id || "");
             setGallerySlug(ev.gallery_slug || "");
             setCustomLogoPath(ev.custom_logo_path || "");
+            setCustomLogoPreviewUrl(ev.custom_logo_url || null);
             setVipLogoMode(deriveVipLogoMode(ev.custom_logo_path, noLogoSentinel));
-            setLogoSizePercent(String(ev.logo_size_percent || 15));
+            setLogoSizePercent(ev.logo_size_percent || logoDefaultSizePercent);
+            setLogoAnchor((ev.logo_anchor || logoDefaultAnchor) as VipLogoAnchor);
+            setLogoOffsetXPercent(Number(ev.logo_offset_x_percent || logoDefaultOffsetPercent));
+            setLogoOffsetYPercent(Number(ev.logo_offset_y_percent || logoDefaultOffsetPercent));
             setAllowPauseCommand(ev.allow_pause_command ?? true);
             setAllowDeleteCommand(!!ev.allow_delete_command);
             setPauseCommandKeyword(ev.pause_command_keyword || defaultPauseKeywords);
@@ -457,7 +487,16 @@ const EventForm = () => {
             );
             setSelectedEquips(ev.equipment?.map((e) => e.id) || []);
         }
-    }, [isEditing, existingEvent, defaultDeleteKeywords, defaultPauseKeywords, noLogoSentinel]);
+    }, [
+        isEditing,
+        existingEvent,
+        defaultDeleteKeywords,
+        defaultPauseKeywords,
+        logoDefaultAnchor,
+        logoDefaultOffsetPercent,
+        logoDefaultSizePercent,
+        noLogoSentinel,
+    ]);
 
     useEffect(() => {
         if (!isEditing && categories.length && !categoryId) {
@@ -476,8 +515,19 @@ const EventForm = () => {
         if (!isEditing) {
             setDeleteCommandKeyword((current) => current.trim() || defaultDeleteKeywords);
             setPauseCommandKeyword((current) => current.trim() || defaultPauseKeywords);
+            setLogoAnchor((current) => current || logoDefaultAnchor);
+            setLogoSizePercent((current) => current || logoDefaultSizePercent);
+            setLogoOffsetXPercent((current) => current || logoDefaultOffsetPercent);
+            setLogoOffsetYPercent((current) => current || logoDefaultOffsetPercent);
         }
-    }, [defaultDeleteKeywords, defaultPauseKeywords, isEditing]);
+    }, [
+        defaultDeleteKeywords,
+        defaultPauseKeywords,
+        isEditing,
+        logoDefaultAnchor,
+        logoDefaultOffsetPercent,
+        logoDefaultSizePercent,
+    ]);
 
     useEffect(() => {
         if (!isVipGallery || gallerySlugTouched) {
@@ -486,6 +536,85 @@ const EventForm = () => {
 
         setGallerySlug(suggestVipGallerySlug(titulo));
     }, [gallerySlugTouched, isVipGallery, titulo]);
+
+    const pendingBannerPreviews = useMemo(
+        () => pendingBannerFiles.map((file, index) => ({
+            id: `${file.name}-${file.size}-${index}`,
+            name: file.name,
+            sizeMb: (file.size / 1024 / 1024).toFixed(2),
+            url: URL.createObjectURL(file),
+        })),
+        [pendingBannerFiles]
+    );
+
+    useEffect(() => {
+        return () => {
+            pendingBannerPreviews.forEach((preview) => {
+                URL.revokeObjectURL(preview.url);
+            });
+        };
+    }, [pendingBannerPreviews]);
+
+    const previewLogoUrl = vipLogoMode === "custom"
+        ? customLogoPreviewUrl
+        : vipLogoMode === "default"
+            ? (vipOptions?.default_logo_url || null)
+            : null;
+
+    const logoPreviewStyle = useMemo(() => {
+        const widthPercent = Math.min(Math.max(logoSizePercent || logoDefaultSizePercent, logoSizeMin), logoSizeMax);
+        const xPercent = Math.max(logoOffsetXPercent || logoDefaultOffsetPercent, logoSafeAreaPercent);
+        const yPercent = Math.max(logoOffsetYPercent || logoDefaultOffsetPercent, logoSafeAreaPercent);
+        const style: Record<string, string> = {
+            width: `${widthPercent}%`,
+            height: "auto",
+        };
+
+        const [vertical, horizontal] = logoAnchor.split("_") as [string, string?];
+        const resolvedHorizontal = horizontal || "center";
+
+        if (resolvedHorizontal === "left") {
+            style.left = `${xPercent}%`;
+        } else if (resolvedHorizontal === "right") {
+            style.right = `${xPercent}%`;
+        } else {
+            style.left = "50%";
+        }
+
+        if (vertical === "top") {
+            style.top = `${yPercent}%`;
+        } else if (vertical === "bottom") {
+            style.bottom = `${yPercent}%`;
+        } else {
+            style.top = "50%";
+        }
+
+        const transforms: string[] = [];
+
+        if (resolvedHorizontal === "center") {
+            transforms.push("translateX(-50%)");
+        }
+
+        if (vertical === "center") {
+            transforms.push("translateY(-50%)");
+        }
+
+        if (transforms.length > 0) {
+            style.transform = transforms.join(" ");
+        }
+
+        return style;
+    }, [
+        logoAnchor,
+        logoDefaultOffsetPercent,
+        logoDefaultSizePercent,
+        logoOffsetXPercent,
+        logoOffsetYPercent,
+        logoSafeAreaPercent,
+        logoSizeMax,
+        logoSizeMin,
+        logoSizePercent,
+    ]);
 
     // ── Handlers ──────────────────────────────
     const handleAddCollaborator = (userId: string) => {
@@ -520,6 +649,10 @@ const EventForm = () => {
         setAllowDeleteCommand((current) => current || !isEditing);
         setPauseCommandKeyword((current) => current.trim() || defaultPauseKeywords);
         setDeleteCommandKeyword((current) => current.trim() || defaultDeleteKeywords);
+        setLogoAnchor((current) => current || logoDefaultAnchor);
+        setLogoSizePercent((current) => current || logoDefaultSizePercent);
+        setLogoOffsetXPercent((current) => current || logoDefaultOffsetPercent);
+        setLogoOffsetYPercent((current) => current || logoDefaultOffsetPercent);
     };
 
     const handleVipLogoModeChange = (value: VipLogoMode) => {
@@ -554,6 +687,7 @@ const EventForm = () => {
                 onSuccess: (response) => {
                     setVipLogoMode("custom");
                     setCustomLogoPath(response.data.path);
+                    setCustomLogoPreviewUrl(response.data.url || null);
                 },
             }
         );
@@ -585,8 +719,62 @@ const EventForm = () => {
         deleteVipGalleryBanner.mutate(bannerId, {
             onSuccess: () => {
                 setUploadedVipBanners((current) => current.filter((banner) => banner.id !== bannerId));
+                setSavedEvent((current) => current
+                    ? {
+                        ...current,
+                        vip_gallery_banners: (current.vip_gallery_banners || []).filter((banner) => banner.id !== bannerId),
+                    }
+                    : current);
             },
         });
+    };
+
+    const handleMoveUploadedBanner = (bannerId: number, direction: -1 | 1) => {
+        if (!persistedEventId) {
+            return;
+        }
+
+        const currentIndex = uploadedVipBanners.findIndex((banner) => banner.id === bannerId);
+
+        if (currentIndex === -1) {
+            return;
+        }
+
+        const nextIndex = currentIndex + direction;
+
+        if (nextIndex < 0 || nextIndex >= uploadedVipBanners.length) {
+            return;
+        }
+
+        const reordered = [...uploadedVipBanners];
+        const [movedBanner] = reordered.splice(currentIndex, 1);
+        reordered.splice(nextIndex, 0, movedBanner);
+        const normalized = reordered.map((banner, index) => ({
+            ...banner,
+            sort_order: index + 1,
+        }));
+        const previous = uploadedVipBanners;
+
+        setUploadedVipBanners(normalized);
+        setSavedEvent((current) => current ? { ...current, vip_gallery_banners: normalized } : current);
+
+        reorderVipGalleryBanners.mutate(
+            {
+                eventId: persistedEventId,
+                bannerIds: normalized.map((banner) => banner.id),
+            },
+            {
+                onSuccess: (response) => {
+                    const banners = response.data.banners || [];
+                    setUploadedVipBanners(banners);
+                    setSavedEvent((current) => current ? { ...current, vip_gallery_banners: banners } : current);
+                },
+                onError: () => {
+                    setUploadedVipBanners(previous);
+                    setSavedEvent((current) => current ? { ...current, vip_gallery_banners: previous } : current);
+                },
+            }
+        );
     };
 
     const persistEvent = async () => {
@@ -636,7 +824,10 @@ const EventForm = () => {
             whatsapp_group_id: isVipGallery ? (whatsappGroupId || null) : null,
             gallery_slug: isVipGallery ? (gallerySlug || null) : null,
             custom_logo_path: resolvedCustomLogoPath,
-            logo_size_percent: isVipGallery ? Number(logoSizePercent || 15) : null,
+            logo_size_percent: isVipGallery ? Number(logoSizePercent || logoDefaultSizePercent) : null,
+            logo_anchor: isVipGallery ? logoAnchor : null,
+            logo_offset_x_percent: isVipGallery ? Number(logoOffsetXPercent || logoDefaultOffsetPercent) : null,
+            logo_offset_y_percent: isVipGallery ? Number(logoOffsetYPercent || logoDefaultOffsetPercent) : null,
             allow_pause_command: isVipGallery ? allowPauseCommand : false,
             allow_delete_command: isVipGallery ? allowDeleteCommand : false,
             pause_command_keyword: resolvedPauseCommandKeyword,
@@ -908,38 +1099,23 @@ const EventForm = () => {
                                         exit={{ opacity: 0, height: 0 }}
                                         className="space-y-4 overflow-hidden"
                                     >
-                                        <div className="grid sm:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label>Status da Galeria VIP</Label>
-                                                <Select
-                                                    value={vipGalleryStatus}
-                                                    onValueChange={(value) => setVipGalleryStatus(value as VipGalleryStatus)}
-                                                >
-                                                    <SelectTrigger className="rounded-xl">
-                                                        <SelectValue placeholder="Selecione..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {vipStatusOptions.map((option) => (
-                                                            <SelectItem key={option.value} value={option.value}>
-                                                                {option.label}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="logo_size_percent">Tamanho da Logo (%)</Label>
-                                                <Input
-                                                    id="logo_size_percent"
-                                                    type="number"
-                                                    min={5}
-                                                    max={30}
-                                                    value={logoSizePercent}
-                                                    onChange={(e) => setLogoSizePercent(e.target.value)}
-                                                    className="rounded-xl"
-                                                />
-                                            </div>
+                                        <div className="space-y-2">
+                                            <Label>Status da Galeria VIP</Label>
+                                            <Select
+                                                value={vipGalleryStatus}
+                                                onValueChange={(value) => setVipGalleryStatus(value as VipGalleryStatus)}
+                                            >
+                                                <SelectTrigger className="rounded-xl">
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {vipStatusOptions.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                         </div>
 
                                         <div className="grid sm:grid-cols-2 gap-4">
@@ -987,81 +1163,205 @@ const EventForm = () => {
                                         </div>
 
                                         <div className="rounded-xl border p-4 space-y-4">
-                                            <div className="grid sm:grid-cols-2 gap-4">
-                                                <div className="space-y-2">
-                                                    <Label>Logo da Galeria</Label>
-                                                    <Select
-                                                        value={vipLogoMode}
-                                                        onValueChange={(value) => handleVipLogoModeChange(value as VipLogoMode)}
-                                                    >
-                                                        <SelectTrigger className="rounded-xl">
-                                                            <SelectValue placeholder="Selecione..." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="default">Logo Padrao</SelectItem>
-                                                            <SelectItem value="custom">Logo Personalizada</SelectItem>
-                                                            <SelectItem value="none">Sem Logo</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>Regra atual</Label>
-                                                    <div className="rounded-xl border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                                                        {vipLogoMode === "default" && "Todas as fotos usam a logo padrao do projeto."}
-                                                        {vipLogoMode === "custom" && "Somente esta cobertura usa a logo personalizada enviada em PNG."}
-                                                        {vipLogoMode === "none" && "Esta cobertura publica as fotos sem logo."}
+                                            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                                                <div className="space-y-4">
+                                                    <div className="grid sm:grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <Label>Logo da Galeria</Label>
+                                                            <Select
+                                                                value={vipLogoMode}
+                                                                onValueChange={(value) => handleVipLogoModeChange(value as VipLogoMode)}
+                                                            >
+                                                                <SelectTrigger className="rounded-xl">
+                                                                    <SelectValue placeholder="Selecione..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="default">Logo Padrao</SelectItem>
+                                                                    <SelectItem value="custom">Logo Personalizada</SelectItem>
+                                                                    <SelectItem value="none">Sem Logo</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label>Regra atual</Label>
+                                                            <div className="rounded-xl border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                                                                {vipLogoMode === "default" && "Todas as fotos usam a logo padrao do projeto, centralizada no rodape."}
+                                                                {vipLogoMode === "custom" && "Somente esta cobertura usa a logo personalizada enviada em PNG com transparencia."}
+                                                                {vipLogoMode === "none" && "Esta cobertura publica as fotos sem logo."}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
 
-                                            {vipLogoMode === "default" && (
-                                                <div className="rounded-xl bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
-                                                    Logo padrao fixa no projeto para todas as galerias VIP.
-                                                    {vipOptions?.default_logo_url && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="link"
-                                                            className="h-auto px-1 text-sm"
-                                                            onClick={() => window.open(vipOptions.default_logo_url || "", "_blank", "noopener,noreferrer")}
-                                                        >
-                                                            Visualizar logo padrao
-                                                        </Button>
+                                                    {vipLogoMode === "default" && (
+                                                        <div className="rounded-xl bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
+                                                            Logo padrao fixa no projeto para todas as galerias VIP.
+                                                            {vipOptions?.default_logo_url && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="link"
+                                                                    className="h-auto px-1 text-sm"
+                                                                    onClick={() => window.open(vipOptions.default_logo_url || "", "_blank", "noopener,noreferrer")}
+                                                                >
+                                                                    Visualizar logo padrao
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {vipLogoMode === "custom" && (
+                                                        <div className="space-y-3">
+                                                            <div className="flex flex-wrap items-center gap-3">
+                                                                <Input
+                                                                    type="file"
+                                                                    accept="image/png"
+                                                                    onChange={handleUploadVipLogo}
+                                                                    disabled={uploadVipGalleryLogo.isPending}
+                                                                    className="max-w-sm rounded-xl"
+                                                                />
+                                                                {uploadVipGalleryLogo.isPending && (
+                                                                    <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                        Enviando logo...
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label htmlFor="custom_logo_path">Logo personalizada enviada</Label>
+                                                                <Input
+                                                                    id="custom_logo_path"
+                                                                    value={customLogoPath === noLogoSentinel ? "" : customLogoPath}
+                                                                    readOnly
+                                                                    placeholder="Envie uma logo PNG transparente"
+                                                                    className="rounded-xl"
+                                                                />
+                                                            </div>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                PNG transparente, processado com GD nativo e salvo em `Storage::disk('public')`.
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {vipLogoMode !== "none" && (
+                                                        <>
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center justify-between gap-4">
+                                                                    <Label>Posicao da logo</Label>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        Presets por ancora + ajuste fino
+                                                                    </span>
+                                                                </div>
+                                                                <div className="grid grid-cols-3 gap-2">
+                                                                    {logoAnchorOptions.map((anchorOption) => (
+                                                                        <Button
+                                                                            key={anchorOption.value}
+                                                                            type="button"
+                                                                            variant={logoAnchor === anchorOption.value ? "default" : "outline"}
+                                                                            className="h-16 rounded-xl px-3 text-xs"
+                                                                            onClick={() => setLogoAnchor(anchorOption.value)}
+                                                                        >
+                                                                            {anchorOption.label}
+                                                                        </Button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="space-y-4">
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between gap-4">
+                                                                        <Label>Tamanho da logo</Label>
+                                                                        <span className="text-xs text-muted-foreground">{logoSizePercent}% da largura</span>
+                                                                    </div>
+                                                                    <Slider
+                                                                        min={logoSizeMin}
+                                                                        max={logoSizeMax}
+                                                                        step={1}
+                                                                        value={[logoSizePercent]}
+                                                                        onValueChange={(values) => setLogoSizePercent(values[0] || logoDefaultSizePercent)}
+                                                                    />
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        Faixa sugerida: {logoSizeMin}% a {logoSizeMax}% da largura da foto.
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="grid sm:grid-cols-2 gap-4">
+                                                                    <div className="space-y-2">
+                                                                        <div className="flex items-center justify-between gap-4">
+                                                                            <Label>Distancia da lateral</Label>
+                                                                            <span className="text-xs text-muted-foreground">{logoOffsetXPercent.toFixed(1)}%</span>
+                                                                        </div>
+                                                                        <Slider
+                                                                            min={logoSafeAreaPercent}
+                                                                            max={15}
+                                                                            step={0.5}
+                                                                            value={[logoOffsetXPercent]}
+                                                                            onValueChange={(values) => setLogoOffsetXPercent(values[0] || logoDefaultOffsetPercent)}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-2">
+                                                                        <div className="flex items-center justify-between gap-4">
+                                                                            <Label>Distancia da borda</Label>
+                                                                            <span className="text-xs text-muted-foreground">{logoOffsetYPercent.toFixed(1)}%</span>
+                                                                        </div>
+                                                                        <Slider
+                                                                            min={logoSafeAreaPercent}
+                                                                            max={15}
+                                                                            step={0.5}
+                                                                            value={[logoOffsetYPercent]}
+                                                                            onValueChange={(values) => setLogoOffsetYPercent(values[0] || logoDefaultOffsetPercent)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Safe area minima automatica de {logoSafeAreaPercent}% para evitar que a logo cole na borda.
+                                                                </p>
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
-                                            )}
 
-                                            {vipLogoMode === "custom" && (
                                                 <div className="space-y-3">
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        <Input
-                                                            type="file"
-                                                            accept="image/png"
-                                                            onChange={handleUploadVipLogo}
-                                                            disabled={uploadVipGalleryLogo.isPending}
-                                                            className="max-w-sm rounded-xl"
-                                                        />
-                                                        {uploadVipGalleryLogo.isPending && (
-                                                            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                                Enviando logo...
-                                                            </span>
-                                                        )}
+                                                    <div className="flex items-center justify-between gap-4">
+                                                        <Label>Pre-visualizacao</Label>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            Preview em tempo real
+                                                        </span>
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="custom_logo_path">Logo personalizada enviada</Label>
-                                                        <Input
-                                                            id="custom_logo_path"
-                                                            value={customLogoPath === noLogoSentinel ? "" : customLogoPath}
-                                                            readOnly
-                                                            placeholder="Envie uma logo PNG transparente"
-                                                            className="rounded-xl"
-                                                        />
+                                                    <div className="overflow-hidden rounded-[28px] border bg-zinc-950">
+                                                        <div className="relative aspect-[3/4] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_40%),linear-gradient(160deg,#3b2417_0%,#8e5f42_35%,#111827_100%)]">
+                                                            <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
+                                                            <div className="absolute inset-0 p-5 text-white/90">
+                                                                <p className="text-xs uppercase tracking-[0.3em] text-white/60">Cobertura VIP</p>
+                                                                <p className="mt-2 max-w-[70%] text-lg font-semibold">{titulo || "Titulo do Evento"}</p>
+                                                                <p className="mt-1 max-w-[70%] text-xs text-white/70">{local || "Local do evento"}</p>
+                                                            </div>
+
+                                                            {vipLogoMode !== "none" && (
+                                                                <div className="pointer-events-none absolute inset-0">
+                                                                    {previewLogoUrl ? (
+                                                                        <img
+                                                                            src={previewLogoUrl}
+                                                                            alt="Preview da logo"
+                                                                            className="absolute object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.35)]"
+                                                                            style={logoPreviewStyle}
+                                                                        />
+                                                                    ) : (
+                                                                        <div
+                                                                            className="absolute rounded-lg border border-dashed border-white/50 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80"
+                                                                            style={logoPreviewStyle}
+                                                                        >
+                                                                            Logo
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <p className="text-xs text-muted-foreground">
-                                                        A implementacao atual usa `Storage::disk('public')`, PNG transparente e GD nativo.
+                                                        A renderizacao usa largura em porcentagem do container, mantendo proporcao automatica da logo.
                                                     </p>
                                                 </div>
-                                            )}
+                                            </div>
                                         </div>
 
                                         <div className="rounded-xl border p-4 space-y-4">
@@ -1079,29 +1379,42 @@ const EventForm = () => {
                                                 <p className="text-xs text-muted-foreground">
                                                     Envie um ou mais banners para aparecer no topo da galeria publica.
                                                 </p>
+                                                <div className="rounded-xl border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">
+                                                    <p>
+                                                        Tamanho renderizado: {bannerGuidelines?.rendered_width || 744} × {bannerGuidelines?.rendered_height || 144} px
+                                                    </p>
+                                                    <p>
+                                                        Proporcao renderizada: {bannerGuidelines?.ratio_label || "31:6"}
+                                                    </p>
+                                                </div>
                                             </div>
 
                                             {pendingBannerFiles.length > 0 && (
                                                 <div className="space-y-2">
                                                     <Label>Banners pendentes para envio</Label>
-                                                    <div className="space-y-2">
-                                                        {pendingBannerFiles.map((file, index) => (
-                                                            <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-xl border bg-muted/40 px-3 py-2 text-sm">
-                                                                <div className="min-w-0">
-                                                                    <p className="truncate font-medium">{file.name}</p>
-                                                                    <p className="text-xs text-muted-foreground">
-                                                                        {(file.size / 1024 / 1024).toFixed(2)} MB
-                                                                    </p>
+                                                    <div className="grid gap-3 sm:grid-cols-2">
+                                                        {pendingBannerPreviews.map((preview, index) => (
+                                                            <div key={preview.id} className="overflow-hidden rounded-xl border bg-muted/30">
+                                                                <img
+                                                                    src={preview.url}
+                                                                    alt={preview.name}
+                                                                    className="h-28 w-full object-cover"
+                                                                />
+                                                                <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate font-medium">{preview.name}</p>
+                                                                        <p className="text-xs text-muted-foreground">{preview.sizeMb} MB</p>
+                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8"
+                                                                        onClick={() => handleRemovePendingBanner(index)}
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
                                                                 </div>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-8 w-8"
-                                                                    onClick={() => handleRemovePendingBanner(index)}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1124,29 +1437,54 @@ const EventForm = () => {
                                                                     alt={banner.alt_text || "Banner VIP"}
                                                                     className="h-28 w-full object-cover"
                                                                 />
-                                                                <div className="flex items-center justify-between gap-3 px-3 py-2">
-                                                                    <div className="min-w-0">
-                                                                        <p className="truncate text-sm font-medium">
-                                                                            {banner.alt_text || `Banner #${banner.sort_order}`}
-                                                                        </p>
-                                                                        <p className="text-xs text-muted-foreground">
-                                                                            Ordem {banner.sort_order}
-                                                                        </p>
-                                                                    </div>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className="h-8 w-8 text-destructive"
-                                                                        onClick={() => handleRemoveUploadedBanner(banner.id)}
-                                                                        disabled={deleteVipGalleryBanner.isPending}
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
+                                                                    <div className="flex items-center justify-between gap-3 px-3 py-2">
+                                                                        <div className="min-w-0">
+                                                                            <p className="truncate text-sm font-medium">
+                                                                                {banner.alt_text || `Banner #${banner.sort_order}`}
+                                                                            </p>
+                                                                            <p className="text-xs text-muted-foreground">
+                                                                                Ordem {banner.sort_order}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8"
+                                                                                onClick={() => handleMoveUploadedBanner(banner.id, -1)}
+                                                                                disabled={reorderVipGalleryBanners.isPending || banner.sort_order === 1}
+                                                                            >
+                                                                                <ArrowUp className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8"
+                                                                                onClick={() => handleMoveUploadedBanner(banner.id, 1)}
+                                                                                disabled={reorderVipGalleryBanners.isPending || banner.sort_order === uploadedVipBanners.length}
+                                                                            >
+                                                                                <ArrowDown className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-8 w-8 text-destructive"
+                                                                                onClick={() => handleRemoveUploadedBanner(banner.id)}
+                                                                                disabled={deleteVipGalleryBanner.isPending}
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </div>
                                                                 </div>
                                                             </div>
                                                         ))}
                                                     </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Ajuste a ordem com as setas para controlar a transicao no topo da galeria.
+                                                    </p>
                                                 </div>
                                             )}
                                         </div>
@@ -1159,6 +1497,9 @@ const EventForm = () => {
                                                 />
                                                 Permitir pause command via WhatsApp
                                             </label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Ao enviar o texto ao grupo do evento ativo, vai pausar.
+                                            </p>
 
                                             <div className="space-y-2">
                                                 <Label htmlFor="pause_command_keyword">Palavras-chave para pausar</Label>
@@ -1185,6 +1526,9 @@ const EventForm = () => {
                                                 />
                                                 Permitir delete command via WhatsApp
                                             </label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Selecionando uma foto no grupo e inserindo o texto ela vai apagar a foto da galeria.
+                                            </p>
 
                                             <div className="space-y-2">
                                                 <Label htmlFor="delete_command_keyword">Palavras-chave para apagar</Label>
