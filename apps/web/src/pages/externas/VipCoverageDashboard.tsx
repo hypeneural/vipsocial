@@ -48,6 +48,7 @@ import {
     useDeleteVipCoverage,
     useDownloadAllVipGalleryPhotos,
     useUpdateVipGalleryPhotoApproval,
+    useUpdateVipCoverageStatus,
     useVipCoverageEvents,
     useVipCoveragePhotos,
     useVipCoverageStats,
@@ -129,20 +130,33 @@ function photoSentAt(photo: VipCoveragePhotoDetail): string | null {
 function VipCoverageCard({
     event,
     vipGroups,
+    isEditingStatus,
+    isUpdatingStatus,
+    onStartEditStatus,
+    onChangeStatus,
     onDownloadAll,
     onOpenPhotos,
     onOpenDelete,
 }: {
     event: VipCoverageEvent;
     vipGroups: { value: string; label: string }[];
+    isEditingStatus: boolean;
+    isUpdatingStatus: boolean;
+    onStartEditStatus: (eventId: number | null) => void;
+    onChangeStatus: (event: VipCoverageEvent, status: VipGalleryStatus) => void;
     onDownloadAll: (event: VipCoverageEvent) => void;
     onOpenPhotos: (event: VipCoverageEvent) => void;
     onOpenDelete: (event: VipCoverageEvent) => void;
 }) {
     const navigate = useNavigate();
-    const status = vipStatusConfig[event.vip_gallery_status || "draft"];
+    const galleryStatus = event.vip_gallery_status || "draft";
+    const status = vipStatusConfig[galleryStatus];
+    const hasPhotos = event.vip_gallery_photos_count > 0;
     const visibleParticipants = event.vip_gallery_participants_summary?.slice(0, 3) || [];
     const hiddenParticipantsCount = Math.max((event.vip_gallery_participants_summary?.length || 0) - visibleParticipants.length, 0);
+    const hasParticipants = (event.vip_gallery_total_participants || 0) > 0 && visibleParticipants.length > 0;
+    const hasFirstPhoto = !!event.vip_gallery_first_photo_sent_at;
+    const hasLastPhoto = !!event.vip_gallery_last_photo_sent_at;
 
     return (
         <motion.div
@@ -165,10 +179,47 @@ function VipCoverageCard({
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Badge className={cn("gap-1 text-white", status.color)}>
-                            <VipStatusIcon status={event.vip_gallery_status || "draft"} className="h-3.5 w-3.5" />
-                            {status.label}
-                        </Badge>
+                        {isEditingStatus ? (
+                            <Select
+                                open={isEditingStatus}
+                                value={galleryStatus}
+                                onValueChange={(value) => onChangeStatus(event, value as VipGalleryStatus)}
+                                onOpenChange={(open) => {
+                                    if (!open) {
+                                        onStartEditStatus(null);
+                                    }
+                                }}
+                                disabled={isUpdatingStatus}
+                            >
+                                <SelectTrigger className="h-9 min-w-[170px] rounded-xl">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(vipStatusConfig).map(([value, config]) => (
+                                        <SelectItem key={value} value={value}>
+                                            <span className="flex items-center gap-2">
+                                                <VipStatusIcon
+                                                    status={value as VipGalleryStatus}
+                                                    className={cn("h-4 w-4", config.tone)}
+                                                />
+                                                {config.label}
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <button
+                                type="button"
+                                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                onClick={() => onStartEditStatus(event.id)}
+                            >
+                                <Badge className={cn("gap-1 text-white", status.color)}>
+                                    <VipStatusIcon status={galleryStatus} className="h-3.5 w-3.5" />
+                                    {status.label}
+                                </Badge>
+                            </button>
+                        )}
                         {event.vip_gallery_public_url && (
                             <Badge variant="outline" className="gap-1">
                                 <Link2 className="h-3 w-3" />
@@ -209,39 +260,43 @@ function VipCoverageCard({
                 </p>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border bg-muted/20 p-3">
-                    <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        Primeira foto
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-foreground">
-                        {formatDateTime(event.vip_gallery_first_photo_sent_at)}
-                    </p>
+            {(hasFirstPhoto || hasLastPhoto) && (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {hasFirstPhoto && (
+                        <div className="rounded-2xl border bg-muted/20 p-3">
+                            <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                <Clock className="h-3.5 w-3.5" />
+                                Primeira foto
+                            </p>
+                            <p className="mt-2 text-sm font-medium text-foreground">
+                                {formatDateTime(event.vip_gallery_first_photo_sent_at)}
+                            </p>
+                        </div>
+                    )}
+                    {hasLastPhoto && (
+                        <div className="rounded-2xl border bg-muted/20 p-3">
+                            <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                <Clock className="h-3.5 w-3.5" />
+                                Ultima foto
+                            </p>
+                            <p className="mt-2 text-sm font-medium text-foreground">
+                                {formatDateTime(event.vip_gallery_last_photo_sent_at)}
+                            </p>
+                        </div>
+                    )}
                 </div>
-                <div className="rounded-2xl border bg-muted/20 p-3">
-                    <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        Ultima foto
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-foreground">
-                        {formatDateTime(event.vip_gallery_last_photo_sent_at)}
-                    </p>
-                </div>
-            </div>
+            )}
 
-            <div className="mt-4 rounded-2xl border bg-muted/20 p-4">
-                <div className="flex items-center justify-between gap-3">
-                    <p className="flex items-center gap-2 text-sm font-medium">
-                        <Users className="h-4 w-4 text-primary" />
-                        Participantes que enviaram fotos
-                    </p>
-                    <Badge variant="outline">{event.vip_gallery_total_participants || 0}</Badge>
-                </div>
+            {hasParticipants && (
+                <div className="mt-4 rounded-2xl border bg-muted/20 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="flex items-center gap-2 text-sm font-medium">
+                            <Users className="h-4 w-4 text-primary" />
+                            Participantes que enviaram fotos
+                        </p>
+                        <Badge variant="outline">{event.vip_gallery_total_participants || 0}</Badge>
+                    </div>
 
-                {visibleParticipants.length === 0 ? (
-                    <p className="mt-3 text-sm text-muted-foreground">Ainda nao ha fotos recebidas nesta cobertura.</p>
-                ) : (
                     <div className="mt-3 space-y-2">
                         {visibleParticipants.map((participant) => (
                             <div key={`${participant.participant_phone || participant.sender_name}-${participant.total_photos}`} className="flex items-center justify-between gap-3 rounded-xl bg-background/80 px-3 py-2">
@@ -262,8 +317,8 @@ function VipCoverageCard({
                             </p>
                         )}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             <div className="mt-5 flex flex-wrap gap-2">
                 <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/externas/${event.id}`)}>
@@ -282,19 +337,22 @@ function VipCoverageCard({
                         Abrir galeria
                     </Button>
                 )}
-                <Button
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={() => onDownloadAll(event)}
-                    disabled={event.vip_gallery_photos_count === 0}
-                >
-                    <Download className="mr-2 h-4 w-4" />
-                    Baixar Todas
-                </Button>
-                <Button variant="outline" className="rounded-xl" onClick={() => onOpenPhotos(event)}>
-                    <Image className="mr-2 h-4 w-4" />
-                    Ver Detalhes de Fotos
-                </Button>
+                {hasPhotos && (
+                    <Button
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={() => onDownloadAll(event)}
+                    >
+                        <Download className="mr-2 h-4 w-4" />
+                        Baixar Todas
+                    </Button>
+                )}
+                {hasPhotos && (
+                    <Button variant="outline" className="rounded-xl" onClick={() => onOpenPhotos(event)}>
+                        <Image className="mr-2 h-4 w-4" />
+                        Ver Detalhes de Fotos
+                    </Button>
+                )}
                 <Button
                     variant="outline"
                     className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -312,6 +370,7 @@ const VipCoverageDashboard = () => {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | VipGalleryStatus>("all");
+    const [statusEditorEventId, setStatusEditorEventId] = useState<number | null>(null);
     const [downloadEvent, setDownloadEvent] = useState<VipCoverageEvent | null>(null);
     const [photosEvent, setPhotosEvent] = useState<VipCoverageEvent | null>(null);
     const [deleteEvent, setDeleteEvent] = useState<VipCoverageEvent | null>(null);
@@ -325,6 +384,7 @@ const VipCoverageDashboard = () => {
     const { data: statsData } = useVipCoverageStats();
     const { data: vipOptionsData } = useVipGalleryOptions();
     const downloadAllVipGalleryPhotos = useDownloadAllVipGalleryPhotos();
+    const updateVipCoverageStatus = useUpdateVipCoverageStatus();
     const updateVipGalleryPhotoApproval = useUpdateVipGalleryPhotoApproval();
     const deleteVipCoverage = useDeleteVipCoverage();
     const { data: eventsData, isLoading, error } = useVipCoverageEvents({
@@ -338,6 +398,10 @@ const VipCoverageDashboard = () => {
     const events = eventsData?.data || [];
     const vipGroups = vipOptionsData?.data.groups || FALLBACK_VIP_GROUPS;
     const photoDetails = photosData?.data;
+    const latestPhoto = photoDetails?.photos?.[0] || null;
+    const earliestPhoto = photoDetails?.photos?.length
+        ? photoDetails.photos[photoDetails.photos.length - 1]
+        : null;
 
     const handleOpenDownloadAll = (event: VipCoverageEvent) => {
         setDownloadEvent(event);
@@ -376,6 +440,30 @@ const VipCoverageDashboard = () => {
             photoId: photo.id,
             isApproved: false,
         });
+    };
+
+    const handleActivatePhoto = (photo: VipCoveragePhotoDetail) => {
+        updateVipGalleryPhotoApproval.mutate({
+            photoId: photo.id,
+            isApproved: true,
+        });
+    };
+
+    const handleStatusChange = (event: VipCoverageEvent, vipGalleryStatus: VipGalleryStatus) => {
+        if ((event.vip_gallery_status || "draft") === vipGalleryStatus) {
+            setStatusEditorEventId(null);
+            return;
+        }
+
+        updateVipCoverageStatus.mutate(
+            {
+                eventId: event.id,
+                vipGalleryStatus,
+            },
+            {
+                onSuccess: () => setStatusEditorEventId(null),
+            }
+        );
     };
 
     const handleCloseDeleteModal = (open: boolean) => {
@@ -543,6 +631,10 @@ const VipCoverageDashboard = () => {
                             key={event.id}
                             event={event}
                             vipGroups={vipGroups}
+                            isEditingStatus={statusEditorEventId === event.id}
+                            isUpdatingStatus={updateVipCoverageStatus.isPending}
+                            onStartEditStatus={setStatusEditorEventId}
+                            onChangeStatus={handleStatusChange}
                             onDownloadAll={handleOpenDownloadAll}
                             onOpenPhotos={handleOpenPhotos}
                             onOpenDelete={setDeleteEvent}
@@ -647,14 +739,36 @@ const VipCoverageDashboard = () => {
                                             <Clock className="h-3.5 w-3.5" />
                                             Primeira foto enviada
                                         </p>
-                                        <p className="mt-2 text-sm font-medium">{formatDateTime(photoDetails.first_photo_sent_at)}</p>
+                                        <div className="mt-2 flex items-center gap-3">
+                                            {earliestPhoto?.image_url ? (
+                                                <div className="h-10 w-10 overflow-hidden rounded-lg border bg-muted">
+                                                    <img
+                                                        src={earliestPhoto.image_url}
+                                                        alt="Thumb da primeira foto"
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                </div>
+                                            ) : null}
+                                            <p className="text-sm font-medium">{formatDateTime(photoDetails.first_photo_sent_at)}</p>
+                                        </div>
                                     </div>
                                     <div className="rounded-2xl border bg-muted/20 p-4">
                                         <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
                                             <Clock className="h-3.5 w-3.5" />
                                             Ultima foto enviada
                                         </p>
-                                        <p className="mt-2 text-sm font-medium">{formatDateTime(photoDetails.last_photo_sent_at)}</p>
+                                        <div className="mt-2 flex items-center gap-3">
+                                            {latestPhoto?.image_url ? (
+                                                <div className="h-10 w-10 overflow-hidden rounded-lg border bg-muted">
+                                                    <img
+                                                        src={latestPhoto.image_url}
+                                                        alt="Thumb da ultima foto"
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                </div>
+                                            ) : null}
+                                            <p className="text-sm font-medium">{formatDateTime(photoDetails.last_photo_sent_at)}</p>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -695,7 +809,13 @@ const VipCoverageDashboard = () => {
                                         </div>
                                     ) : (
                                         photoDetails.photos.map((photo) => (
-                                            <div key={photo.id} className="rounded-2xl border bg-card p-4">
+                                            <div
+                                                key={photo.id}
+                                                className={cn(
+                                                    "rounded-2xl border bg-card p-4",
+                                                    !photo.is_approved && "border-destructive/40 bg-destructive/5"
+                                                )}
+                                            >
                                                 <div className="flex flex-col gap-4 md:flex-row">
                                                     {photo.image_url ? (
                                                         <div className="h-24 w-full overflow-hidden rounded-xl border bg-muted md:w-32">
@@ -755,9 +875,20 @@ const VipCoverageDashboard = () => {
                                                                     Desativar foto
                                                                 </Button>
                                                             ) : (
-                                                                <Badge variant="outline" className="border-amber-500/30 text-amber-700">
-                                                                    Foto desativada manualmente
-                                                                </Badge>
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <Badge variant="outline" className="border-destructive/30 text-destructive">
+                                                                        Foto desativada manualmente
+                                                                    </Badge>
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        className="rounded-xl border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 hover:text-emerald-700"
+                                                                        onClick={() => handleActivatePhoto(photo)}
+                                                                        disabled={updateVipGalleryPhotoApproval.isPending}
+                                                                    >
+                                                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                                        Ativar foto
+                                                                    </Button>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </div>

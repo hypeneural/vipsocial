@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { externaService, CreateExternalEventDTO, ExternalEventFilters } from "@/services/externa.service";
 import showToast from "@/lib/toast";
+import type { VipGalleryStatus } from "@/types/externas";
 
 const KEYS = {
     all: ["externas"] as const,
@@ -333,6 +334,20 @@ export function useDownloadAllVipGalleryPhotos() {
     return useMutation({
         mutationFn: (eventId: number) => externaService.downloadAllVipGalleryPhotos(eventId),
         onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao gerar o ZIP das fotos"),
+    });
+}
+
+export function useUpdateVipCoverageStatus() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ eventId, vipGalleryStatus }: { eventId: number; vipGalleryStatus: VipGalleryStatus }) =>
+            externaService.updateVipCoverageStatus(eventId, vipGalleryStatus),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            showToast.success("Status da Cobertura VIP atualizado!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao atualizar o status da galeria"),
     });
 }
 

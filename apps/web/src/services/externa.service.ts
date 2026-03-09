@@ -159,6 +159,20 @@ export const externaService = {
         return data;
     },
 
+    updateVipCoverageStatus: async (
+        eventId: number,
+        vipGalleryStatus: VipGalleryStatus
+    ): Promise<ApiResponse<{ event_id: number; vip_gallery_status: VipGalleryStatus }>> => {
+        const { data } = await api.patch<ApiResponse<{ event_id: number; vip_gallery_status: VipGalleryStatus }>>(
+            `/vip-gallery/events/${eventId}/status`,
+            {
+                vip_gallery_status: vipGalleryStatus,
+            }
+        );
+
+        return data;
+    },
+
     uploadVipGalleryLogo: async (
         file: File,
         eventId?: number

@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use ZipArchive;
 
 class VipGalleryAdminController extends BaseController
@@ -140,6 +141,47 @@ class VipGalleryAdminController extends BaseController
             'root_cause' => $rootCause,
             'logs' => $logs,
         ]);
+    }
+
+    public function updateEventStatus(Request $request, ExternalEvent $event): JsonResponse
+    {
+        if (! $event->is_vip_gallery) {
+            return $this->jsonError(
+                'O evento informado nao possui Cobertura VIP ativa',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        $validated = $request->validate([
+            'vip_gallery_status' => ['required', Rule::in(ExternalEvent::vipGalleryStatuses())],
+        ]);
+
+        $previousStatus = (string) $event->vip_gallery_status;
+        $nextStatus = (string) $validated['vip_gallery_status'];
+
+        $event->forceFill([
+            'vip_gallery_status' => $nextStatus,
+        ])->save();
+
+        if ($previousStatus !== $nextStatus) {
+            EventActivityLog::log(
+                $event->id,
+                'vip_gallery_status_updated',
+                sprintf('Status da Cobertura VIP alterado de %s para %s.', $previousStatus, $nextStatus),
+                [
+                    'Status da galeria VIP' => [
+                        'de' => $previousStatus,
+                        'para' => $nextStatus,
+                    ],
+                ]
+            );
+        }
+
+        return $this->jsonSuccess([
+            'event_id' => $event->id,
+            'vip_gallery_status' => $nextStatus,
+        ], 'Status da Cobertura VIP atualizado com sucesso');
     }
 
     public function uploadLogo(Request $request, VipGalleryMediaManager $mediaManager): JsonResponse

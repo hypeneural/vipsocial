@@ -11,6 +11,8 @@ Route::post('/webhook/zapi/gallery', [ZApiGalleryWebhookController::class, 'stor
 Route::middleware('auth:sanctum')->prefix('vip-gallery')->group(function () {
     Route::get('/options', [VipGalleryAdminController::class, 'options']);
     Route::get('/logs', [VipGalleryAdminController::class, 'logs']);
+    Route::patch('/events/{event}/status', [VipGalleryAdminController::class, 'updateEventStatus'])
+        ->whereNumber('event');
     Route::get('/events/{event}/photos', [VipGalleryAdminController::class, 'eventPhotos'])
         ->whereNumber('event');
     Route::delete('/events/{event}/coverage', [VipGalleryAdminController::class, 'destroyCoverage'])

@@ -1125,6 +1125,16 @@ test('admin can inspect vip gallery photos, deactivate one photo and remove cove
         ->assertJsonPath('data.photos.0.id', $photoTwo->id);
 
     $this->actingAs($user, 'sanctum')
+        ->patchJson("/api/v1/vip-gallery/events/{$event->id}/status", [
+            'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_PAUSED,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.event_id', $event->id)
+        ->assertJsonPath('data.vip_gallery_status', ExternalEvent::VIP_GALLERY_STATUS_PAUSED);
+
+    expect($event->fresh()->vip_gallery_status)->toBe(ExternalEvent::VIP_GALLERY_STATUS_PAUSED);
+
+    $this->actingAs($user, 'sanctum')
         ->patchJson("/api/v1/vip-gallery/photos/{$photoOne->id}/approval", [
             'is_approved' => false,
         ])
