@@ -66,9 +66,11 @@ export function useSlideshowBoot({
         };
     }, [sync]);
 
+    const resync = useCallback(() => sync("state"), [sync]);
+
     return {
         isSyncing,
-        resync: () => sync("state"),
+        resync,
     };
 }
 

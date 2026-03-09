@@ -179,7 +179,7 @@ type VipSlideshowFormState = {
     is_enabled: boolean;
     status: VipSlideshowStatus;
     layout: VipSlideshowLayout;
-    interval_ms: number;
+    interval_seconds: number;
     queue_limit: number;
     show_neon: boolean;
     neon_text: string;
@@ -203,15 +203,29 @@ function formatDateTimeLocalInput(value?: string | null): string {
     return local.toISOString().slice(0, 16);
 }
 
-function createSlideshowFormState(slideshow?: VipGallerySlideshowData | null): VipSlideshowFormState {
+function intervalMsToSeconds(value?: number | null): number {
+    const milliseconds = Number(value ?? 10000);
+    const seconds = Math.round(milliseconds / 1000);
+    return Math.max(3, Math.min(60, seconds || 10));
+}
+
+function clampSlideshowSecondsInput(value?: number | null): number {
+    const seconds = Math.round(Number(value ?? 10));
+    return Math.max(3, Math.min(60, seconds || 10));
+}
+
+function createSlideshowFormState(
+    slideshow?: VipGallerySlideshowData | null,
+    event?: Pick<VipCoverageEvent, "titulo"> | null
+): VipSlideshowFormState {
     return {
         is_enabled: slideshow?.is_enabled ?? false,
         status: slideshow?.status ?? "draft",
         layout: slideshow?.layout ?? "auto",
-        interval_ms: slideshow?.interval_ms ?? 10000,
+        interval_seconds: intervalMsToSeconds(slideshow?.interval_ms),
         queue_limit: slideshow?.queue_limit ?? 100,
         show_neon: slideshow?.show_neon ?? true,
-        neon_text: slideshow?.neon_text ?? "",
+        neon_text: slideshow?.neon_text?.trim() || event?.titulo?.trim() || "",
         instructions_text: slideshow?.instructions_text ?? "",
         expires_at: formatDateTimeLocalInput(slideshow?.expires_at),
     };
@@ -235,7 +249,7 @@ function VipSlideshowDialog({
     const resetVipGallerySlideshow = useResetVipGallerySlideshow();
     const slideshowResponse = data?.data;
     const slideshow = slideshowResponse?.slideshow ?? null;
-    const [form, setForm] = useState<VipSlideshowFormState>(() => createSlideshowFormState());
+    const [form, setForm] = useState<VipSlideshowFormState>(() => createSlideshowFormState(undefined, event));
     const [hydratedEventId, setHydratedEventId] = useState<number | null>(null);
 
     useEffect(() => {
@@ -244,13 +258,16 @@ function VipSlideshowDialog({
             return;
         }
 
-        if (!slideshow || hydratedEventId === eventId) {
+        if (hydratedEventId === eventId && slideshow) {
             return;
         }
 
-        setForm(createSlideshowFormState(slideshow));
-        setHydratedEventId(eventId);
-    }, [eventId, hydratedEventId, open, slideshow]);
+        setForm(createSlideshowFormState(slideshow, event));
+
+        if (slideshow) {
+            setHydratedEventId(eventId);
+        }
+    }, [event, eventId, hydratedEventId, open, slideshow]);
 
     const statusOptions = slideshowResponse?.meta.statuses?.map((option) => ({
         value: option.value,
@@ -281,7 +298,7 @@ function VipSlideshowDialog({
                     is_enabled: form.is_enabled,
                     status: form.status,
                     layout: form.layout,
-                    interval_ms: Math.max(3000, Math.min(60000, form.interval_ms)),
+                    interval_ms: clampSlideshowSecondsInput(form.interval_seconds) * 1000,
                     queue_limit: Math.max(1, Math.min(500, form.queue_limit)),
                     show_neon: form.show_neon,
                     neon_text: form.neon_text.trim() || null,
@@ -291,7 +308,7 @@ function VipSlideshowDialog({
             },
             {
                 onSuccess: (response) => {
-                    setForm(createSlideshowFormState(response.data.slideshow));
+                    setForm(createSlideshowFormState(response.data.slideshow, event));
                 },
             }
         );
@@ -345,7 +362,7 @@ function VipSlideshowDialog({
             },
             {
                 onSuccess: (response) => {
-                    setForm(createSlideshowFormState(response.data.slideshow));
+                    setForm(createSlideshowFormState(response.data.slideshow, event));
                 },
             }
         );
@@ -358,15 +375,15 @@ function VipSlideshowDialog({
 
         resetVipGallerySlideshow.mutate(event.id, {
             onSuccess: (response) => {
-                setForm(createSlideshowFormState(response.data.slideshow));
+                setForm(createSlideshowFormState(response.data.slideshow, event));
             },
         });
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[920px]">
-                <DialogHeader>
+            <DialogContent className="flex h-[92vh] w-[min(96vw,1120px)] max-w-none flex-col overflow-hidden rounded-[28px] p-0">
+                <DialogHeader className="shrink-0 border-b px-6 py-5">
                     <DialogTitle>Telão / Slideshow</DialogTitle>
                     <DialogDescription>
                         {event
@@ -375,7 +392,7 @@ function VipSlideshowDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-2">
+                <div className="flex-1 overflow-y-auto px-6 py-5">
                     {isLoading ? (
                         <div className="flex items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-5">
                             <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -391,7 +408,7 @@ function VipSlideshowDialog({
                             Não foi possível carregar as configurações do telão agora. Tente novamente em alguns instantes.
                         </div>
                     ) : (
-                        <>
+                        <div className="space-y-4">
                             <div className="flex flex-col gap-4 rounded-2xl border bg-muted/20 p-4 lg:flex-row lg:items-center lg:justify-between">
                                 <div className="space-y-1">
                                     <p className="font-medium">Ativar Telão</p>
@@ -460,17 +477,17 @@ function VipSlideshowDialog({
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label htmlFor="slideshow-interval">Velocidade (ms)</Label>
+                                            <Label htmlFor="slideshow-interval">Velocidade (segundos)</Label>
                                             <Input
                                                 id="slideshow-interval"
                                                 type="number"
-                                                min={3000}
-                                                max={60000}
-                                                step={1000}
-                                                value={form.interval_ms}
+                                                min={3}
+                                                max={60}
+                                                step={1}
+                                                value={form.interval_seconds}
                                                 onChange={(e) => setForm((current) => ({
                                                     ...current,
-                                                    interval_ms: Number(e.target.value || 0),
+                                                    interval_seconds: clampSlideshowSecondsInput(Number(e.target.value || 0)),
                                                 }))}
                                                 disabled={isMutating}
                                                 className="rounded-xl"
@@ -536,7 +553,7 @@ function VipSlideshowDialog({
                                                 ...current,
                                                 neon_text: e.target.value,
                                             }))}
-                                            placeholder="Ex.: Casamento Anderson e Maria"
+                                            placeholder={event?.titulo || "Titulo do evento"}
                                             disabled={isMutating}
                                             className="rounded-xl"
                                         />
@@ -664,11 +681,11 @@ function VipSlideshowDialog({
                                     </div>
                                 </div>
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
 
-                <DialogFooter className="gap-2">
+                <DialogFooter className="shrink-0 border-t bg-background px-6 py-4 sm:justify-between">
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>
                         Fechar
                     </Button>

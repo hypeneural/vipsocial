@@ -187,6 +187,6 @@ export const STORAGE_KEYS = {
 // API
 // ==========================================
 export const API = {
-    BASE_URL: import.meta.env.VITE_API_URL || "http://localhost:8000/api",
+    BASE_URL: import.meta.env.VITE_API_URL || "/api/v1",
     TIMEOUT: 30000,
 } as const;

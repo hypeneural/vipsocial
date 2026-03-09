@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import createSlideshowEcho from "../lib/echo";
 import type {
     SlideMedia,
@@ -29,6 +29,32 @@ export function useSlideshowRealtime({
     onReconnect,
 }: UseSlideshowRealtimeOptions) {
     const [connectionStatus, setConnectionStatus] = useState<SlideshowConnectionStatus>("idle");
+    const callbacksRef = useRef({
+        onNewMedia,
+        onMediaUpdated,
+        onMediaDeleted,
+        onSettingsUpdated,
+        onExpired,
+        onReconnect,
+    });
+
+    useEffect(() => {
+        callbacksRef.current = {
+            onNewMedia,
+            onMediaUpdated,
+            onMediaDeleted,
+            onSettingsUpdated,
+            onExpired,
+            onReconnect,
+        };
+    }, [
+        onExpired,
+        onMediaDeleted,
+        onMediaUpdated,
+        onNewMedia,
+        onReconnect,
+        onSettingsUpdated,
+    ]);
 
     useEffect(() => {
         const echo = createSlideshowEcho();
@@ -59,7 +85,7 @@ export function useSlideshowRealtime({
                 setConnectionStatus("connected");
 
                 if (hasConnectedOnce) {
-                    onReconnect?.();
+                    callbacksRef.current.onReconnect?.();
                 }
 
                 hasConnectedOnce = true;
@@ -89,19 +115,19 @@ export function useSlideshowRealtime({
 
         echo.channel(channelName)
             .listen(".slideshow.new-media", (payload: SlideMedia) => {
-                onNewMedia(payload);
+                callbacksRef.current.onNewMedia(payload);
             })
             .listen(".slideshow.media-updated", (payload: SlideMediaUpdatedPayload) => {
-                onMediaUpdated(payload);
+                callbacksRef.current.onMediaUpdated(payload);
             })
             .listen(".slideshow.media-deleted", (payload: SlideMediaDeletedPayload) => {
-                onMediaDeleted(payload);
+                callbacksRef.current.onMediaDeleted(payload);
             })
             .listen(".slideshow.settings-updated", (payload: SlideSettings) => {
-                onSettingsUpdated(payload);
+                callbacksRef.current.onSettingsUpdated(payload);
             })
             .listen(".slideshow.event-expired", (payload: SlideshowExpiredPayload) => {
-                onExpired(payload);
+                callbacksRef.current.onExpired(payload);
             });
 
         pusherConnection?.bind("state_change", handleStateChange);
@@ -114,15 +140,7 @@ export function useSlideshowRealtime({
             echo.disconnect();
             setConnectionStatus("disconnected");
         };
-    }, [
-        code,
-        onExpired,
-        onMediaDeleted,
-        onMediaUpdated,
-        onNewMedia,
-        onReconnect,
-        onSettingsUpdated,
-    ]);
+    }, [code]);
 
     return {
         connectionStatus,
