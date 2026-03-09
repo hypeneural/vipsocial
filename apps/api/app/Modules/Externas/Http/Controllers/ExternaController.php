@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -233,9 +234,14 @@ class ExternaController extends BaseController
 
         $perPage = $request->input('per_page', 20);
         $events = $query->orderBy('data_hora', 'desc')->paginate($perPage);
+        $photoInsights = $this->vipGalleryPhotoInsights(
+            collect($events->items())->pluck('id')->all()
+        );
 
         $events->setCollection(
-            $events->getCollection()->map(fn (ExternalEvent $event) => $this->serializeVipGalleryEvent($event))
+            $events->getCollection()->map(
+                fn (ExternalEvent $event) => $this->serializeVipGalleryEvent($event, $photoInsights[$event->id] ?? [])
+            )
         );
 
         return $this->jsonPaginated($events);
@@ -590,7 +596,7 @@ class ExternaController extends BaseController
         return $query;
     }
 
-    private function serializeVipGalleryEvent(ExternalEvent $event): array
+    private function serializeVipGalleryEvent(ExternalEvent $event, array $photoInsights = []): array
     {
         return array_merge($event->toArray(), [
             'vip_gallery_photos_count' => (int) ($event->vip_gallery_photos_count ?? 0),
@@ -600,7 +606,75 @@ class ExternaController extends BaseController
                 ? rtrim((string) config('vip_gallery.public.frontend_base_url', 'https://www.coberturavip.com.br'), '/').'/'.$event->gallery_slug
                 : null,
             'vip_gallery_is_active' => $event->isVipGalleryActive(),
+            'vip_gallery_participants_summary' => $photoInsights['participants'] ?? [],
+            'vip_gallery_total_participants' => (int) ($photoInsights['total_participants'] ?? 0),
+            'vip_gallery_first_photo_sent_at' => $photoInsights['first_photo_sent_at'] ?? null,
+            'vip_gallery_last_photo_sent_at' => $photoInsights['last_photo_sent_at'] ?? null,
         ]);
+    }
+
+    private function vipGalleryPhotoInsights(array $eventIds): array
+    {
+        $normalizedIds = collect($eventIds)
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($normalizedIds->isEmpty()) {
+            return [];
+        }
+
+        $participantsByEvent = VipGalleryPhoto::query()
+            ->select([
+                'external_event_id',
+                'participant_phone',
+                'sender_name',
+                DB::raw('COUNT(*) as total_photos'),
+            ])
+            ->whereIn('external_event_id', $normalizedIds)
+            ->groupBy('external_event_id', 'participant_phone', 'sender_name')
+            ->orderBy('external_event_id')
+            ->orderByDesc('total_photos')
+            ->orderBy('sender_name')
+            ->get()
+            ->groupBy('external_event_id')
+            ->map(function ($rows) {
+                return $rows->map(fn ($row) => [
+                    'participant_phone' => $row->participant_phone,
+                    'sender_name' => $row->sender_name,
+                    'total_photos' => (int) $row->total_photos,
+                ])->values()->all();
+            });
+
+        $timelineByEvent = VipGalleryPhoto::query()
+            ->select([
+                'external_event_id',
+                DB::raw('MIN(COALESCE(received_at, published_at, created_at)) as first_photo_sent_at'),
+                DB::raw('MAX(COALESCE(received_at, published_at, created_at)) as last_photo_sent_at'),
+                DB::raw('COUNT(DISTINCT participant_phone) as total_participants'),
+            ])
+            ->whereIn('external_event_id', $normalizedIds)
+            ->groupBy('external_event_id')
+            ->get()
+            ->keyBy('external_event_id');
+
+        return $normalizedIds->mapWithKeys(function (int $eventId) use ($participantsByEvent, $timelineByEvent) {
+            $timeline = $timelineByEvent->get($eventId);
+
+            return [
+                $eventId => [
+                    'participants' => $participantsByEvent->get($eventId, []),
+                    'total_participants' => (int) ($timeline->total_participants ?? 0),
+                    'first_photo_sent_at' => isset($timeline->first_photo_sent_at)
+                        ? Carbon::parse((string) $timeline->first_photo_sent_at)->toIso8601String()
+                        : null,
+                    'last_photo_sent_at' => isset($timeline->last_photo_sent_at)
+                        ? Carbon::parse((string) $timeline->last_photo_sent_at)->toIso8601String()
+                        : null,
+                ],
+            ];
+        })->all();
     }
 
     private function vipGalleryRules(?ExternalEvent $event = null): array

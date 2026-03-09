@@ -825,6 +825,8 @@ test('authenticated vip coverage endpoints expose vip event list and totals', fu
         'views_count' => 11,
         'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_ACTIVE,
     ]);
+    $firstPhotoAt = now()->subMinutes(12);
+    $secondPhotoAt = now()->subMinutes(3);
 
     VipGalleryPhoto::query()->create([
         'external_event_id' => $event->id,
@@ -834,8 +836,8 @@ test('authenticated vip coverage endpoints expose vip event list and totals', fu
         'original_image_path' => 'vip-gallery/events/'.$event->id.'/originals/vip-stat-1.jpg',
         'processing_status' => VipGalleryPhoto::STATUS_PUBLISHED_ORIGINAL,
         'downloads_count' => 3,
-        'received_at' => now()->subMinutes(4),
-        'published_at' => now()->subMinutes(3),
+        'received_at' => $firstPhotoAt,
+        'published_at' => $firstPhotoAt->copy()->addMinute(),
     ]);
 
     VipGalleryPhoto::query()->create([
@@ -846,8 +848,20 @@ test('authenticated vip coverage endpoints expose vip event list and totals', fu
         'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/vip-stat-2.jpg',
         'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
         'downloads_count' => 2,
-        'received_at' => now()->subMinutes(2),
-        'published_at' => now()->subMinute(),
+        'received_at' => $secondPhotoAt,
+        'published_at' => $secondPhotoAt->copy()->addMinute(),
+    ]);
+
+    VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'vip-stat-3',
+        'participant_phone' => '5591999999999',
+        'sender_name' => 'Anderson',
+        'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/vip-stat-3.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
+        'downloads_count' => 1,
+        'received_at' => $secondPhotoAt->copy()->addMinute(),
+        'published_at' => $secondPhotoAt->copy()->addMinutes(2),
     ]);
 
     ExternalEvent::query()->create([
@@ -871,7 +885,7 @@ test('authenticated vip coverage endpoints expose vip event list and totals', fu
         ->assertJsonPath('data.total_galleries', 1)
         ->assertJsonPath('data.active_galleries', 1)
         ->assertJsonPath('data.total_views', 11)
-        ->assertJsonPath('data.total_downloads', 5);
+        ->assertJsonPath('data.total_downloads', 6);
 
     $this->actingAs($user, 'sanctum')
         ->getJson('/api/v1/externas/cobertura-vip?search=casamento-vip')
@@ -879,10 +893,17 @@ test('authenticated vip coverage endpoints expose vip event list and totals', fu
         ->assertJsonPath('meta.total', 1)
         ->assertJsonPath('data.0.id', $event->id)
         ->assertJsonPath('data.0.gallery_slug', 'casamento-vip')
-        ->assertJsonPath('data.0.vip_gallery_photos_count', 2)
-        ->assertJsonPath('data.0.vip_gallery_downloads_count', 5)
+        ->assertJsonPath('data.0.vip_gallery_photos_count', 3)
+        ->assertJsonPath('data.0.vip_gallery_downloads_count', 6)
         ->assertJsonPath('data.0.vip_gallery_public_url', 'https://www.coberturavip.com.br/casamento-vip')
-        ->assertJsonPath('data.0.vip_gallery_is_active', true);
+        ->assertJsonPath('data.0.vip_gallery_is_active', true)
+        ->assertJsonPath('data.0.vip_gallery_total_participants', 2)
+        ->assertJsonPath('data.0.vip_gallery_participants_summary.0.sender_name', 'Anderson')
+        ->assertJsonPath('data.0.vip_gallery_participants_summary.0.total_photos', 2)
+        ->assertJsonPath('data.0.vip_gallery_participants_summary.1.sender_name', 'Bruna')
+        ->assertJsonPath('data.0.vip_gallery_participants_summary.1.total_photos', 1)
+        ->assertJsonPath('data.0.vip_gallery_first_photo_sent_at', $firstPhotoAt->toIso8601String())
+        ->assertJsonPath('data.0.vip_gallery_last_photo_sent_at', $secondPhotoAt->copy()->addMinute()->toIso8601String());
 });
 
 test('authenticated externa store allows duplicate vip whatsapp group id when user chooses to continue', function () {
@@ -890,6 +911,17 @@ test('authenticated externa store allows duplicate vip whatsapp group id when us
         'whatsapp_group_id' => '120363423950458112-group',
         'gallery_slug' => 'vip-existente',
         'data_hora' => now()->addDays(4),
+    ]);
+    $userId = DB::table('users')->insertGetId([
+        'name' => 'Colaborador Teste',
+        'email' => 'colaborador@example.com',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $equipmentId = DB::table('equipments')->insertGetId([
+        'nome' => 'Camera Teste',
+        'created_at' => now(),
+        'updated_at' => now(),
     ]);
 
     $user = User::factory()->make(['role' => 'admin']);
@@ -902,6 +934,12 @@ test('authenticated externa store allows duplicate vip whatsapp group id when us
             'briefing' => 'Evento com aviso apenas',
             'data_hora' => now()->addDays(4)->addHours(2)->format('Y-m-d H:i:s'),
             'local' => 'Tijucas',
+            'colaboradores' => [
+                ['user_id' => $userId, 'funcao' => 'Fotografo'],
+            ],
+            'equipamentos' => [
+                ['equipment_id' => $equipmentId, 'checked' => false],
+            ],
             'is_vip_gallery' => true,
             'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_ACTIVE,
             'whatsapp_group_id' => '120363423950458112-group',
@@ -1015,6 +1053,109 @@ test('vip gallery admin options and logs expose operational context', function (
         ->assertJsonPath('data.logs.0.event_id', $event->id)
         ->assertJsonPath('data.logs.0.group_label', 'Galeria 1')
         ->assertJsonPath('data.root_cause', 'A fila vip-gallery-webhook possui itens pendentes sem consumo. Enquanto isso ocorrer, os webhooks ficam em received e as fotos nao entram na galeria.');
+});
+
+test('admin can inspect vip gallery photos, deactivate one photo and remove coverage with audit log', function () {
+    $event = createVipGalleryEvent([
+        'gallery_slug' => 'galeria-operacional',
+        'whatsapp_group_id' => '120363423950458112-group',
+        'custom_logo_path' => 'vip-gallery/logos/events/1/logo.png',
+    ]);
+
+    $photoOne = VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'coverage-photo-1',
+        'participant_phone' => '5548999991111',
+        'sender_name' => 'Anderson',
+        'original_image_path' => 'vip-gallery/events/'.$event->id.'/originals/coverage-photo-1.jpg',
+        'processed_image_path' => 'vip-gallery/events/'.$event->id.'/processed/coverage-photo-1.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PROCESSED,
+        'downloads_count' => 2,
+        'received_at' => now()->subMinutes(10),
+        'published_at' => now()->subMinutes(9),
+    ]);
+
+    $photoTwo = VipGalleryPhoto::query()->create([
+        'external_event_id' => $event->id,
+        'zapi_message_id' => 'coverage-photo-2',
+        'participant_phone' => '5548999991111',
+        'sender_name' => 'Anderson',
+        'original_image_path' => 'vip-gallery/events/'.$event->id.'/originals/coverage-photo-2.jpg',
+        'processing_status' => VipGalleryPhoto::STATUS_PUBLISHED_ORIGINAL,
+        'downloads_count' => 0,
+        'received_at' => now()->subMinutes(4),
+        'published_at' => now()->subMinutes(3),
+    ]);
+
+    $banner = VipGalleryBanner::query()->create([
+        'external_event_id' => $event->id,
+        'image_path' => 'vip-gallery/banners/events/'.$event->id.'/banner-operacional.jpg',
+        'alt_text' => 'Banner operacional',
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    VipGalleryWebhookLog::query()->create([
+        'message_id' => 'coverage-webhook-1',
+        'phone' => $event->whatsapp_group_id,
+        'detected_type' => VipGalleryWebhookLog::TYPE_IMAGE,
+        'routing_status' => 'published',
+        'payload_json' => ['messageId' => 'coverage-webhook-1'],
+        'vip_gallery_photo_id' => $photoOne->id,
+    ]);
+
+    Storage::disk('public')->put((string) $photoOne->original_image_path, fakeJpegBinary());
+    Storage::disk('public')->put((string) $photoOne->processed_image_path, fakeJpegBinary());
+    Storage::disk('public')->put((string) $photoTwo->original_image_path, fakeJpegBinary());
+    Storage::disk('public')->put((string) $banner->image_path, fakeJpegBinary());
+    Storage::disk('public')->put('vip-gallery/logos/events/1/logo.png', fakeJpegBinary());
+
+    $user = User::factory()->make([
+        'id' => 9001,
+        'name' => 'Admin VIP',
+    ]);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson("/api/v1/vip-gallery/events/{$event->id}/photos")
+        ->assertOk()
+        ->assertJsonPath('data.event_id', $event->id)
+        ->assertJsonPath('data.total_photos', 2)
+        ->assertJsonPath('data.participants.0.sender_name', 'Anderson')
+        ->assertJsonPath('data.participants.0.total_photos', 2)
+        ->assertJsonPath('data.photos.0.id', $photoTwo->id);
+
+    $this->actingAs($user, 'sanctum')
+        ->patchJson("/api/v1/vip-gallery/photos/{$photoOne->id}/approval", [
+            'is_approved' => false,
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.photo_id', $photoOne->id)
+        ->assertJsonPath('data.is_approved', false);
+
+    expect($photoOne->fresh()->is_approved)->toBeFalse();
+
+    $this->actingAs($user, 'sanctum')
+        ->deleteJson("/api/v1/vip-gallery/events/{$event->id}/coverage")
+        ->assertOk()
+        ->assertJsonPath('data.event_id', $event->id)
+        ->assertJsonPath('data.deleted_photos', 2)
+        ->assertJsonPath('data.deleted_banners', 1);
+
+    expect($event->fresh()->is_vip_gallery)->toBeFalse();
+    expect($event->fresh()->gallery_slug)->toBeNull();
+    expect(VipGalleryPhoto::query()->where('external_event_id', $event->id)->count())->toBe(0);
+    expect(VipGalleryBanner::query()->where('external_event_id', $event->id)->count())->toBe(0);
+    expect(VipGalleryWebhookLog::query()->where('message_id', 'coverage-webhook-1')->value('vip_gallery_photo_id'))->toBeNull();
+    expect(Storage::disk('public')->exists((string) $photoOne->original_image_path))->toBeFalse();
+    expect(Storage::disk('public')->exists((string) $photoOne->processed_image_path))->toBeFalse();
+    expect(Storage::disk('public')->exists((string) $photoTwo->original_image_path))->toBeFalse();
+    expect(Storage::disk('public')->exists((string) $banner->image_path))->toBeFalse();
+
+    $this->assertDatabaseHas('event_activity_logs', [
+        'event_id' => $event->id,
+        'user_id' => 9001,
+        'action' => 'vip_gallery_deleted',
+    ]);
 });
 
 test('admin can upload vip banners and generate zip download for event photos', function () {

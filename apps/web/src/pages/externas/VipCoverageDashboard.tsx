@@ -2,9 +2,11 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
+    AlertTriangle,
     Calendar,
     Camera,
     CheckCircle2,
+    Clock,
     Download,
     Edit,
     ExternalLink,
@@ -16,8 +18,11 @@ import {
     MapPin,
     MessageCircle,
     PauseCircle,
+    Phone,
     Plus,
     Search,
+    Trash2,
+    Users,
     XCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -39,8 +44,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { useDownloadAllVipGalleryPhotos, useVipCoverageEvents, useVipCoverageStats, useVipGalleryOptions } from "@/hooks/useExternas";
-import type { VipCoverageEvent, VipGalleryStatus } from "@/types/externas";
+import {
+    useDeleteVipCoverage,
+    useDownloadAllVipGalleryPhotos,
+    useUpdateVipGalleryPhotoApproval,
+    useVipCoverageEvents,
+    useVipCoveragePhotos,
+    useVipCoverageStats,
+    useVipGalleryOptions,
+} from "@/hooks/useExternas";
+import type { VipCoverageEvent, VipCoveragePhotoDetail, VipGalleryStatus } from "@/types/externas";
 import { cn } from "@/lib/utils";
 import { FALLBACK_VIP_GROUPS, vipGroupLabel } from "@/features/externas/vipGallery";
 
@@ -91,17 +104,45 @@ function formatEventDate(value: string): string {
     });
 }
 
+function formatDateTime(value?: string | null): string {
+    if (!value) {
+        return "Ainda sem registro";
+    }
+
+    return new Date(value).toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function participantDisplayName(senderName?: string | null, participantPhone?: string | null): string {
+    return senderName?.trim() || participantPhone?.trim() || "Participante sem identificacao";
+}
+
+function photoSentAt(photo: VipCoveragePhotoDetail): string | null {
+    return photo.received_at || photo.published_at || photo.created_at || null;
+}
+
 function VipCoverageCard({
     event,
     vipGroups,
     onDownloadAll,
+    onOpenPhotos,
+    onOpenDelete,
 }: {
     event: VipCoverageEvent;
     vipGroups: { value: string; label: string }[];
     onDownloadAll: (event: VipCoverageEvent) => void;
+    onOpenPhotos: (event: VipCoverageEvent) => void;
+    onOpenDelete: (event: VipCoverageEvent) => void;
 }) {
     const navigate = useNavigate();
     const status = vipStatusConfig[event.vip_gallery_status || "draft"];
+    const visibleParticipants = event.vip_gallery_participants_summary?.slice(0, 3) || [];
+    const hiddenParticipantsCount = Math.max((event.vip_gallery_participants_summary?.length || 0) - visibleParticipants.length, 0);
 
     return (
         <motion.div
@@ -168,6 +209,62 @@ function VipCoverageCard({
                 </p>
             </div>
 
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border bg-muted/20 p-3">
+                    <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        Primeira foto
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                        {formatDateTime(event.vip_gallery_first_photo_sent_at)}
+                    </p>
+                </div>
+                <div className="rounded-2xl border bg-muted/20 p-3">
+                    <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        Ultima foto
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                        {formatDateTime(event.vip_gallery_last_photo_sent_at)}
+                    </p>
+                </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border bg-muted/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                        <Users className="h-4 w-4 text-primary" />
+                        Participantes que enviaram fotos
+                    </p>
+                    <Badge variant="outline">{event.vip_gallery_total_participants || 0}</Badge>
+                </div>
+
+                {visibleParticipants.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted-foreground">Ainda nao ha fotos recebidas nesta cobertura.</p>
+                ) : (
+                    <div className="mt-3 space-y-2">
+                        {visibleParticipants.map((participant) => (
+                            <div key={`${participant.participant_phone || participant.sender_name}-${participant.total_photos}`} className="flex items-center justify-between gap-3 rounded-xl bg-background/80 px-3 py-2">
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium">
+                                        {participantDisplayName(participant.sender_name, participant.participant_phone)}
+                                    </p>
+                                    {participant.participant_phone && (
+                                        <p className="truncate text-xs text-muted-foreground">{participant.participant_phone}</p>
+                                    )}
+                                </div>
+                                <Badge variant="secondary">{participant.total_photos} foto(s)</Badge>
+                            </div>
+                        ))}
+                        {hiddenParticipantsCount > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                                +{hiddenParticipantsCount} participante(s) adicional(is) visivel(is) nos detalhes.
+                            </p>
+                        )}
+                    </div>
+                )}
+            </div>
+
             <div className="mt-5 flex flex-wrap gap-2">
                 <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/externas/${event.id}`)}>
                     Ver evento
@@ -194,6 +291,18 @@ function VipCoverageCard({
                     <Download className="mr-2 h-4 w-4" />
                     Baixar Todas
                 </Button>
+                <Button variant="outline" className="rounded-xl" onClick={() => onOpenPhotos(event)}>
+                    <Image className="mr-2 h-4 w-4" />
+                    Ver Detalhes de Fotos
+                </Button>
+                <Button
+                    variant="outline"
+                    className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => onOpenDelete(event)}
+                >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir Cobertura VIP
+                </Button>
             </div>
         </motion.div>
     );
@@ -204,6 +313,8 @@ const VipCoverageDashboard = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | VipGalleryStatus>("all");
     const [downloadEvent, setDownloadEvent] = useState<VipCoverageEvent | null>(null);
+    const [photosEvent, setPhotosEvent] = useState<VipCoverageEvent | null>(null);
+    const [deleteEvent, setDeleteEvent] = useState<VipCoverageEvent | null>(null);
     const [downloadResult, setDownloadResult] = useState<{
         download_url: string;
         file_name: string;
@@ -214,15 +325,19 @@ const VipCoverageDashboard = () => {
     const { data: statsData } = useVipCoverageStats();
     const { data: vipOptionsData } = useVipGalleryOptions();
     const downloadAllVipGalleryPhotos = useDownloadAllVipGalleryPhotos();
+    const updateVipGalleryPhotoApproval = useUpdateVipGalleryPhotoApproval();
+    const deleteVipCoverage = useDeleteVipCoverage();
     const { data: eventsData, isLoading, error } = useVipCoverageEvents({
         per_page: 100,
         search: searchQuery || undefined,
         vip_gallery_status: filterStatus === "all" ? undefined : filterStatus,
     });
+    const { data: photosData, isLoading: isPhotosLoading } = useVipCoveragePhotos(photosEvent?.id || 0);
 
     const stats = statsData?.data;
     const events = eventsData?.data || [];
     const vipGroups = vipOptionsData?.data.groups || FALLBACK_VIP_GROUPS;
+    const photoDetails = photosData?.data;
 
     const handleOpenDownloadAll = (event: VipCoverageEvent) => {
         setDownloadEvent(event);
@@ -242,6 +357,49 @@ const VipCoverageDashboard = () => {
 
         setDownloadEvent(null);
         setDownloadResult(null);
+    };
+
+    const handleOpenPhotos = (event: VipCoverageEvent) => {
+        setPhotosEvent(event);
+    };
+
+    const handleClosePhotosModal = (open: boolean) => {
+        if (open) {
+            return;
+        }
+
+        setPhotosEvent(null);
+    };
+
+    const handleDeactivatePhoto = (photo: VipCoveragePhotoDetail) => {
+        updateVipGalleryPhotoApproval.mutate({
+            photoId: photo.id,
+            isApproved: false,
+        });
+    };
+
+    const handleCloseDeleteModal = (open: boolean) => {
+        if (open) {
+            return;
+        }
+
+        setDeleteEvent(null);
+    };
+
+    const handleConfirmDeleteCoverage = () => {
+        if (!deleteEvent) {
+            return;
+        }
+
+        deleteVipCoverage.mutate(deleteEvent.id, {
+            onSuccess: () => {
+                if (photosEvent?.id === deleteEvent.id) {
+                    setPhotosEvent(null);
+                }
+
+                setDeleteEvent(null);
+            },
+        });
     };
 
     if (error) {
@@ -386,6 +544,8 @@ const VipCoverageDashboard = () => {
                             event={event}
                             vipGroups={vipGroups}
                             onDownloadAll={handleOpenDownloadAll}
+                            onOpenPhotos={handleOpenPhotos}
+                            onOpenDelete={setDeleteEvent}
                         />
                     ))}
                 </motion.div>
@@ -438,6 +598,237 @@ const VipCoverageDashboard = () => {
                                 Baixar novamente
                             </Button>
                         )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!photosEvent} onOpenChange={handleClosePhotosModal}>
+                <DialogContent className="sm:max-w-[920px]">
+                    <DialogHeader>
+                        <DialogTitle>Detalhes das Fotos</DialogTitle>
+                        <DialogDescription>
+                            {photosEvent
+                                ? `Lista completa de fotos recebidas na cobertura ${photosEvent.titulo}.`
+                                : "Lista completa de fotos recebidas na cobertura selecionada."}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {isPhotosLoading ? (
+                            <div className="flex items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-5">
+                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                <div>
+                                    <p className="font-medium">Carregando fotos</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        Buscando detalhes, participantes e horarios desta galeria.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : photoDetails ? (
+                            <>
+                                <div className="grid gap-3 md:grid-cols-3">
+                                    <div className="rounded-2xl border bg-muted/30 p-4">
+                                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total de fotos</p>
+                                        <p className="mt-2 text-2xl font-bold">{photoDetails.total_photos}</p>
+                                    </div>
+                                    <div className="rounded-2xl border bg-muted/30 p-4">
+                                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fotos ativas</p>
+                                        <p className="mt-2 text-2xl font-bold text-emerald-600">{photoDetails.active_photos}</p>
+                                    </div>
+                                    <div className="rounded-2xl border bg-muted/30 p-4">
+                                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fotos desativadas</p>
+                                        <p className="mt-2 text-2xl font-bold text-amber-600">{photoDetails.inactive_photos}</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <div className="rounded-2xl border bg-muted/20 p-4">
+                                        <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                            <Clock className="h-3.5 w-3.5" />
+                                            Primeira foto enviada
+                                        </p>
+                                        <p className="mt-2 text-sm font-medium">{formatDateTime(photoDetails.first_photo_sent_at)}</p>
+                                    </div>
+                                    <div className="rounded-2xl border bg-muted/20 p-4">
+                                        <p className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                            <Clock className="h-3.5 w-3.5" />
+                                            Ultima foto enviada
+                                        </p>
+                                        <p className="mt-2 text-sm font-medium">{formatDateTime(photoDetails.last_photo_sent_at)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border bg-muted/20 p-4">
+                                    <p className="flex items-center gap-2 text-sm font-medium">
+                                        <Users className="h-4 w-4 text-primary" />
+                                        Participantes desta galeria
+                                    </p>
+                                    {photoDetails.participants.length === 0 ? (
+                                        <p className="mt-3 text-sm text-muted-foreground">Nenhum participante identificado ainda.</p>
+                                    ) : (
+                                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                            {photoDetails.participants.map((participant) => (
+                                                <div key={`${participant.participant_phone || participant.sender_name}-${participant.total_photos}`} className="flex items-center justify-between rounded-xl bg-background/80 px-3 py-2">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-sm font-medium">
+                                                            {participantDisplayName(participant.sender_name, participant.participant_phone)}
+                                                        </p>
+                                                        {participant.participant_phone && (
+                                                            <p className="truncate text-xs text-muted-foreground">{participant.participant_phone}</p>
+                                                        )}
+                                                    </div>
+                                                    <Badge variant="secondary">{participant.total_photos} foto(s)</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                                    {photoDetails.photos.length === 0 ? (
+                                        <div className="rounded-2xl border border-dashed bg-card/70 px-5 py-10 text-center">
+                                            <Image className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" />
+                                            <p className="font-medium">Nenhuma foto nesta cobertura</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                Assim que o webhook publicar imagens, elas aparecerao aqui.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        photoDetails.photos.map((photo) => (
+                                            <div key={photo.id} className="rounded-2xl border bg-card p-4">
+                                                <div className="flex flex-col gap-4 md:flex-row">
+                                                    {photo.image_url ? (
+                                                        <div className="h-24 w-full overflow-hidden rounded-xl border bg-muted md:w-32">
+                                                            <img src={photo.image_url} alt={participantDisplayName(photo.sender_name, photo.participant_phone)} className="h-full w-full object-cover" />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex h-24 w-full items-center justify-center rounded-xl border bg-muted md:w-32">
+                                                            <Image className="h-5 w-5 text-muted-foreground" />
+                                                        </div>
+                                                    )}
+
+                                                    <div className="min-w-0 flex-1 space-y-3">
+                                                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                                            <div className="min-w-0">
+                                                                <p className="truncate text-sm font-semibold">
+                                                                    {participantDisplayName(photo.sender_name, photo.participant_phone)}
+                                                                </p>
+                                                                <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                                                    {photo.participant_phone && (
+                                                                        <span className="flex items-center gap-1">
+                                                                            <Phone className="h-3.5 w-3.5" />
+                                                                            {photo.participant_phone}
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Clock className="h-3.5 w-3.5" />
+                                                                        {formatDateTime(photoSentAt(photo))}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                <Badge variant={photo.is_approved ? "default" : "secondary"} className={cn(!photo.is_approved && "bg-amber-500/15 text-amber-700")}>
+                                                                    {photo.is_approved ? "Ativa na galeria" : "Desativada"}
+                                                                </Badge>
+                                                                <Badge variant="outline">{photo.processing_status}</Badge>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
+                                                            <p>Mensagem: {photo.zapi_message_id}</p>
+                                                            <p>Downloads: {photo.downloads_count}</p>
+                                                            <p>Tamanho: {photo.width || 0}x{photo.height || 0}</p>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {photo.caption?.trim() ? `Legenda: ${photo.caption}` : "Sem legenda"}
+                                                            </p>
+                                                            {photo.is_approved ? (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="rounded-xl"
+                                                                    onClick={() => handleDeactivatePhoto(photo)}
+                                                                    disabled={updateVipGalleryPhotoApproval.isPending}
+                                                                >
+                                                                    <XCircle className="mr-2 h-4 w-4" />
+                                                                    Desativar foto
+                                                                </Button>
+                                                            ) : (
+                                                                <Badge variant="outline" className="border-amber-500/30 text-amber-700">
+                                                                    Foto desativada manualmente
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="rounded-2xl border border-dashed bg-card/70 px-5 py-10 text-center">
+                                <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" />
+                                <p className="font-medium">Nao foi possivel carregar as fotos</p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Tente abrir os detalhes novamente em alguns instantes.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => handleClosePhotosModal(false)}>
+                            Fechar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deleteEvent} onOpenChange={handleCloseDeleteModal}>
+                <DialogContent className="sm:max-w-[520px]">
+                    <DialogHeader>
+                        <DialogTitle>Excluir Cobertura VIP</DialogTitle>
+                        <DialogDescription>
+                            Esta acao apaga todas as fotos e banners definitivamente, remove o vinculo VIP do evento e nao pode ser desfeita.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {deleteEvent && (
+                        <div className="space-y-4 py-2">
+                            <div className="rounded-2xl border bg-muted/30 p-4">
+                                <p className="font-medium">{deleteEvent.titulo}</p>
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fotos a apagar</p>
+                                        <p className="mt-1 text-xl font-bold text-destructive">{deleteEvent.vip_gallery_photos_count}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Banners a apagar</p>
+                                        <p className="mt-1 text-xl font-bold text-destructive">{deleteEvent.vip_gallery_banners_count}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                                O log administrativo vai registrar qual usuario removeu esta cobertura VIP e quantas fotos foram apagadas.
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" onClick={() => handleCloseDeleteModal(false)}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleConfirmDeleteCoverage}
+                            disabled={deleteVipCoverage.isPending}
+                        >
+                            {deleteVipCoverage.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Apagar cobertura definitivamente
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

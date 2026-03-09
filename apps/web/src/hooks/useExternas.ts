@@ -12,6 +12,7 @@ const KEYS = {
     vipOptions: () => [...KEYS.all, "vip-options"] as const,
     vipLogs: (params?: { search?: string; routing_status?: string; limit?: number }) =>
         [...KEYS.all, "vip-logs", params] as const,
+    vipPhotos: (eventId: number) => [...KEYS.all, "vip-photos", eventId] as const,
     upcoming: (days?: number) => [...KEYS.all, "upcoming", days] as const,
     categories: () => [...KEYS.all, "categories"] as const,
     statuses: () => [...KEYS.all, "statuses"] as const,
@@ -70,6 +71,14 @@ export function useVipCoverageLogs(params?: { search?: string; routing_status?: 
     return useQuery({
         queryKey: KEYS.vipLogs(params),
         queryFn: () => externaService.getVipCoverageLogs(params),
+    });
+}
+
+export function useVipCoveragePhotos(eventId: number) {
+    return useQuery({
+        queryKey: KEYS.vipPhotos(eventId),
+        queryFn: () => externaService.getVipCoveragePhotos(eventId),
+        enabled: !!eventId,
     });
 }
 
@@ -324,6 +333,33 @@ export function useDownloadAllVipGalleryPhotos() {
     return useMutation({
         mutationFn: (eventId: number) => externaService.downloadAllVipGalleryPhotos(eventId),
         onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao gerar o ZIP das fotos"),
+    });
+}
+
+export function useUpdateVipGalleryPhotoApproval() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ photoId, isApproved }: { photoId: number; isApproved: boolean }) =>
+            externaService.updateVipGalleryPhotoApproval(photoId, isApproved),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            showToast.success("Visibilidade da foto atualizada!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao atualizar a foto"),
+    });
+}
+
+export function useDeleteVipCoverage() {
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: (eventId: number) => externaService.deleteVipCoverage(eventId),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: KEYS.all });
+            showToast.success("Cobertura VIP removida!");
+        },
+        onError: (e: any) => showToast.error(e.response?.data?.message || "Erro ao remover a Cobertura VIP"),
     });
 }
 

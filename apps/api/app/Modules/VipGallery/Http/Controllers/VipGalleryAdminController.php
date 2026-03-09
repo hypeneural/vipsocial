@@ -2,6 +2,7 @@
 
 namespace App\Modules\VipGallery\Http\Controllers;
 
+use App\Modules\Externas\Models\EventActivityLog;
 use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Http\Resources\GalleryBannerResource;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryPhotoJob;
@@ -348,6 +349,205 @@ class VipGalleryAdminController extends BaseController
         ], 'Arquivo ZIP gerado com sucesso');
     }
 
+    public function eventPhotos(ExternalEvent $event): JsonResponse
+    {
+        if (! $event->is_vip_gallery) {
+            return $this->jsonError(
+                'O evento informado nao possui Cobertura VIP ativa',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        $photos = VipGalleryPhoto::query()
+            ->where('external_event_id', $event->id)
+            ->orderByDesc(DB::raw('COALESCE(received_at, published_at, created_at)'))
+            ->orderByDesc('id')
+            ->get();
+        $timeline = $this->buildEventPhotoTimeline($event->id);
+
+        return $this->jsonSuccess([
+            'event_id' => $event->id,
+            'event_title' => $event->titulo,
+            'total_photos' => $photos->count(),
+            'active_photos' => $photos->where('is_approved', true)->count(),
+            'inactive_photos' => $photos->where('is_approved', false)->count(),
+            'first_photo_sent_at' => $timeline['first_photo_sent_at'],
+            'last_photo_sent_at' => $timeline['last_photo_sent_at'],
+            'participants' => $this->buildParticipantSummary($event->id),
+            'photos' => $photos->map(fn (VipGalleryPhoto $photo) => [
+                'id' => $photo->id,
+                'zapi_message_id' => $photo->zapi_message_id,
+                'sender_name' => $photo->sender_name,
+                'participant_phone' => $photo->participant_phone,
+                'caption' => $photo->caption,
+                'processing_status' => $photo->processing_status,
+                'is_approved' => (bool) $photo->is_approved,
+                'downloads_count' => (int) $photo->downloads_count,
+                'width' => $photo->width,
+                'height' => $photo->height,
+                'received_at' => optional($photo->received_at)?->toIso8601String(),
+                'published_at' => optional($photo->published_at)?->toIso8601String(),
+                'created_at' => optional($photo->created_at)?->toIso8601String(),
+                'image_url' => $photo->publicImageUrl(),
+            ])->values(),
+        ]);
+    }
+
+    public function updatePhotoApproval(Request $request, VipGalleryPhoto $photo): JsonResponse
+    {
+        $validated = $request->validate([
+            'is_approved' => ['required', 'boolean'],
+        ]);
+
+        $previousState = (bool) $photo->is_approved;
+        $nextState = (bool) $validated['is_approved'];
+
+        $photo->forceFill([
+            'is_approved' => $nextState,
+        ])->save();
+
+        EventActivityLog::log(
+            $photo->external_event_id,
+            'vip_gallery_photo_visibility_updated',
+            sprintf(
+                'Foto %s da Cobertura VIP foi %s.',
+                $photo->zapi_message_id,
+                $nextState ? 'reativada' : 'desativada'
+            ),
+            [
+                'Visibilidade da foto' => [
+                    'de' => $previousState ? 'Ativa' : 'Desativada',
+                    'para' => $nextState ? 'Ativa' : 'Desativada',
+                ],
+                'Participante' => [
+                    'de' => trim((string) ($photo->sender_name ?: $photo->participant_phone)),
+                    'para' => trim((string) ($photo->sender_name ?: $photo->participant_phone)),
+                ],
+            ]
+        );
+
+        return $this->jsonSuccess([
+            'photo_id' => $photo->id,
+            'is_approved' => $nextState,
+        ], $nextState ? 'Foto reativada com sucesso' : 'Foto desativada com sucesso');
+    }
+
+    public function destroyCoverage(ExternalEvent $event, VipGalleryMediaManager $mediaManager): JsonResponse
+    {
+        if (! $event->is_vip_gallery) {
+            return $this->jsonError(
+                'O evento informado nao possui Cobertura VIP ativa',
+                'UNPROCESSABLE_ENTITY',
+                422
+            );
+        }
+
+        $photos = VipGalleryPhoto::query()
+            ->where('external_event_id', $event->id)
+            ->get();
+        $banners = VipGalleryBanner::query()
+            ->where('external_event_id', $event->id)
+            ->get();
+        $photoIds = $photos->pluck('id')->all();
+        $deletedPhotos = $photos->count();
+        $deletedBanners = $banners->count();
+        $previousStatus = (string) $event->vip_gallery_status;
+        $previousCustomLogoPath = is_string($event->custom_logo_path) ? $event->custom_logo_path : null;
+        $baseDir = trim((string) config('vip_gallery.base_dir', 'vip-gallery'), '/');
+
+        DB::transaction(function () use ($event, $photoIds, $deletedPhotos, $deletedBanners, $previousStatus) {
+            if (! empty($photoIds)) {
+                VipGalleryWebhookLog::query()
+                    ->whereIn('vip_gallery_photo_id', $photoIds)
+                    ->update([
+                        'vip_gallery_photo_id' => null,
+                    ]);
+            }
+
+            VipGalleryPhoto::query()
+                ->where('external_event_id', $event->id)
+                ->forceDelete();
+
+            VipGalleryBanner::query()
+                ->where('external_event_id', $event->id)
+                ->delete();
+
+            $event->forceFill([
+                'is_vip_gallery' => false,
+                'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
+                'whatsapp_group_id' => null,
+                'gallery_slug' => null,
+                'custom_logo_path' => null,
+                'logo_size_percent' => (int) config('vip_gallery.images.logo_size_percent_default', 12),
+                'logo_anchor' => (string) config('vip_gallery.images.logo_position', 'bottom_center'),
+                'logo_offset_x_percent' => (float) config('vip_gallery.images.logo_offset_percent_default', 3),
+                'logo_offset_y_percent' => (float) config('vip_gallery.images.logo_offset_percent_default', 3),
+                'views_count' => 0,
+                'allow_pause_command' => false,
+                'allow_delete_command' => false,
+                'pause_command_keyword' => (string) config('vip_gallery.pause.default_keywords', 'Parar,Pausar'),
+                'delete_command_keyword' => (string) config('vip_gallery.delete.default_keywords', 'Deletar,Apagar,Excluir'),
+            ])->save();
+
+            EventActivityLog::log(
+                $event->id,
+                'vip_gallery_deleted',
+                sprintf(
+                    'Cobertura VIP removida definitivamente. %d foto(s) e %d banner(s) foram apagados.',
+                    $deletedPhotos,
+                    $deletedBanners
+                ),
+                [
+                    'Cobertura VIP' => [
+                        'de' => 'Ativa',
+                        'para' => 'Removida',
+                    ],
+                    'Status da galeria' => [
+                        'de' => $previousStatus,
+                        'para' => ExternalEvent::VIP_GALLERY_STATUS_DRAFT,
+                    ],
+                    'Fotos removidas' => [
+                        'de' => (string) $deletedPhotos,
+                        'para' => '0',
+                    ],
+                    'Banners removidos' => [
+                        'de' => (string) $deletedBanners,
+                        'para' => '0',
+                    ],
+                ]
+            );
+        });
+
+        foreach ($photos as $photo) {
+            $mediaManager->deletePath($photo->original_image_path);
+            $mediaManager->deletePath($photo->processed_image_path);
+        }
+
+        foreach ($banners as $banner) {
+            $mediaManager->deletePath($banner->image_path);
+        }
+
+        if (
+            is_string($previousCustomLogoPath)
+            && $previousCustomLogoPath !== ''
+            && ! $mediaManager->isNoLogoPath($previousCustomLogoPath)
+        ) {
+            $mediaManager->deletePath($previousCustomLogoPath);
+        }
+
+        Storage::disk('public')->deleteDirectory("{$baseDir}/events/{$event->id}");
+        Storage::disk('public')->deleteDirectory("{$baseDir}/banners/events/{$event->id}");
+        Storage::disk('public')->deleteDirectory("{$baseDir}/logos/events/{$event->id}");
+        Storage::disk('public')->deleteDirectory("{$baseDir}/exports/events/{$event->id}");
+
+        return $this->jsonSuccess([
+            'event_id' => $event->id,
+            'deleted_photos' => $deletedPhotos,
+            'deleted_banners' => $deletedBanners,
+        ], 'Cobertura VIP removida com sucesso');
+    }
+
     public function reprocess(VipGalleryPhoto $photo, VipGalleryMediaManager $mediaManager): JsonResponse
     {
         if ($photo->processing_status !== VipGalleryPhoto::STATUS_FAILED) {
@@ -429,5 +629,47 @@ class VipGalleryAdminController extends BaseController
             ])
             ->values()
             ->all();
+    }
+
+    private function buildParticipantSummary(int $eventId): array
+    {
+        return VipGalleryPhoto::query()
+            ->select([
+                'participant_phone',
+                'sender_name',
+                DB::raw('COUNT(*) as total_photos'),
+            ])
+            ->where('external_event_id', $eventId)
+            ->groupBy('participant_phone', 'sender_name')
+            ->orderByDesc('total_photos')
+            ->orderBy('sender_name')
+            ->get()
+            ->map(fn ($row) => [
+                'participant_phone' => $row->participant_phone,
+                'sender_name' => $row->sender_name,
+                'total_photos' => (int) $row->total_photos,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function buildEventPhotoTimeline(int $eventId): array
+    {
+        $timeline = VipGalleryPhoto::query()
+            ->select([
+                DB::raw('MIN(COALESCE(received_at, published_at, created_at)) as first_photo_sent_at'),
+                DB::raw('MAX(COALESCE(received_at, published_at, created_at)) as last_photo_sent_at'),
+            ])
+            ->where('external_event_id', $eventId)
+            ->first();
+
+        return [
+            'first_photo_sent_at' => isset($timeline?->first_photo_sent_at)
+                ? \Illuminate\Support\Carbon::parse((string) $timeline->first_photo_sent_at)->toIso8601String()
+                : null,
+            'last_photo_sent_at' => isset($timeline?->last_photo_sent_at)
+                ? \Illuminate\Support\Carbon::parse((string) $timeline->last_photo_sent_at)->toIso8601String()
+                : null,
+        ];
     }
 }

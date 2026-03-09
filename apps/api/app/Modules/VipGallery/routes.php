@@ -11,11 +11,17 @@ Route::post('/webhook/zapi/gallery', [ZApiGalleryWebhookController::class, 'stor
 Route::middleware('auth:sanctum')->prefix('vip-gallery')->group(function () {
     Route::get('/options', [VipGalleryAdminController::class, 'options']);
     Route::get('/logs', [VipGalleryAdminController::class, 'logs']);
+    Route::get('/events/{event}/photos', [VipGalleryAdminController::class, 'eventPhotos'])
+        ->whereNumber('event');
+    Route::delete('/events/{event}/coverage', [VipGalleryAdminController::class, 'destroyCoverage'])
+        ->whereNumber('event');
     Route::post('/logos/upload', [VipGalleryAdminController::class, 'uploadLogo']);
     Route::post('/banners/upload', [VipGalleryAdminController::class, 'uploadBanners']);
     Route::patch('/banners/reorder', [VipGalleryAdminController::class, 'reorderBanners']);
     Route::delete('/banners/{banner}', [VipGalleryAdminController::class, 'destroyBanner'])
         ->whereNumber('banner');
+    Route::patch('/photos/{photo}/approval', [VipGalleryAdminController::class, 'updatePhotoApproval'])
+        ->whereNumber('photo');
     Route::post('/photos/{photo}/reprocess', [VipGalleryAdminController::class, 'reprocess'])
         ->whereNumber('photo');
     Route::post('/events/{event}/download-all', [VipGalleryAdminController::class, 'downloadAll'])

@@ -46,6 +46,41 @@ export interface VipCoverageStats {
     total_downloads: number;
 }
 
+export interface VipCoverageParticipantSummary {
+    participant_phone?: string | null;
+    sender_name?: string | null;
+    total_photos: number;
+}
+
+export interface VipCoveragePhotoDetail {
+    id: number;
+    zapi_message_id: string;
+    sender_name?: string | null;
+    participant_phone?: string | null;
+    caption?: string | null;
+    processing_status: string;
+    is_approved: boolean;
+    downloads_count: number;
+    width?: number | null;
+    height?: number | null;
+    received_at?: string | null;
+    published_at?: string | null;
+    created_at: string;
+    image_url?: string | null;
+}
+
+export interface VipCoveragePhotoDetailsResponse {
+    event_id: number;
+    event_title: string;
+    total_photos: number;
+    active_photos: number;
+    inactive_photos: number;
+    first_photo_sent_at?: string | null;
+    last_photo_sent_at?: string | null;
+    participants: VipCoverageParticipantSummary[];
+    photos: VipCoveragePhotoDetail[];
+}
+
 export interface VipGalleryGroupOption {
     value: string;
     label: string;
@@ -260,6 +295,10 @@ export interface VipCoverageEvent extends ExternalEvent {
     vip_gallery_downloads_count: number;
     vip_gallery_public_url?: string | null;
     vip_gallery_is_active: boolean;
+    vip_gallery_participants_summary: VipCoverageParticipantSummary[];
+    vip_gallery_total_participants: number;
+    vip_gallery_first_photo_sent_at?: string | null;
+    vip_gallery_last_photo_sent_at?: string | null;
 }
 
 const GOOGLE_CALENDAR_TIME_ZONE = "America/Sao_Paulo";

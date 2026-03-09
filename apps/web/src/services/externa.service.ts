@@ -9,6 +9,7 @@ import {
     VipGalleryBanner,
     VipCoverageLogsResponse,
     VipCoverageStats,
+    VipCoveragePhotoDetailsResponse,
     VipGalleryStatus,
     VipLogoAnchor,
 } from "@/types/externas";
@@ -153,6 +154,11 @@ export const externaService = {
         return data;
     },
 
+    getVipCoveragePhotos: async (eventId: number): Promise<ApiResponse<VipCoveragePhotoDetailsResponse>> => {
+        const { data } = await api.get<ApiResponse<VipCoveragePhotoDetailsResponse>>(`/vip-gallery/events/${eventId}/photos`);
+        return data;
+    },
+
     uploadVipGalleryLogo: async (
         file: File,
         eventId?: number
@@ -226,6 +232,30 @@ export const externaService = {
     ): Promise<ApiResponse<{ download_url: string; file_name: string; total_files: number; generated_at: string }>> => {
         const { data } = await api.post<ApiResponse<{ download_url: string; file_name: string; total_files: number; generated_at: string }>>(
             `/vip-gallery/events/${eventId}/download-all`
+        );
+
+        return data;
+    },
+
+    updateVipGalleryPhotoApproval: async (
+        photoId: number,
+        isApproved: boolean
+    ): Promise<ApiResponse<{ photo_id: number; is_approved: boolean }>> => {
+        const { data } = await api.patch<ApiResponse<{ photo_id: number; is_approved: boolean }>>(
+            `/vip-gallery/photos/${photoId}/approval`,
+            {
+                is_approved: isApproved,
+            }
+        );
+
+        return data;
+    },
+
+    deleteVipCoverage: async (
+        eventId: number
+    ): Promise<ApiResponse<{ event_id: number; deleted_photos: number; deleted_banners: number }>> => {
+        const { data } = await api.delete<ApiResponse<{ event_id: number; deleted_photos: number; deleted_banners: number }>>(
+            `/vip-gallery/events/${eventId}/coverage`
         );
 
         return data;
