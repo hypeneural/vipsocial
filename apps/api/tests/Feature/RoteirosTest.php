@@ -180,6 +180,34 @@ test('deletar matéria', function () {
     $this->assertDatabaseMissing('materias', ['id' => $materia->id]);
 });
 
+test('find or create backfills linhas vazias for roteiro already created', function () {
+    $roteiro = Roteiro::create([
+        'titulo' => 'Roteiro 10/03/2026',
+        'data' => '2026-03-10',
+        'created_by' => $this->admin->id,
+        'updated_by' => $this->admin->id,
+    ]);
+
+    $this->actingAs($this->admin, 'sanctum')
+        ->postJson('/api/v1/roteiros/find-or-create', [
+            'data' => '2026-03-10',
+        ])
+        ->assertOk()
+        ->assertJsonCount(12, 'data.materias');
+
+    $this->assertDatabaseHas('materias', [
+        'roteiro_id' => $roteiro->id,
+        'shortcut' => 'F1',
+        'ordem' => 1,
+    ]);
+
+    $this->assertDatabaseHas('materias', [
+        'roteiro_id' => $roteiro->id,
+        'shortcut' => 'F12',
+        'ordem' => 12,
+    ]);
+});
+
 // ── Permissões ───────────────────────────────────────────
 
 test('analista não pode criar roteiro (403)', function () {

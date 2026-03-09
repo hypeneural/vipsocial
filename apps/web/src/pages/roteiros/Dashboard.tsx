@@ -101,15 +101,18 @@ const RoteirosDashboard = () => {
         return maybeError.response?.data?.message ?? maybeError.message ?? "Falha ao carregar roteiro";
     }, [roteiroError]);
 
-    const noRoteiroForDate = !isRoteiroLoading && !isRoteiroError && !roteiro;
+    const roteiroNeedsBaseItems =
+        !isRoteiroLoading &&
+        !isRoteiroError &&
+        (!roteiro || (roteiro.materias?.length ?? 0) < 12);
 
-    // Auto-create roteiro with 12 empty matérias for dates without one
+    // Ensure each roteiro date has the default 12 editable linhas.
     useEffect(() => {
-        if (noRoteiroForDate && !findOrCreateMutation.isPending) {
+        if (roteiroNeedsBaseItems && !findOrCreateMutation.isPending) {
             findOrCreateMutation.mutate(currentDate);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [noRoteiroForDate, currentDate]);
+    }, [roteiroNeedsBaseItems, currentDate]);
 
     useEffect(() => {
         const materias = roteiro?.materias ?? [];
@@ -448,7 +451,7 @@ const RoteirosDashboard = () => {
                 </motion.div>
             )}
 
-            {noRoteiroForDate && findOrCreateMutation.isPending && (
+            {roteiroNeedsBaseItems && findOrCreateMutation.isPending && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

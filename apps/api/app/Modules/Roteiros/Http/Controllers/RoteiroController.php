@@ -4,6 +4,7 @@ namespace App\Modules\Roteiros\Http\Controllers;
 
 use App\Modules\Roteiros\Actions\CreateRoteiroAction;
 use App\Modules\Roteiros\Actions\DuplicateRoteiroAction;
+use App\Modules\Roteiros\Actions\EnsureRoteiroMateriasAction;
 use App\Modules\Roteiros\Actions\ReorderMateriasAction;
 use App\Modules\Roteiros\Http\Requests\CreateMateriaRequest;
 use App\Modules\Roteiros\Http\Requests\CreateRoteiroRequest;
@@ -147,7 +148,7 @@ class RoteiroController extends BaseController
         return $this->jsonSuccess(null, 'Matérias reordenadas');
     }
 
-    public function findOrCreate(Request $request): JsonResponse
+    public function findOrCreate(Request $request, EnsureRoteiroMateriasAction $ensureMaterias): JsonResponse
     {
         $date = $request->input('data');
 
@@ -160,6 +161,8 @@ class RoteiroController extends BaseController
             ->first();
 
         if ($roteiro) {
+            $roteiro = $ensureMaterias->execute($roteiro);
+
             return $this->jsonSuccess(new RoteiroResource($roteiro));
         }
 
@@ -172,19 +175,7 @@ class RoteiroController extends BaseController
             'updated_by' => auth()->id(),
         ]);
 
-        for ($i = 1; $i <= 12; $i++) {
-            $roteiro->materias()->create([
-                'shortcut' => "F{$i}",
-                'titulo' => '',
-                'descricao' => '',
-                'duracao' => '00:00:00',
-                'status' => 'pendente',
-                'creditos_gc' => '',
-                'ordem' => $i,
-            ]);
-        }
-
-        $roteiro->load(['materias.categoria', 'createdBy', 'updatedBy']);
+        $roteiro = $ensureMaterias->execute($roteiro);
 
         return $this->jsonCreated(new RoteiroResource($roteiro), 'Roteiro criado com 12 matérias');
     }
