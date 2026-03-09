@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import getSlideshowBoot from "../api/getSlideshowBoot";
 import getSlideshowState from "../api/getSlideshowState";
-import type { SlideshowBootData } from "../types";
+import type { SlideshowBootData, SlideshowConnectionStatus } from "../types";
 
-const RESYNC_INTERVAL_MS = 20_000;
+const RESYNC_INTERVAL_CONNECTED_MS = 120_000;
+const RESYNC_INTERVAL_DEGRADED_MS = 20_000;
 
 interface UseSlideshowBootOptions {
     code: string;
+    connectionStatus?: SlideshowConnectionStatus;
     onSnapshot: (snapshot: SlideshowBootData, kind: "boot" | "state") => void;
     onExpired: (message?: string | null) => void;
     onError: (message: string) => void;
@@ -15,6 +17,7 @@ interface UseSlideshowBootOptions {
 
 export function useSlideshowBoot({
     code,
+    connectionStatus,
     onSnapshot,
     onExpired,
     onError,
@@ -44,6 +47,10 @@ export function useSlideshowBoot({
         }
     }, [code, onError, onExpired, onSnapshot]);
 
+    const resyncInterval = connectionStatus === "connected"
+        ? RESYNC_INTERVAL_CONNECTED_MS
+        : RESYNC_INTERVAL_DEGRADED_MS;
+
     useEffect(() => {
         let active = true;
 
@@ -58,13 +65,13 @@ export function useSlideshowBoot({
         void guardedSync("boot");
         const interval = window.setInterval(() => {
             void guardedSync("state");
-        }, RESYNC_INTERVAL_MS);
+        }, resyncInterval);
 
         return () => {
             active = false;
             window.clearInterval(interval);
         };
-    }, [sync]);
+    }, [resyncInterval, sync]);
 
     const resync = useCallback(() => sync("state"), [sync]);
 

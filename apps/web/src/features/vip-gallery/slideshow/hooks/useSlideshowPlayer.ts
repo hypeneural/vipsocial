@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import useSlideshowBoot from "./useSlideshowBoot";
 import useSlideshowEngine from "./useSlideshowEngine";
 import useSlideshowRealtime from "./useSlideshowRealtime";
@@ -31,20 +31,9 @@ export function useSlideshowPlayer(code: string) {
         markExpired(message);
     }, [markExpired]);
 
-    const { isSyncing, resync } = useSlideshowBoot({
-        code,
-        onSnapshot: handleSnapshot,
-        onExpired: handleExpired,
-        onError: handleBootError,
-    });
-
     const handleRealtimeExpired = useCallback((payload: { reason?: string }) => {
         markExpired(payload.reason || "O telao foi encerrado.");
     }, [markExpired]);
-
-    const handleReconnect = useCallback(() => {
-        void resync();
-    }, [resync]);
 
     const { connectionStatus } = useSlideshowRealtime({
         code,
@@ -54,8 +43,31 @@ export function useSlideshowPlayer(code: string) {
         onSettingsUpdated: applySettings,
         onStatusChanged: handleStatusChanged,
         onExpired: handleRealtimeExpired,
-        onReconnect: handleReconnect,
     });
+
+    const { isSyncing, resync } = useSlideshowBoot({
+        code,
+        connectionStatus,
+        onSnapshot: handleSnapshot,
+        onExpired: handleExpired,
+        onError: handleBootError,
+    });
+
+    const previousConnectionStatusRef = useRef(connectionStatus);
+
+    useEffect(() => {
+        const previousStatus = previousConnectionStatusRef.current;
+
+        if (
+            connectionStatus === "connected"
+            && previousStatus !== "connected"
+            && previousStatus !== "idle"
+        ) {
+            void resync();
+        }
+
+        previousConnectionStatusRef.current = connectionStatus;
+    }, [connectionStatus, resync]);
 
     return {
         state,

@@ -325,25 +325,51 @@ export function mergeServerSnapshot(
     fallbackStatus: PlayerVisualStatus = "playing"
 ): SlideshowPlayerState {
     const existingById = new Map(previous.items.map((item) => [item.id, item]));
-    const nextItems: SlideRuntimeItem[] = snapshot.files.map((item) => {
-        const existing = existingById.get(item.id);
+    const snapshotById = new Map(snapshot.files.map((item) => [item.id, item]));
+    const previousCurrentItemId = previous.currentIndex >= 0 && previous.currentIndex < previous.items.length
+        ? previous.items[previous.currentIndex]?.id ?? null
+        : null;
 
-        return {
-            ...existing,
+    const retainedItems: SlideRuntimeItem[] = previous.items
+        .filter((item) => snapshotById.has(item.id))
+        .map((item) => {
+            const snapshotItem = snapshotById.get(item.id)!;
+
+            return {
+                ...item,
+                ...snapshotItem,
+                assetStatus: item.assetStatus ?? "loading",
+                orientation: item.orientation ?? null,
+                width: item.width ?? null,
+                height: item.height ?? null,
+                cachedAt: item.cachedAt ?? null,
+                lastError: item.lastError ?? null,
+                playedAt: item.playedAt ?? null,
+            };
+        });
+
+    const newItems: SlideRuntimeItem[] = snapshot.files
+        .filter((item) => !existingById.has(item.id))
+        .map((item) => ({
             ...item,
-            assetStatus: existing?.assetStatus ?? "loading",
-            orientation: existing?.orientation ?? null,
-            width: existing?.width ?? null,
-            height: existing?.height ?? null,
-            cachedAt: existing?.cachedAt ?? null,
-            lastError: existing?.lastError ?? null,
-            playedAt: existing?.playedAt ?? null,
-        };
-    });
+            assetStatus: "loading" as const,
+            orientation: null,
+            width: null,
+            height: null,
+            cachedAt: null,
+            lastError: null,
+            playedAt: null,
+        }));
 
-    const currentIndex = resolvePlayableIndex(nextItems, previous.currentIndex);
+    const nextItems: SlideRuntimeItem[] = [...newItems, ...retainedItems];
+    const preservedCurrentIndex = previousCurrentItemId
+        ? nextItems.findIndex((item) => item.id === previousCurrentItemId)
+        : -1;
+    const currentIndex = resolvePlayableIndex(nextItems, preservedCurrentIndex >= 0 ? preservedCurrentIndex : previous.currentIndex);
     const nextStatus = resolveVisualStatus(snapshot.event.status, nextItems, fallbackStatus);
-    const shouldMarkAsPlayed = nextStatus === "playing" && currentIndex >= 0;
+    const shouldMarkAsPlayed = nextStatus === "playing"
+        && currentIndex >= 0
+        && !nextItems[currentIndex]?.playedAt;
 
     return {
         ...previous,

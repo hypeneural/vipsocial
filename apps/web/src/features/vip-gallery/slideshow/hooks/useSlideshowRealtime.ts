@@ -18,7 +18,6 @@ interface UseSlideshowRealtimeOptions {
     onSettingsUpdated: (payload: SlideSettings) => void;
     onStatusChanged: (payload: SlideshowStatusChangedPayload) => void;
     onExpired: (payload: SlideshowExpiredPayload) => void;
-    onReconnect?: () => void;
 }
 
 export function useSlideshowRealtime({
@@ -29,7 +28,6 @@ export function useSlideshowRealtime({
     onSettingsUpdated,
     onStatusChanged,
     onExpired,
-    onReconnect,
 }: UseSlideshowRealtimeOptions) {
     const [connectionStatus, setConnectionStatus] = useState<SlideshowConnectionStatus>("idle");
     const callbacksRef = useRef({
@@ -39,7 +37,6 @@ export function useSlideshowRealtime({
         onSettingsUpdated,
         onStatusChanged,
         onExpired,
-        onReconnect,
     });
 
     useEffect(() => {
@@ -50,14 +47,12 @@ export function useSlideshowRealtime({
             onSettingsUpdated,
             onStatusChanged,
             onExpired,
-            onReconnect,
         };
     }, [
         onExpired,
         onMediaDeleted,
         onMediaUpdated,
         onNewMedia,
-        onReconnect,
         onStatusChanged,
         onSettingsUpdated,
     ]);
@@ -89,11 +84,6 @@ export function useSlideshowRealtime({
 
             if (nextState === "connected") {
                 setConnectionStatus("connected");
-
-                if (hasConnectedOnce) {
-                    callbacksRef.current.onReconnect?.();
-                }
-
                 hasConnectedOnce = true;
                 return;
             }

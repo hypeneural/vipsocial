@@ -190,11 +190,109 @@ describe("slideshowEngineReducer", () => {
 
         expect(next.status).toBe("playing");
         expect(next.settings?.showSenderCredit).toBe(false);
-        expect(next.items[0]?.assetStatus).toBe("ready");
-        expect(next.items[0]?.cachedAt).toBe("2026-03-09T10:15:00-03:00");
-        expect(next.items[0]?.sender_key).toBe("sender:anderson");
-        expect(next.items[1]?.assetStatus).toBe("loading");
-        expect(next.currentIndex).toBe(0);
+        expect(next.items[0]?.id).toBe("photo-2");
+        expect(next.items[0]?.assetStatus).toBe("loading");
+        expect(next.items[1]?.assetStatus).toBe("ready");
+        expect(next.items[1]?.cachedAt).toBe("2026-03-09T10:15:00-03:00");
+        expect(next.items[1]?.sender_key).toBe("sender:anderson");
+        expect(next.currentIndex).toBe(1);
+    });
+
+    it("preserva o slide atual por id quando o state adiciona nova foto no topo do snapshot", () => {
+        const current = {
+            ...createEmptyPlayerState("M6NS6M"),
+            status: "playing" as const,
+            items: [
+                makeReadyItem({
+                    id: "photo-10",
+                    sender_name: "Anderson",
+                    sender_key: "sender:anderson",
+                    playedAt: "2026-03-09T10:00:30-03:00",
+                }),
+                makeReadyItem({
+                    id: "photo-11",
+                    sender_name: "Bruna",
+                    sender_key: "sender:bruna",
+                }),
+                makeReadyItem({
+                    id: "photo-12",
+                    sender_name: "Carlos",
+                    sender_key: "sender:carlos",
+                }),
+            ],
+            currentIndex: 1,
+        };
+
+        const next = slideshowEngineReducer(current, {
+            type: "apply-snapshot",
+            snapshot: makeSnapshot([
+                makeMedia({
+                    id: "photo-99",
+                    sender_name: "Debora",
+                    sender_key: "sender:debora",
+                    created_at: "2026-03-09T10:16:00-03:00",
+                }),
+                makeMedia({
+                    id: "photo-10",
+                    sender_name: "Anderson",
+                    sender_key: "sender:anderson",
+                    created_at: "2026-03-09T10:00:00-03:00",
+                }),
+                makeMedia({
+                    id: "photo-11",
+                    sender_name: "Bruna",
+                    sender_key: "sender:bruna",
+                    created_at: "2026-03-09T10:01:00-03:00",
+                }),
+                makeMedia({
+                    id: "photo-12",
+                    sender_name: "Carlos",
+                    sender_key: "sender:carlos",
+                    created_at: "2026-03-09T10:02:00-03:00",
+                }),
+            ]),
+        });
+
+        expect(next.items.map((item) => item.id)).toEqual(["photo-99", "photo-10", "photo-11", "photo-12"]);
+        expect(next.currentIndex).toBe(2);
+        expect(next.items[next.currentIndex]?.id).toBe("photo-11");
+    });
+
+    it("nao reinicia a ordem local dos itens antigos a cada state", () => {
+        const current = {
+            ...createEmptyPlayerState("M6NS6M"),
+            status: "playing" as const,
+            items: [
+                makeReadyItem({
+                    id: "photo-a",
+                    sender_name: "Anderson",
+                    sender_key: "sender:anderson",
+                    playedAt: "2026-03-09T10:00:30-03:00",
+                }),
+                makeReadyItem({
+                    id: "photo-b",
+                    sender_name: "Bruna",
+                    sender_key: "sender:bruna",
+                }),
+                makeReadyItem({
+                    id: "photo-c",
+                    sender_name: "Carlos",
+                    sender_key: "sender:carlos",
+                }),
+            ],
+            currentIndex: 0,
+        };
+
+        const next = slideshowEngineReducer(current, {
+            type: "apply-snapshot",
+            snapshot: makeSnapshot([
+                makeMedia({ id: "photo-c", sender_name: "Carlos", sender_key: "sender:carlos" }),
+                makeMedia({ id: "photo-b", sender_name: "Bruna", sender_key: "sender:bruna" }),
+                makeMedia({ id: "photo-a", sender_name: "Anderson", sender_key: "sender:anderson" }),
+            ]),
+        });
+
+        expect(next.items.map((item) => item.id)).toEqual(["photo-a", "photo-b", "photo-c"]);
     });
 
     it("prioriza a primeira novidade de outro remetente antes do backlog do remetente atual", () => {
