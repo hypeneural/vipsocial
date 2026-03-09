@@ -150,6 +150,28 @@ function pickBucket(
     return alternativeBuckets[0] ?? sortedBuckets[0] ?? null;
 }
 
+function pickReplayEntryIndex(bucket: SenderBucket): number {
+    const sortedEntries = [...bucket.entries].sort((left, right) => {
+        const leftPlayedAt = parseTimestamp(left.item.playedAt);
+        const rightPlayedAt = parseTimestamp(right.item.playedAt);
+
+        if (leftPlayedAt !== rightPlayedAt) {
+            return leftPlayedAt - rightPlayedAt;
+        }
+
+        const leftCreatedAt = parseTimestamp(left.item.created_at);
+        const rightCreatedAt = parseTimestamp(right.item.created_at);
+
+        if (leftCreatedAt !== rightCreatedAt) {
+            return leftCreatedAt - rightCreatedAt;
+        }
+
+        return left.index - right.index;
+    });
+
+    return sortedEntries[0]?.index ?? -1;
+}
+
 function pickFairUnseenIndex(
     entries: IndexedRuntimeItem[],
     allItems: SlideRuntimeItem[],
@@ -204,7 +226,11 @@ function pickFairReplayIndex(
         return left.entries[0]!.index - right.entries[0]!.index;
     });
 
-    return chosenBucket?.entries[0]?.index ?? -1;
+    if (!chosenBucket) {
+        return -1;
+    }
+
+    return pickReplayEntryIndex(chosenBucket);
 }
 
 export function createEmptyPlayerState(code: string): SlideshowPlayerState {

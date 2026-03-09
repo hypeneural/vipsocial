@@ -381,6 +381,56 @@ describe("slideshowEngineReducer", () => {
         expect(next.items[3]?.sender_key).toBe("sender:bruna");
     });
 
+    it("no replay avanca dentro do bucket do remetente em vez de repetir sempre a primeira foto", () => {
+        const current = {
+            ...createEmptyPlayerState("M6NS6M"),
+            status: "playing" as const,
+            event: {
+                id: 1,
+                title: "Casamento VIP",
+                slideshow_code: "M6NS6M",
+                status: "active" as const,
+            },
+            items: [
+                makeReadyItem({
+                    id: "a1",
+                    sender_name: "Anderson",
+                    sender_key: "sender:anderson",
+                    playedAt: "2026-03-09T10:05:00-03:00",
+                }),
+                makeReadyItem({
+                    id: "a2",
+                    sender_name: "Anderson",
+                    sender_key: "sender:anderson",
+                    playedAt: "2026-03-09T10:01:00-03:00",
+                }),
+                makeReadyItem({
+                    id: "a3",
+                    sender_name: "Anderson",
+                    sender_key: "sender:anderson",
+                    playedAt: "2026-03-09T10:03:00-03:00",
+                }),
+                makeReadyItem({
+                    id: "b1",
+                    sender_name: "Bruna",
+                    sender_key: "sender:bruna",
+                    playedAt: "2026-03-09T10:04:00-03:00",
+                }),
+                makeReadyItem({
+                    id: "b2",
+                    sender_name: "Bruna",
+                    sender_key: "sender:bruna",
+                    playedAt: "2026-03-09T10:02:00-03:00",
+                }),
+            ],
+            currentIndex: 0,
+        };
+
+        const next = slideshowEngineReducer(current, { type: "advance" });
+
+        expect(next.items[next.currentIndex]?.id).toBe("b2");
+    });
+
     it("preemptivamente pausa o player e impede o advance ate voltar para active", () => {
         const current = {
             ...createEmptyPlayerState("M6NS6M"),
