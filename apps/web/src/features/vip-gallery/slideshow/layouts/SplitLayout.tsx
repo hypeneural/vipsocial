@@ -29,10 +29,11 @@ export function SplitLayout({
                         <h2 className={`mt-6 ${SLIDESHOW_TEXT_PRIMARY}`}>
                             {media.texto_curto}
                         </h2>
-                    ) : null}
-                    <p className={`mt-6 ${SLIDESHOW_TEXT_SECONDARY}`}>
-                        {media.sender_name || "Convidado da Cobertura VIP"}
-                    </p>
+                    ) : (
+                        <p className={`mt-6 ${SLIDESHOW_TEXT_SECONDARY}`}>
+                            Cobertura VIP em tempo real
+                        </p>
+                    )}
                 </div>
             </div>
         </div>

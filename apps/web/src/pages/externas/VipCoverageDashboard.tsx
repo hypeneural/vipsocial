@@ -182,6 +182,7 @@ type VipSlideshowFormState = {
     interval_seconds: number;
     queue_limit: number;
     show_neon: boolean;
+    show_sender_credit: boolean;
     neon_text: string;
     instructions_text: string;
     expires_at: string;
@@ -225,6 +226,7 @@ function createSlideshowFormState(
         interval_seconds: intervalMsToSeconds(slideshow?.interval_ms),
         queue_limit: slideshow?.queue_limit ?? 100,
         show_neon: slideshow?.show_neon ?? true,
+        show_sender_credit: slideshow?.show_sender_credit ?? false,
         neon_text: slideshow?.neon_text?.trim() || event?.titulo?.trim() || "",
         instructions_text: slideshow?.instructions_text ?? "",
         expires_at: formatDateTimeLocalInput(slideshow?.expires_at),
@@ -301,6 +303,7 @@ function VipSlideshowDialog({
                     interval_ms: clampSlideshowSecondsInput(form.interval_seconds) * 1000,
                     queue_limit: Math.max(1, Math.min(500, form.queue_limit)),
                     show_neon: form.show_neon,
+                    show_sender_credit: form.show_sender_credit,
                     neon_text: form.neon_text.trim() || null,
                     instructions_text: form.instructions_text.trim() || null,
                     expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
@@ -526,9 +529,9 @@ function VipSlideshowDialog({
                                             />
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <Label>Mostrar placa neon</Label>
-                                            <div className="flex h-10 items-center rounded-xl border px-3">
+                                    <div className="space-y-2">
+                                        <Label>Mostrar placa neon</Label>
+                                        <div className="flex h-10 items-center rounded-xl border px-3">
                                                 <Switch
                                                     checked={form.show_neon}
                                                     onCheckedChange={(checked) => setForm((current) => ({
@@ -541,6 +544,26 @@ function VipSlideshowDialog({
                                                     {form.show_neon ? "Ligada" : "Desligada"}
                                                 </span>
                                             </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Exibir credito da foto</Label>
+                                            <div className="flex h-10 items-center rounded-xl border px-3">
+                                                <Switch
+                                                    checked={form.show_sender_credit}
+                                                    onCheckedChange={(checked) => setForm((current) => ({
+                                                        ...current,
+                                                        show_sender_credit: checked,
+                                                    }))}
+                                                    disabled={isMutating}
+                                                />
+                                                <span className="ml-3 text-sm text-muted-foreground">
+                                                    {form.show_sender_credit ? "Ligado" : "Nao"}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Quando ligado, o telão mostra um crédito discreto no rodapé esquerdo com "FOTO POR:".
+                                            </p>
                                         </div>
                                     </div>
 

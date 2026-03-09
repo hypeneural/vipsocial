@@ -66,6 +66,7 @@ export interface UpdateVipGallerySlideshowDTO {
     interval_ms?: number;
     queue_limit?: number;
     show_neon?: boolean;
+    show_sender_credit?: boolean;
     neon_text?: string | null;
     instructions_text?: string | null;
     expires_at?: string | null;

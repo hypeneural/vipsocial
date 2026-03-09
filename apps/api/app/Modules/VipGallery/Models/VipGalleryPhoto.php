@@ -132,6 +132,23 @@ class VipGalleryPhoto extends Model
         return $this->received_at ?: $this->published_at ?: $this->created_at;
     }
 
+    public function slideshowSenderKey(): string
+    {
+        $phone = trim((string) $this->participant_phone);
+
+        if ($phone !== '') {
+            return 'phone:'.$phone;
+        }
+
+        $senderName = trim((string) $this->sender_name);
+
+        if ($senderName !== '') {
+            return 'sender:'.mb_strtolower($senderName, 'UTF-8');
+        }
+
+        return 'photo:'.$this->id;
+    }
+
     public function isProcessed(): bool
     {
         return $this->processing_status === self::STATUS_PROCESSED

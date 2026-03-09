@@ -199,9 +199,10 @@ class VipGalleryAdminController extends BaseController
             $event->loadMissing('vipGallerySlideshow');
 
             if ($nextStatus === ExternalEvent::VIP_GALLERY_STATUS_ARCHIVED) {
+                $slideshowBroadcaster->broadcastStatusChanged($event, 'archived');
                 $slideshowBroadcaster->broadcastExpired($event, 'archived');
             } else {
-                $slideshowBroadcaster->broadcastSettingsUpdated($event);
+                $slideshowBroadcaster->broadcastStatusChanged($event, 'vip_gallery_status_updated');
             }
         }
 

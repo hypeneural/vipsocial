@@ -7,6 +7,7 @@ use App\Modules\VipGallery\Events\SlideshowMediaDeleted;
 use App\Modules\VipGallery\Events\SlideshowMediaUpdated;
 use App\Modules\VipGallery\Events\SlideshowNewMedia;
 use App\Modules\VipGallery\Events\SlideshowSettingsUpdated;
+use App\Modules\VipGallery\Events\SlideshowStatusChanged;
 use App\Modules\VipGallery\Jobs\DeleteVipGalleryPhotoJob;
 use App\Modules\VipGallery\Jobs\IngestVipGalleryImageJob;
 use App\Modules\VipGallery\Jobs\PauseVipGalleryEventJob;
@@ -192,6 +193,7 @@ beforeEach(function () {
         $table->string('background_url')->nullable();
         $table->string('partner_logo_path')->nullable();
         $table->boolean('show_neon')->default(true);
+        $table->boolean('show_sender_credit')->default(false);
         $table->string('neon_text')->nullable();
         $table->text('instructions_text')->nullable();
         $table->timestamp('expires_at')->nullable();
@@ -329,6 +331,7 @@ function createVipGallerySlideshow(ExternalEvent $event, array $overrides = []):
         'interval_ms' => 10000,
         'queue_limit' => 100,
         'show_neon' => true,
+        'show_sender_credit' => false,
         'neon_text' => 'Casamento Teste',
         'instructions_text' => 'Aponte a camera para o QR Code e envie suas fotos do evento!',
     ], $overrides));
@@ -686,6 +689,7 @@ test('slideshow boot and state expose event files and settings for active slides
             ->assertJsonPath('data.settings.limite', 5)
             ->assertJsonPath('data.settings.layout', 'polaroid')
             ->assertJsonPath('data.settings.showNeon', true)
+            ->assertJsonPath('data.settings.showSenderCredit', false)
             ->assertJsonPath('data.settings.neonText', 'Casamento Teste')
             ->assertJsonPath('data.settings.instructionsText', 'Envie suas fotos para o grupo do evento!')
             ->assertJsonCount(1, 'data.files')
@@ -693,6 +697,7 @@ test('slideshow boot and state expose event files and settings for active slides
             ->assertJsonPath('data.files.0.url', 'https://adm.tvvip.social/storage/vip-gallery/events/'.$event->id.'/processed/slide-1.jpg')
             ->assertJsonPath('data.files.0.type', 'image')
             ->assertJsonPath('data.files.0.sender_name', 'Anderson Marques')
+            ->assertJsonPath('data.files.0.sender_key', 'phone:5591999999999')
             ->assertJsonPath('data.files.0.texto_curto', 'Entrada dos noivos')
             ->assertJsonPath('data.files.0.highlight_score', 70);
     }
@@ -811,7 +816,7 @@ test('admin can manage slideshow settings and broadcast updates and expiration',
         ->assertJsonPath('data.slideshow.is_enabled', false)
         ->assertJsonPath('data.meta.layouts.0.value', 'auto');
 
-    Event::fake([SlideshowSettingsUpdated::class, SlideshowExpired::class]);
+    Event::fake([SlideshowSettingsUpdated::class, SlideshowStatusChanged::class, SlideshowExpired::class]);
 
     $this->actingAs($user, 'sanctum')
         ->patchJson("/api/v1/vip-gallery/events/{$event->id}/slideshow", [
@@ -821,6 +826,7 @@ test('admin can manage slideshow settings and broadcast updates and expiration',
             'interval_ms' => 12000,
             'queue_limit' => 80,
             'show_neon' => false,
+            'show_sender_credit' => true,
             'neon_text' => 'Teste',
             'instructions_text' => 'Envio interno ativo para o grupo do evento.',
         ])
@@ -829,13 +835,18 @@ test('admin can manage slideshow settings and broadcast updates and expiration',
         ->assertJsonPath('data.slideshow.is_enabled', true)
         ->assertJsonPath('data.slideshow.layout', 'split')
         ->assertJsonPath('data.slideshow.interval_ms', 12000)
-        ->assertJsonPath('data.slideshow.queue_limit', 80);
+        ->assertJsonPath('data.slideshow.queue_limit', 80)
+        ->assertJsonPath('data.slideshow.show_sender_credit', true);
 
     $slideshow = VipGallerySlideshow::query()->where('external_event_id', $event->id)->first();
     expect($slideshow)->not->toBeNull();
     expect($slideshow?->slideshow_code)->not->toBe('');
 
     Event::assertDispatched(SlideshowSettingsUpdated::class);
+    Event::assertDispatched(SlideshowStatusChanged::class, function (SlideshowStatusChanged $eventBroadcast) use ($slideshow) {
+        return $eventBroadcast->slideshowCode === $slideshow?->slideshow_code
+            && ($eventBroadcast->payload['status'] ?? null) === VipGallerySlideshow::STATUS_ACTIVE;
+    });
 
     $backgroundResponse = $this->actingAs($user, 'sanctum')
         ->post("/api/v1/vip-gallery/events/{$event->id}/slideshow/background", [
@@ -917,6 +928,7 @@ test('photo approval and pause command dispatch slideshow delete new and setting
         SlideshowMediaDeleted::class,
         SlideshowNewMedia::class,
         SlideshowSettingsUpdated::class,
+        SlideshowStatusChanged::class,
     ]);
 
     $this->actingAs($user, 'sanctum')
@@ -937,7 +949,7 @@ test('photo approval and pause command dispatch slideshow delete new and setting
 
     Event::assertDispatched(SlideshowMediaDeleted::class, fn (SlideshowMediaDeleted $eventBroadcast) => $eventBroadcast->slideshowCode === 'DSPT01');
     Event::assertDispatched(SlideshowNewMedia::class, fn (SlideshowNewMedia $eventBroadcast) => $eventBroadcast->slideshowCode === 'DSPT01');
-    Event::assertDispatched(SlideshowSettingsUpdated::class, fn (SlideshowSettingsUpdated $eventBroadcast) => $eventBroadcast->slideshowCode === 'DSPT01');
+    Event::assertDispatched(SlideshowStatusChanged::class, fn (SlideshowStatusChanged $eventBroadcast) => $eventBroadcast->slideshowCode === 'DSPT01' && ($eventBroadcast->payload['status'] ?? null) === VipGallerySlideshow::STATUS_PAUSED);
 });
 
 test('delete command reply by referenceMessageId soft deletes photo and removes files', function () {

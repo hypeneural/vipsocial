@@ -11,6 +11,7 @@ export function useSlideshowPlayer(code: string) {
         errorMessage,
         applySnapshot,
         applySettings,
+        handleStatusChanged,
         handleNewMedia,
         handleMediaUpdated,
         handleMediaDeleted,
@@ -51,6 +52,7 @@ export function useSlideshowPlayer(code: string) {
         onMediaUpdated: handleMediaUpdated,
         onMediaDeleted: handleMediaDeleted,
         onSettingsUpdated: applySettings,
+        onStatusChanged: handleStatusChanged,
         onExpired: handleRealtimeExpired,
         onReconnect: handleReconnect,
     });

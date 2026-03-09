@@ -14,6 +14,7 @@ class SlideMediaResource extends JsonResource
             'url' => $this->publicImageUrl(),
             'type' => $this->slideshowType(),
             'sender_name' => $this->sender_name,
+            'sender_key' => $this->slideshowSenderKey(),
             'texto_curto' => $this->slideshowText(),
             'highlight_score' => (int) $this->highlight_score,
             'created_at' => $this->slideshowCreatedAt()?->toIso8601String(),

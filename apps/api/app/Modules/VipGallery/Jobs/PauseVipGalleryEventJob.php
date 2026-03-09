@@ -71,7 +71,7 @@ class PauseVipGalleryEventJob implements ShouldQueue
             ]);
 
             $event->loadMissing('vipGallerySlideshow');
-            $slideshowBroadcaster->broadcastSettingsUpdated($event);
+            $slideshowBroadcaster->broadcastStatusChanged($event, 'manual_pause');
         } catch (Throwable $e) {
             $log->update([
                 'routing_status' => 'failed',

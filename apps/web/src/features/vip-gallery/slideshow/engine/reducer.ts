@@ -5,6 +5,7 @@ import {
     mergeServerSnapshot,
     nextReadyIndex,
     resolvePlayableIndex,
+    resolveVisualStatus,
 } from "./selectors";
 import type {
     MediaOrientation,
@@ -14,6 +15,7 @@ import type {
     SlideRuntimeItem,
     SlideshowBootData,
     SlideshowPlayerState,
+    SlideshowStatusChangedPayload,
     SlideSettings,
 } from "../types";
 
@@ -32,6 +34,7 @@ export type SlideshowEngineAction =
     | { type: "set-storage"; storage: Partial<StorageState> }
     | { type: "apply-snapshot"; snapshot: SlideshowBootData; fallbackStatus?: PlayerVisualStatus }
     | { type: "apply-settings"; settings: SlideSettings }
+    | { type: "status-changed"; payload: SlideshowStatusChangedPayload }
     | { type: "sync-error" }
     | { type: "mark-expired" }
     | { type: "new-media"; media: SlideMedia }
@@ -73,13 +76,12 @@ function markPlayableState(
     preferredIndex = current.currentIndex
 ): SlideshowPlayerState {
     const nextIndex = resolvePlayableIndex(items, preferredIndex);
-    const nextStatus = items.some(isRenderable)
-        ? (current.status === "expired" ? "expired" : "playing")
-        : "idle";
+    const nextStatus = resolveVisualStatus(current.event?.status, items);
+    const shouldMarkAsPlayed = nextStatus === "playing" && nextIndex >= 0;
 
     return {
         ...current,
-        items: nextIndex >= 0 ? markItemAsPlayed(items, nextIndex) : items,
+        items: shouldMarkAsPlayed ? markItemAsPlayed(items, nextIndex) : items,
         currentIndex: nextIndex,
         status: nextStatus,
         updatedAt: new Date().toISOString(),
@@ -128,6 +130,27 @@ export function slideshowEngineReducer(
                 updatedAt: new Date().toISOString(),
             };
 
+        case "status-changed": {
+            const nextEvent = current.event
+                ? { ...current.event, status: action.payload.status }
+                : current.event;
+            const nextStatus = resolveVisualStatus(action.payload.status, current.items);
+            const nextIndex = current.currentIndex >= 0
+                ? current.currentIndex
+                : resolvePlayableIndex(current.items, current.currentIndex);
+            const shouldMarkAsPlayed = nextStatus === "playing" && nextIndex >= 0;
+
+            return {
+                ...current,
+                event: nextEvent,
+                status: nextStatus,
+                currentIndex: nextIndex,
+                items: shouldMarkAsPlayed ? markItemAsPlayed(current.items, nextIndex) : current.items,
+                lastStatusChangeAt: action.payload.updated_at ?? new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+        }
+
         case "sync-error":
             return {
                 ...current,
@@ -138,7 +161,9 @@ export function slideshowEngineReducer(
         case "mark-expired":
             return {
                 ...current,
+                event: current.event ? { ...current.event, status: "expired" } : current.event,
                 status: "expired",
+                lastStatusChangeAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             };
 
@@ -155,7 +180,7 @@ export function slideshowEngineReducer(
                             ...item,
                             ...action.media,
                             assetStatus: urlChanged ? "loading" : item.assetStatus,
-                            playedAt: item.playedAt,
+                            playedAt: urlChanged ? null : item.playedAt,
                             cachedAt: urlChanged ? null : item.cachedAt,
                             orientation: urlChanged ? null : item.orientation,
                             width: urlChanged ? null : item.width,
@@ -194,6 +219,7 @@ export function slideshowEngineReducer(
                     ? {
                         ...item,
                         sender_name: action.payload.sender_name ?? item.sender_name,
+                        sender_key: action.payload.sender_key ?? item.sender_key,
                         texto_curto: action.payload.texto_curto ?? item.texto_curto,
                         highlight_score: action.payload.highlight_score ?? item.highlight_score,
                         created_at: action.payload.created_at ?? item.created_at,
@@ -276,16 +302,15 @@ export function slideshowEngineReducer(
             if (removedIndex < current.currentIndex) {
                 nextCurrentIndex -= 1;
             } else if (removedIndex === current.currentIndex) {
-                nextCurrentIndex = resolvePlayableIndex(nextItems, current.currentIndex);
+                nextCurrentIndex = nextReadyIndex(nextItems, Math.max(current.currentIndex - 1, -1));
             }
 
-            const nextStatus = nextItems.some(isRenderable)
-                ? (current.status === "expired" ? "expired" : "playing")
-                : "idle";
+            const nextStatus = resolveVisualStatus(current.event?.status, nextItems);
+            const shouldMarkAsPlayed = nextStatus === "playing" && nextCurrentIndex >= 0;
 
             return {
                 ...current,
-                items: nextCurrentIndex >= 0 ? markItemAsPlayed(nextItems, nextCurrentIndex) : nextItems,
+                items: shouldMarkAsPlayed ? markItemAsPlayed(nextItems, nextCurrentIndex) : nextItems,
                 currentIndex: nextCurrentIndex,
                 status: nextStatus,
                 updatedAt: new Date().toISOString(),
@@ -293,6 +318,10 @@ export function slideshowEngineReducer(
         }
 
         case "advance": {
+            if (current.status !== "playing") {
+                return current;
+            }
+
             const nextIndex = nextReadyIndex(current.items, current.currentIndex);
 
             if (nextIndex === -1) {

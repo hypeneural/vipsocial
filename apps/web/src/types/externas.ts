@@ -154,6 +154,7 @@ export interface VipGallerySlideshowData {
     partner_logo_path?: string | null;
     partner_logo_url?: string | null;
     show_neon: boolean;
+    show_sender_credit: boolean;
     neon_text: string;
     instructions_text: string;
     expires_at?: string | null;

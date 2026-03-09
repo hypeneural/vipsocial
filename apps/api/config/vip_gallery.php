@@ -102,6 +102,7 @@ return [
         'default_interval_ms' => (int) env('VIP_GALLERY_SLIDESHOW_DEFAULT_INTERVAL_MS', 10000),
         'default_queue_limit' => (int) env('VIP_GALLERY_SLIDESHOW_DEFAULT_QUEUE_LIMIT', 100),
         'default_show_neon' => (bool) env('VIP_GALLERY_SLIDESHOW_DEFAULT_SHOW_NEON', true),
+        'default_show_sender_credit' => (bool) env('VIP_GALLERY_SLIDESHOW_DEFAULT_SHOW_SENDER_CREDIT', false),
         'default_neon_text' => (string) env('VIP_GALLERY_SLIDESHOW_DEFAULT_NEON_TEXT', ''),
         'default_instructions_text' => (string) env('VIP_GALLERY_SLIDESHOW_DEFAULT_INSTRUCTIONS_TEXT', 'Envio interno ativo. Assim que uma foto for aprovada, ela entra automaticamente no telao.'),
         'public_path_prefix' => 'slideshow',

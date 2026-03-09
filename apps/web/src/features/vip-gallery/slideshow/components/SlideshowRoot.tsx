@@ -24,17 +24,15 @@ import {
 function FloatingCaption({
     layout,
     text,
-    sender,
 }: {
     layout: SlideshowRenderableLayout;
     text?: string | null;
-    sender?: string | null;
 }) {
     if (!shouldRenderFloatingCaption(layout)) {
         return null;
     }
 
-    if (!text && !sender) {
+    if (!text) {
         return null;
     }
 
@@ -44,11 +42,6 @@ function FloatingCaption({
                 {text ? (
                     <p className={SLIDESHOW_TEXT_PRIMARY}>
                         {text}
-                    </p>
-                ) : null}
-                {sender ? (
-                    <p className={`mt-3 ${SLIDESHOW_TEXT_SECONDARY}`}>
-                        {sender}
                     </p>
                 ) : null}
             </div>
@@ -86,6 +79,8 @@ export function SlideshowRoot({ code }: { code: string }) {
                 showNeon={state.settings?.showNeon ?? false}
                 neonText={state.settings?.neonText}
                 partnerLogo={state.settings?.partnerLogo}
+                showSenderCredit={state.settings?.showSenderCredit ?? false}
+                senderCredit={currentItem?.sender_name}
                 syncLabel={resolveSyncLabel(isSyncing, connectionStatus) || (reducedEffects ? modeLabel : undefined)}
                 reducedEffects={reducedEffects}
             />
@@ -96,8 +91,26 @@ export function SlideshowRoot({ code }: { code: string }) {
                 reducedEffects={reducedEffects}
             />
 
-            {state.status === "expired" ? (
-                <ExpiredScreen message={errorMessage || undefined} />
+            {state.status === "expired" || state.status === "archived" || state.status === "disabled" ? (
+                <ExpiredScreen
+                    title={
+                        state.status === "disabled"
+                            ? "Este telao esta desativado"
+                            : state.status === "archived"
+                                ? "Este telao foi arquivado"
+                                : undefined
+                    }
+                    message={
+                        errorMessage
+                        || (
+                            state.status === "disabled"
+                                ? "O operador desativou a exibicao publica deste evento."
+                                : state.status === "archived"
+                                    ? "A cobertura VIP foi arquivada e o player saiu de operacao."
+                                    : undefined
+                        )
+                    }
+                />
             ) : state.status === "booting" && !currentItem ? (
                 <div className="flex min-h-screen items-center justify-center">
                     <div className="rounded-3xl border border-white/10 bg-black/30 px-8 py-6 text-center shadow-2xl backdrop-blur-xl">
@@ -108,14 +121,25 @@ export function SlideshowRoot({ code }: { code: string }) {
                         </p>
                     </div>
                 </div>
+            ) : state.status === "paused" && !currentItem ? (
+                <ExpiredScreen
+                    title="Telao pausado"
+                    message="O operador pausou temporariamente a exibicao. As novas fotos continuam sendo sincronizadas e entram na fila quando o player voltar para ativo."
+                />
             ) : currentItem && state.settings ? (
                 <>
                     <LayoutRenderer media={currentItem} settings={state.settings} reducedEffects={reducedEffects} />
                     <FloatingCaption
                         layout={activeLayout ?? "fullscreen"}
                         text={currentItem.texto_curto}
-                        sender={currentItem.sender_name}
                     />
+                    {state.status === "paused" ? (
+                        <div className="pointer-events-none absolute inset-x-0 top-[max(16px,2vh)] z-30 flex justify-center px-[max(16px,2vw)]">
+                            <div className="rounded-full border border-amber-400/30 bg-amber-500/15 px-5 py-2 text-sm font-medium uppercase tracking-[0.3em] text-amber-100 shadow-[0_16px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                                Telao pausado
+                            </div>
+                        </div>
+                    ) : null}
                 </>
             ) : state.status === "error" ? (
                 <div className="flex min-h-screen items-center justify-center px-[max(16px,2vw)]">

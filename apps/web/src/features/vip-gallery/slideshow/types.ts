@@ -4,7 +4,17 @@ export type MediaOrientation = "vertical" | "horizontal" | "squareish";
 
 export type SlideAssetStatus = "ready" | "loading" | "error" | "stale";
 
-export type PlayerVisualStatus = "booting" | "idle" | "playing" | "expired" | "error";
+export type SlideshowControlStatus = "draft" | "active" | "paused" | "disabled" | "expired" | "archived";
+
+export type PlayerVisualStatus =
+    | "booting"
+    | "idle"
+    | "playing"
+    | "paused"
+    | "disabled"
+    | "expired"
+    | "archived"
+    | "error";
 
 export type SlideshowRenderableLayout = "polaroid" | "fullscreen" | "split" | "cinematic";
 
@@ -23,7 +33,7 @@ export interface SlideshowEventSummary {
     title: string;
     slug?: string | null;
     slideshow_code: string;
-    status: string;
+    status: SlideshowControlStatus;
     public_url?: string | null;
 }
 
@@ -32,6 +42,7 @@ export interface SlideMedia {
     url: string;
     type: SlideshowMediaType;
     sender_name?: string | null;
+    sender_key?: string | null;
     texto_curto?: string | null;
     highlight_score: number;
     created_at?: string | null;
@@ -44,6 +55,7 @@ export interface SlideSettings {
     background?: string | null;
     partnerLogo?: string | null;
     showNeon: boolean;
+    showSenderCredit: boolean;
     neonText?: string | null;
     instructionsText?: string | null;
 }
@@ -59,6 +71,7 @@ export interface SlideMediaUpdatedPayload {
     url?: string;
     type?: SlideshowMediaType;
     sender_name?: string | null;
+    sender_key?: string | null;
     texto_curto?: string | null;
     highlight_score?: number;
     created_at?: string | null;
@@ -71,6 +84,12 @@ export interface SlideMediaDeletedPayload {
 export interface SlideshowExpiredPayload {
     reason?: string;
     expired_at?: string | null;
+}
+
+export interface SlideshowStatusChangedPayload {
+    status: SlideshowControlStatus;
+    reason?: string | null;
+    updated_at?: string | null;
 }
 
 export interface SlideRuntimeItem extends SlideMedia {
@@ -90,6 +109,7 @@ export interface PersistedSlideshowState {
     settings: SlideSettings | null;
     items: SlideRuntimeItem[];
     currentIndex: number;
+    lastStatusChangeAt?: string | null;
     updatedAt: string;
 }
 

@@ -19,6 +19,8 @@ class VipGallerySlideshow extends Model
 
     public const STATUS_EXPIRED = 'expired';
 
+    public const STATUS_DISABLED = 'disabled';
+
     public const LAYOUT_AUTO = 'auto';
 
     public const LAYOUT_POLAROID = 'polaroid';
@@ -42,6 +44,7 @@ class VipGallerySlideshow extends Model
         'background_url',
         'partner_logo_path',
         'show_neon',
+        'show_sender_credit',
         'neon_text',
         'instructions_text',
         'expires_at',
@@ -53,6 +56,7 @@ class VipGallerySlideshow extends Model
         'interval_ms' => 'integer',
         'queue_limit' => 'integer',
         'show_neon' => 'boolean',
+        'show_sender_credit' => 'boolean',
         'expires_at' => 'datetime',
     ];
 
@@ -82,6 +86,10 @@ class VipGallerySlideshow extends Model
             if ($slideshow->instructions_text === null) {
                 $slideshow->instructions_text = (string) config('vip_gallery.slideshow.default_instructions_text', '');
             }
+
+            if ($slideshow->show_sender_credit === null) {
+                $slideshow->show_sender_credit = (bool) config('vip_gallery.slideshow.default_show_sender_credit', false);
+            }
         });
     }
 
@@ -110,6 +118,31 @@ class VipGallerySlideshow extends Model
         return $this->is_enabled
             && ! in_array($this->status, [self::STATUS_ARCHIVED, self::STATUS_EXPIRED], true)
             && $event?->is_vip_gallery === true;
+    }
+
+    public function publicStatus(): string
+    {
+        $event = $this->relationLoaded('event')
+            ? $this->getRelation('event')
+            : $this->event()->first();
+
+        if (! $this->is_enabled) {
+            return self::STATUS_DISABLED;
+        }
+
+        if (($event?->vip_gallery_status ?? null) === ExternalEvent::VIP_GALLERY_STATUS_ARCHIVED) {
+            return self::STATUS_ARCHIVED;
+        }
+
+        if (($event?->vip_gallery_status ?? null) === ExternalEvent::VIP_GALLERY_STATUS_PAUSED) {
+            return self::STATUS_PAUSED;
+        }
+
+        if (($event?->vip_gallery_status ?? null) === ExternalEvent::VIP_GALLERY_STATUS_DRAFT) {
+            return self::STATUS_DRAFT;
+        }
+
+        return $this->status;
     }
 
     public function publicUrl(): string

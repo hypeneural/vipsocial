@@ -61,6 +61,7 @@ Contexto: implementar a arquitetura definida em `docs/integrations/vip-gallery-s
   - `split`
 - O player deve usar transicoes suaves, com foco em `opacity`, preload e baixo flicker.
 - O frontend deve usar tokens visuais e evitar CSS global acoplado por IDs.
+- O credito `FOTO POR:` e opcional, controlado pelo admin do telao e desligado por padrao.
 
 ## Premissas de cache e resiliencia incorporadas ao backlog
 
@@ -88,6 +89,10 @@ Contexto: implementar a arquitetura definida em `docs/integrations/vip-gallery-s
 - Videos devem ter politica de cache propria e mais restritiva que imagens.
 - O backlog deve prever politica de retencao/LRU para nao deixar o cache crescer sem controle.
 - O MVP atual nao usa QR code no player, porque o envio inicial e interno ao grupo do evento.
+- A concorrencia do player deve seguir prioridade para novidade, justica entre remetentes e preempcao imediata para eventos de status.
+- O scheduler deve priorizar a primeira foto nova de cada remetente antes do backlog do mesmo remetente.
+- O mesmo remetente nao deve aparecer duas vezes seguidas se houver outro remetente elegivel.
+- Mudancas de status do telao devem interromper imediatamente timers e renderizacao em andamento.
 
 ## Ordem recomendada
 
@@ -394,6 +399,18 @@ Contexto: implementar a arquitetura definida em `docs/integrations/vip-gallery-s
   - Dependencia:
     - `SLD-401`
 
+- [x] `SLD-405A` Emitir `slideshow.status-changed` para transicoes preemptivas de estado.
+  - Casos minimos:
+    - `active`
+    - `paused`
+    - `disabled`
+    - `archived`
+    - `expired`
+  - Criterio de aceite:
+    - o player nao espera o slide atual terminar para obedecer mudanca de status
+  - Dependencia:
+    - `SLD-401`
+
 - [x] `SLD-406` Emitir `slideshow.event-expired`.
   - Casos minimos:
     - expiracao por data/hora
@@ -447,6 +464,16 @@ Contexto: implementar a arquitetura definida em `docs/integrations/vip-gallery-s
     - painel salva e recarrega configuracoes corretamente
   - Dependencia:
     - `SLD-501`
+
+- [x] `SLD-502A` Tornar o credito do remetente configuravel no admin.
+  - Regra:
+    - chave `show_sender_credit`
+    - default `false`
+    - quando ligado, o player mostra `FOTO POR:` no rodape esquerdo
+  - Criterio de aceite:
+    - o nome de quem enviou so aparece no telao quando o operador habilitar essa opcao
+  - Dependencia:
+    - `SLD-502`
 
 - [x] `SLD-503` Expor acoes de operador no admin.
   - Acoes:
@@ -595,6 +622,17 @@ Contexto: implementar a arquitetura definida em `docs/integrations/vip-gallery-s
     - novas midias entram no fluxo somente depois de prontas
   - Dependencia:
     - `SLD-603C`
+
+- [x] `SLD-603E` Implementar scheduler justo por remetente para novidades.
+  - Regras minimas:
+    - prioridade para `first unseen` de cada remetente
+    - backlog unseen em round-robin por remetente
+    - replay so depois que nao houver novidades
+    - evitar repeticao consecutiva do mesmo remetente quando houver alternativa
+  - Criterio de aceite:
+    - um unico remetente nao monopoliza o telao quando ha concorrencia real
+  - Dependencia:
+    - `SLD-603`
 
 - [x] `SLD-603B` Implementar estrategia de escolha automatica de layout.
   - Regras minimas:

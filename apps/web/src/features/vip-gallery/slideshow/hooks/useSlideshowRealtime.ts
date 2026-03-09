@@ -6,6 +6,7 @@ import type {
     SlideMediaUpdatedPayload,
     SlideshowConnectionStatus,
     SlideshowExpiredPayload,
+    SlideshowStatusChangedPayload,
     SlideSettings,
 } from "../types";
 
@@ -15,6 +16,7 @@ interface UseSlideshowRealtimeOptions {
     onMediaUpdated: (payload: SlideMediaUpdatedPayload) => void;
     onMediaDeleted: (payload: SlideMediaDeletedPayload) => void;
     onSettingsUpdated: (payload: SlideSettings) => void;
+    onStatusChanged: (payload: SlideshowStatusChangedPayload) => void;
     onExpired: (payload: SlideshowExpiredPayload) => void;
     onReconnect?: () => void;
 }
@@ -25,6 +27,7 @@ export function useSlideshowRealtime({
     onMediaUpdated,
     onMediaDeleted,
     onSettingsUpdated,
+    onStatusChanged,
     onExpired,
     onReconnect,
 }: UseSlideshowRealtimeOptions) {
@@ -34,6 +37,7 @@ export function useSlideshowRealtime({
         onMediaUpdated,
         onMediaDeleted,
         onSettingsUpdated,
+        onStatusChanged,
         onExpired,
         onReconnect,
     });
@@ -44,6 +48,7 @@ export function useSlideshowRealtime({
             onMediaUpdated,
             onMediaDeleted,
             onSettingsUpdated,
+            onStatusChanged,
             onExpired,
             onReconnect,
         };
@@ -53,6 +58,7 @@ export function useSlideshowRealtime({
         onMediaUpdated,
         onNewMedia,
         onReconnect,
+        onStatusChanged,
         onSettingsUpdated,
     ]);
 
@@ -125,6 +131,9 @@ export function useSlideshowRealtime({
             })
             .listen(".slideshow.settings-updated", (payload: SlideSettings) => {
                 callbacksRef.current.onSettingsUpdated(payload);
+            })
+            .listen(".slideshow.status-changed", (payload: SlideshowStatusChangedPayload) => {
+                callbacksRef.current.onStatusChanged(payload);
             })
             .listen(".slideshow.event-expired", (payload: SlideshowExpiredPayload) => {
                 callbacksRef.current.onExpired(payload);

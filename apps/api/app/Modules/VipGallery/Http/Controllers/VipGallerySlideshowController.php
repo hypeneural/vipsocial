@@ -43,6 +43,7 @@ class VipGallerySlideshowController extends BaseController
             'interval_ms' => ['sometimes', 'integer', 'min:3000', 'max:60000'],
             'queue_limit' => ['sometimes', 'integer', 'min:1', 'max:500'],
             'show_neon' => ['sometimes', 'boolean'],
+            'show_sender_credit' => ['sometimes', 'boolean'],
             'neon_text' => ['nullable', 'string', 'max:120'],
             'instructions_text' => ['nullable', 'string', 'max:1000'],
             'expires_at' => ['nullable', 'date'],
@@ -78,9 +79,15 @@ class VipGallerySlideshowController extends BaseController
             ]
         );
 
-        if (in_array($slideshow->status, [VipGallerySlideshow::STATUS_ARCHIVED, VipGallerySlideshow::STATUS_EXPIRED], true)) {
+        $statusChanged = ($before['status'] ?? null) !== ($after['status'] ?? null);
+
+        if ($statusChanged) {
+            $broadcaster->broadcastStatusChanged($slideshow, 'settings_updated');
+        }
+
+        if (in_array($slideshow->publicStatus(), [VipGallerySlideshow::STATUS_ARCHIVED, VipGallerySlideshow::STATUS_EXPIRED], true)) {
             $broadcaster->broadcastExpired($slideshow, $slideshow->status);
-        } else {
+        } elseif ($slideshow->is_enabled) {
             $broadcaster->broadcastSettingsUpdated($slideshow);
         }
 
@@ -201,6 +208,7 @@ class VipGallerySlideshowController extends BaseController
             ]
         );
 
+        $broadcaster->broadcastStatusChanged($slideshow, (string) ($validated['reason'] ?? 'expired'));
         $broadcaster->broadcastExpired($slideshow, (string) ($validated['reason'] ?? 'expired'));
 
         return $this->jsonSuccess([
@@ -226,6 +234,7 @@ class VipGallerySlideshowController extends BaseController
             'background_url' => null,
             'partner_logo_path' => null,
             'show_neon' => (bool) config('vip_gallery.slideshow.default_show_neon', true),
+            'show_sender_credit' => (bool) config('vip_gallery.slideshow.default_show_sender_credit', false),
             'neon_text' => (string) config('vip_gallery.slideshow.default_neon_text', ''),
             'instructions_text' => (string) config('vip_gallery.slideshow.default_instructions_text', ''),
             'expires_at' => null,
@@ -274,6 +283,7 @@ class VipGallerySlideshowController extends BaseController
                 'interval_ms' => (int) config('vip_gallery.slideshow.default_interval_ms', 10000),
                 'queue_limit' => (int) config('vip_gallery.slideshow.default_queue_limit', 100),
                 'show_neon' => (bool) config('vip_gallery.slideshow.default_show_neon', true),
+                'show_sender_credit' => (bool) config('vip_gallery.slideshow.default_show_sender_credit', false),
                 'neon_text' => (string) config('vip_gallery.slideshow.default_neon_text', ''),
                 'instructions_text' => (string) config('vip_gallery.slideshow.default_instructions_text', ''),
             ]
@@ -290,7 +300,7 @@ class VipGallerySlideshowController extends BaseController
             'slideshow_code' => $slideshow?->slideshow_code,
             'public_url' => $slideshow?->publicUrl(),
             'is_enabled' => (bool) ($slideshow?->is_enabled ?? false),
-            'status' => (string) ($slideshow?->status ?? VipGallerySlideshow::STATUS_DRAFT),
+            'status' => (string) ($slideshow?->publicStatus() ?? VipGallerySlideshow::STATUS_DISABLED),
             'layout' => (string) ($slideshow?->layout ?? config('vip_gallery.slideshow.default_layout', VipGallerySlideshow::LAYOUT_AUTO)),
             'interval_ms' => (int) ($slideshow?->interval_ms ?? config('vip_gallery.slideshow.default_interval_ms', 10000)),
             'queue_limit' => (int) ($slideshow?->queue_limit ?? config('vip_gallery.slideshow.default_queue_limit', 100)),
@@ -298,6 +308,7 @@ class VipGallerySlideshowController extends BaseController
             'partner_logo_path' => $slideshow?->partner_logo_path,
             'partner_logo_url' => $slideshow?->partner_logo_path ? $mediaManager->publicUrl($slideshow->partner_logo_path) : null,
             'show_neon' => (bool) ($slideshow?->show_neon ?? config('vip_gallery.slideshow.default_show_neon', true)),
+            'show_sender_credit' => (bool) ($slideshow?->show_sender_credit ?? config('vip_gallery.slideshow.default_show_sender_credit', false)),
             'neon_text' => (string) ($slideshow?->neon_text ?? config('vip_gallery.slideshow.default_neon_text', '')),
             'instructions_text' => (string) ($slideshow?->instructions_text ?? config('vip_gallery.slideshow.default_instructions_text', '')),
             'expires_at' => optional($slideshow?->expires_at)?->toIso8601String(),

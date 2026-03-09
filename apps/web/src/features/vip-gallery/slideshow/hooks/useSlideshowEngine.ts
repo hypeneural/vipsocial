@@ -25,6 +25,7 @@ import type {
     SlideMediaUpdatedPayload,
     SlideRuntimeItem,
     SlideshowBootData,
+    SlideshowStatusChangedPayload,
     SlideSettings,
 } from "../types";
 
@@ -192,6 +193,13 @@ export function useSlideshowEngine(code: string) {
         ]);
     }, []);
 
+    const handleStatusChanged = useCallback((payload: SlideshowStatusChangedPayload) => {
+        dispatch({
+            type: "status-changed",
+            payload,
+        });
+    }, []);
+
     const markExpired = useCallback((message?: string | null) => {
         dispatch({ type: "mark-expired" });
         setErrorMessage(message || "O telao foi encerrado.");
@@ -242,6 +250,7 @@ export function useSlideshowEngine(code: string) {
                     url: payload.url,
                     type: payload.type ?? "image",
                     sender_name: payload.sender_name ?? null,
+                    sender_key: payload.sender_key ?? null,
                     texto_curto: payload.texto_curto ?? null,
                     highlight_score: payload.highlight_score ?? 0,
                     created_at: payload.created_at ?? null,
@@ -264,6 +273,7 @@ export function useSlideshowEngine(code: string) {
             url: payload.url,
             type: payload.type ?? existingItem.type,
             sender_name: payload.sender_name ?? existingItem.sender_name,
+            sender_key: payload.sender_key ?? existingItem.sender_key,
             texto_curto: payload.texto_curto ?? existingItem.texto_curto,
             highlight_score: payload.highlight_score ?? existingItem.highlight_score,
             created_at: payload.created_at ?? existingItem.created_at,
@@ -318,6 +328,7 @@ export function useSlideshowEngine(code: string) {
         errorMessage,
         applySnapshot,
         applySettings,
+        handleStatusChanged,
         handleNewMedia,
         handleMediaUpdated,
         handleMediaDeleted,

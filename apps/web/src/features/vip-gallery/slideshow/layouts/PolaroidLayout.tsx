@@ -33,10 +33,11 @@ export function PolaroidLayout({
                             <p className="max-w-3xl text-[clamp(1.4rem,2.8vw,2.8rem)] font-semibold leading-tight">
                                 {media.texto_curto}
                             </p>
-                        ) : null}
-                        <p className="mt-3 text-[clamp(0.82rem,1vw,1rem)] uppercase tracking-[0.34em] text-neutral-500">
-                            {media.sender_name || "Convidado da Cobertura VIP"}
-                        </p>
+                        ) : (
+                            <p className="mt-1 text-[clamp(0.88rem,1vw,1.05rem)] uppercase tracking-[0.28em] text-neutral-500">
+                                Cobertura VIP
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

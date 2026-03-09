@@ -12,12 +12,16 @@ export function BrandingOverlay({
     showNeon,
     neonText,
     partnerLogo,
+    showSenderCredit,
+    senderCredit,
     syncLabel,
     reducedEffects = false,
 }: {
     showNeon: boolean;
     neonText?: string | null;
     partnerLogo?: string | null;
+    showSenderCredit?: boolean;
+    senderCredit?: string | null;
     syncLabel?: string;
     reducedEffects?: boolean;
 }) {
@@ -43,6 +47,15 @@ export function BrandingOverlay({
             {partnerLogo ? (
                 <div className={`pointer-events-none absolute z-30 flex h-14 w-28 items-center justify-center ${reducedEffects ? "rounded-2xl border border-white/10 bg-black/55 p-3 shadow-lg" : SLIDESHOW_LOGO_DOCK} ${SLIDESHOW_SAFE_BOTTOM} ${SLIDESHOW_SAFE_LEFT}`}>
                     <img src={partnerLogo} alt="Logo do parceiro" className="max-h-full max-w-full object-contain" />
+                </div>
+            ) : null}
+
+            {showSenderCredit && senderCredit ? (
+                <div
+                    className={`pointer-events-none absolute z-30 rounded-2xl border border-white/10 bg-black/45 px-4 py-2 text-left ${reducedEffects ? "shadow-lg" : "backdrop-blur-md shadow-[0_16px_50px_rgba(0,0,0,0.22)]"} ${SLIDESHOW_SAFE_LEFT} ${partnerLogo ? "bottom-[calc(max(16px,2vh)+72px)]" : SLIDESHOW_SAFE_BOTTOM}`}
+                >
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-white/55">FOTO POR:</p>
+                    <p className="mt-1 text-sm font-medium text-white/88">{senderCredit}</p>
                 </div>
             ) : null}
 
