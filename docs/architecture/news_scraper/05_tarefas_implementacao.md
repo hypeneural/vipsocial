@@ -8,6 +8,18 @@ Roadmap completo de implementação do módulo `NewsRadar`, organizado em **8 fa
 > - `symfony/css-selector` **não é opcional**. É peça fundamental do editor visual de seletores no painel.
 > - A camada HTTP é **unificada**: o Roach já expõe downloader middleware para interceptar requests/responses. Não criar duas pilhas paralelas de retry/throttle. Uma única configuração HTTP reaproveitada tanto no onboarding quanto nos spiders.
 > - Para `theme` (taxonomia editorial), usar **string validada** ou **FK para tabela `news_themes`** no banco (não enum rígido). O enum PHP continua válido para validação do output de IA, mas o banco precisa ser flexível para novos temas sem migração.
+> - **Descoberta por listagem HTML é caso de primeira classe**, não fallback menor. Legados (Diarinho, VIPSocial) confirmam que muitos portais não possuem RSS.
+> - Cada campo da notícia pode vir de **fontes diferentes** (título do card, imagem do listing, autor do detalhe, data do `<time>`). O `FieldResolverService` centraliza essa resolução.
+
+### Perfis de Captura Confirmados pelos Legados
+
+| Perfil | Exemplo Real | Descoberta | Detalhe | `fetch_detail_mode` |
+|:---|:---|:---|:---|:---|
+| **HTML Listing + Detalhe** | Diarinho, VIPSocial | Listagem HTML | Sempre buscar artigo | `always` |
+| **RSS Full (falta imagem)** | Itapema, Correio Catarin. | Feed RSS | Só quando faltar campo | `when_incomplete` |
+| **RSS Teaser + Detalhe** | SCC10 | Feed RSS | Sempre buscar artigo | `always` |
+| **RSS Full Limpo** | Prefeituras | Feed RSS | Nunca | `never` |
+| **RSS Full + Boilerplate** | Léo Nunes, Mesorregional | Feed RSS | Só limpeza | `when_incomplete` |
 
 ---
 
@@ -58,6 +70,9 @@ NewsRadar/
 │   ├── UrlNormalizerService.php
 │   ├── FeedParserService.php
 │   ├── FeedQualityScorerService.php
+│   ├── SitemapParserService.php       (parser dedicado de sitemap.xml / news-sitemap.xml)
+│   ├── ListingDiscoveryService.php    (descoberta por HTML listing — 1ª classe)
+│   ├── FieldResolverService.php       (resolução por campo: título, autor, data, corpo, imagem)
 │   ├── ArticleExtractorService.php
 │   ├── BoilerplateCleanerService.php
 │   ├── DateParserService.php
@@ -78,6 +93,7 @@ NewsRadar/
 ├── Enums/
 │   ├── DiscoveryMode.php
 │   ├── FeedQualityProfile.php
+│   ├── FetchDetailMode.php            (never, when_incomplete, always)
 │   ├── PublishedAtSource.php
 │   ├── NewsItemStatus.php
 │   ├── ContentSource.php
@@ -110,7 +126,9 @@ NewsRadar/
 - [ ] `source_type` (enum: portal, prefeitura, blog, agencia, whatsapp)
 - [ ] `discovery_mode` (enum: auto, feed, sitemap, html_listing)
 - [ ] `feed_quality_profile` (enum: full, partial, teaser_only, nullable)
-- [ ] `crawling_config` (json) — Seletores, extractors, boilerplate_rules, ignore_url_patterns
+- [ ] `fetch_detail_mode` (enum: never, when_incomplete, always, default 'when_incomplete') — Determina quando o spider acessa a página HTML do artigo
+- [ ] `source_preset` (string, nullable) — Preset sugerido: `html_listing_detail`, `rss_full_with_image_fetch`, `rss_teaser_detail`, `rss_full_clean`, `rss_full_but_noisy`
+- [ ] `crawling_config` (json) — Schema expandido com listing_selectors, article_extractors, boilerplate_rules, date_preprocessors, body_stop_text_patterns
 - [ ] `throttle_config` (json) — crawl_interval_min, crawl_interval_max, autoadjust_enabled
 - [ ] `timezone_default` (string, default 'America/Sao_Paulo')
 - [ ] `date_formats` (json, nullable) — Formatos custom por fonte
@@ -249,6 +267,7 @@ NewsRadar/
 
 - [ ] `DiscoveryMode` — auto, feed, sitemap, html_listing
 - [ ] `FeedQualityProfile` — full, partial, teaser_only
+- [ ] `FetchDetailMode` — never, when_incomplete, always
 - [ ] `PublishedAtSource` — rss, jsonld, og_tag, time_tag, text_pattern, manual
 - [ ] `NewsItemStatus` — pending, extracted, enriched_l1, enriched_l2, failed
 - [ ] `ContentSource` — feed_only, feed_plus_html, html_only
@@ -266,7 +285,7 @@ NewsRadar/
 - [ ] `NewsSourceRun` — relação `belongsTo(NewsSource)`, `hasMany(NewsRawItem)`
 - [ ] `SourceDiscoveryRun` — Model independente (wizard async)
 - [ ] `NewsRawItem` — relação `belongsTo(NewsSource)`, `belongsTo(NewsSourceRun)`, `hasOne(NewsItem)`
-- [ ] `NewsItem` — relação `belongsTo(NewsSource)`, `belongsTo(NewsRawItem)`, `hasOne(NewsItemAiMetadata)`, `hasMany(NewsItemMedia)`, `belongsToMany(NewsCluster)`
+- [ ] `NewsItem` — relações: `belongsTo(NewsSource)`, `belongsTo(NewsRawItem)`, `hasOne(NewsItemAiMetadata)`, `hasMany(NewsItemMedia)`, `belongsToMany(NewsCluster)`, **`belongsTo(NewsItem::class, 'duplicate_of_news_item_id')` (self-reference)**, **`hasMany(NewsItem::class, 'duplicate_of_news_item_id')` (duplicatas reversas)**
 - [ ] `NewsItemMedia` — relação `belongsTo(NewsItem)`
 - [ ] `NewsItemAiMetadata` — relação `belongsTo(NewsItem)`, `belongsTo(NewsTheme)`
 - [ ] `NewsCluster` — relação `belongsToMany(NewsItem)`
@@ -285,8 +304,69 @@ NewsRadar/
 - [ ] Forçar HTTPS quando disponível
 - [ ] Gerar `url_hash` (SHA-256) para deduplicação rápida
 
+#### Destaque: Schema Oficial do Campo JSON (`crawling_config`)
+
+O coração do extrator adaptável. Schema formalizado com base nos legados (Diarinho, VIPSocial, SCC10, Itapema) para cobrir **listagem com paginação**, **detalhe por campo**, **pré-processamento de datas** e **marcadores de corte**.
+
+```json
+{
+  "homepage_url": "https://portal.com.br",
+  "feed_url": null,
+  "sitemap_url": null,
+  "relative_url_base": "https://portal.com.br",
+
+  "listing_urls": ["https://portal.com.br/ultimas-noticias"],
+  "listing_container_selectors": [".news-list", "main"],
+  "listing_item_selectors": [".card-noticia", ".post-item", "article"],
+  "listing_link_selectors": ["a"],
+  "listing_title_selectors": ["h2", "h1"],
+  "listing_image_selectors": ["img"],
+  "listing_excerpt_selectors": [".apoio", ".resumo"],
+  "next_page_selectors": ["a.next", ".pagination a.next"],
+  "listing_max_pages": 3,
+  "stop_when_seen_known_urls": true,
+  "max_known_urls_before_stop": 10,
+
+  "article_url_patterns": ["/noticias/", "/[0-9]{4}/[0-9]{2}/"],
+  "ignore_url_patterns": ["/tag/", "/autor/", "/categoria/", "/videos/"],
+
+  "article_extractors": {
+    "title": ["meta[property='og:title']", "h1"],
+    "subtitle": ["meta[name='description']", ".subtitle", ".apoio"],
+    "author": [".assinatura_interno", ".author", ".box-not-red"],
+    "published_at": ["time[datetime]", "meta[property='article:published_time']"],
+    "image": ["meta[property='og:image']", ".article-content img:first-child"],
+    "body": [".post__content", ".box-not-des", ".materia-conteudo", "article"]
+  },
+
+  "image_extraction_strategy": "listing_first_then_og_then_body",
+
+  "body_stop_text_patterns": [
+    "O post", "Para mais notícias", "Comente e compartilhe", "siga o"
+  ],
+
+  "boilerplate_rules": {
+    "remove_selectors": ["style", "script", ".sharedaddy", ".newsletter-box", ".whatsapp-cta", ".post-footer"],
+    "remove_text_patterns": [
+      "O post .* apareceu primeiro em",
+      "Clique aqui e faça parte do nosso grupo"
+    ]
+  },
+
+  "date_preprocessors": [
+    { "type": "replace", "search": "min", "replace": "" },
+    { "type": "trim" }
+  ],
+
+  "date_formats": ["c", "Y-m-d H:i:s", "d/m/Y H:i", "d/m/Y \\à\\s H:i"]
+}
+```
 ### 2.2 `DateParserService`
 - [ ] Receber data crua (string) + array de `date_formats` da fonte + `timezone_default`
+- [ ] Aplicar **`date_preprocessors`** antes do parse (da config da fonte):
+  - [ ] Suportar tipo `replace` (ex: remover "min", "hrs", "às")
+  - [ ] Suportar tipo `trim`
+  - [ ] Suportar tipo `regex_extract` (para capturar data de dentro de texto misto)
 - [ ] Tentar parse na ordem: formatos configurados da fonte → autodetect do Carbon
 - [ ] Retornar objeto DTO com: `raw`, `parsed`, `utc`, `timezone`, `source`
 
@@ -335,18 +415,69 @@ NewsRadar/
 - [ ] Resultado: score 80+ → `full` | 50–79 → `partial` | <50 → `teaser_only`
 - [ ] Detectar flags: `wordpress_like`, `has_inline_images`, `has_gallery`, `has_boilerplate`, `has_categories`
 
-### 2.6 `ArticleExtractorService`
-- [ ] Receber HTML da página + configuração de seletores da fonte
+### 2.6 `SitemapParserService` *(NOVO)*
+> Sitemap tem comportamento próprio: index, lastmod, news sitemap. Merece tratamento dedicado.
+
+- [ ] Receber URL do sitemap (configurável ou autodescoberto)
+- [ ] Detectar tipo: **Sitemap Index** vs **Sitemap simples** vs **News Sitemap**
+  - [ ] Se Index → percorrer sitemaps filhos recursivamente
+- [ ] Extrair `<loc>` (URL do artigo) e `<lastmod>` (data de modificação)
+- [ ] Para News Sitemaps: extrair `<news:title>`, `<news:publication_date>`, `<news:keywords>`
+- [ ] Aplicar `article_url_patterns` e `ignore_url_patterns` para filtrar
+- [ ] Normalizar todas as URLs via `UrlNormalizerService`
+- [ ] Retornar array de DTOs ordenados por `lastmod` (mais recentes primeiro)
+
+### 2.7 `ListingDiscoveryService` *(NOVO — 1ª classe)*
+> Tratamento operacional completo para portais sem RSS (Ex: Diarinho, VIPSocial). Caso de primeira classe, não fallback.
+
+- [ ] Receber `listing_urls` + seletores de listagem da config da fonte
+- [ ] Para cada URL de listagem:
+  - [ ] Abrir via `HttpFetchService`
+  - [ ] Localizar container via `listing_container_selectors` (ex: `.news-list`, `main`)
+  - [ ] Extrair cards de notícia via `listing_item_selectors` (ex: `.card-noticia`, `article`)
+  - [ ] Para cada card, extrair:
+    - [ ] Link → `listing_link_selectors` (com resolução de URLs relativas via `relative_url_base`)
+    - [ ] Título prévio → `listing_title_selectors`
+    - [ ] Imagem prévia → `listing_image_selectors` (com resolução de URLs relativas)
+    - [ ] Excerpt prévio → `listing_excerpt_selectors`
+- [ ] Normalizar todas as URLs via `UrlNormalizerService`
+- [ ] Aplicar filtros `article_url_patterns` e `ignore_url_patterns`
+- [ ] Deduplicar links dentro da própria listagem
+- [ ] **Paginação automática:**
+  - [ ] Detectar link de próxima página via `next_page_selectors` (ex: `a.next`, `.pagination a.next`)
+  - [ ] Seguir até `listing_max_pages` (padrão: 3)
+  - [ ] **Parada inteligente:** Se `stop_when_seen_known_urls = true`, parar após encontrar `max_known_urls_before_stop` URLs que já existem no banco (evita re-crawling desnecessário)
+- [ ] Retornar array de candidatos de notícia (DTOs)
+
+### 2.8 `FieldResolverService` *(NOVO)*
+> Cada campo da notícia pode vir de fontes diferentes (listing, feed, detalhe HTML, JSON-LD, OG). Este service centraliza a resolução, evitando lógica espalhada pelos spiders.
+
+- [ ] `resolveTitle(listingData, feedData, articleData)` — Prioridade: articleJSON-LD > article OG > article H1 > feed title > listing title
+- [ ] `resolveSubtitle(feedData, articleData)` — Prioridade: article meta description > articleJSON-LD description > feed snippet
+- [ ] `resolveAuthor(feedData, articleData)` — Prioridade: `dc:creator` > articleJSON-LD author > article selector > feed creator
+- [ ] `resolvePublishedAt(feedData, articleData, config)` — Aplica `DateParserService` com `date_preprocessors`. Prioridade: articleJSON-LD datePublished > article `<time>` > article OG article:published_time > feed isoDate > feed pubDate > text_pattern
+- [ ] `resolveBody(feedData, articleData, config)` — Prioridade: article body selector (limpo) > feed `content:encoded`. Aplica `body_stop_text_patterns` para cortar conteúdo após marcadores de encerramento
+- [ ] `resolveHeroImage(listingData, feedData, articleData, config)` — Aplica `image_extraction_strategy`:
+  - [ ] `listing_first_then_og_then_body` (padrão para VIPSocial/Diarinho)
+  - [ ] `og_first_then_body` (padrão para Itapema/Correio)
+  - [ ] `body_only` (casos raros)
+- [ ] `resolveCategories(feedData, articleData)` — Merge de tags do feed (`categories`) com meta keywords + seletores do artigo. Normalizar strings (lowercase, trim)
+- [ ] **Merge final:** Preencher campos faltantes usando fontes de prioridade inferior. Registrar a `source` de cada campo resolvido (para auditoria)
+
+### 2.9 `ArticleExtractorService`
+- [ ] Receber HTML da página + configuração de `article_extractors` da fonte
 - [ ] Implementar extração em camadas (A → B → C → D → E):
   - [ ] **Camada A:** Parse JSON-LD (`schema.org/NewsArticle`)
   - [ ] **Camada B:** Parse Open Graph meta tags
   - [ ] **Camada C:** Parse HTML semântico com seletores CSS do banco (via `symfony/css-selector`)
-  - [ ] **Camada D:** Aplicar `BoilerplateCleanerService` ao corpo
+  - [ ] **Camada D:** Aplicar `BoilerplateCleanerService` + `body_stop_text_patterns` ao corpo
   - [ ] **Camada E:** Aplicar seletores custom (override por fonte)
-- [ ] Merge inteligente: preencher campos faltantes de camadas inferiores
+- [ ] Suportar extração de corpo por **container + marcador de parada** (ex: `.post__content` até "Para mais notícias")
+- [ ] Suportar iteração em siblings quando corpo não vem num único container (caso Diarinho)
 - [ ] Calcular `extraction_completeness` (score 0–100)
+- [ ] Delegar resolução final de campos ao `FieldResolverService`
 
-### 2.7 `HttpFetchService`
+### 2.10 `HttpFetchService`
 - [ ] Wrapper **unificado** do Guzzle, reaproveitado tanto no onboarding quanto nos spiders
 - [ ] Configurar via **Roach Downloader Middleware** (não criar pilha paralela):
   - [ ] Throttle por host (delay configurável)
@@ -365,23 +496,25 @@ NewsRadar/
 
 ### 3.1 `GenericDiscoverySpider` (RoachPHP)
 - [ ] Receber configuração da `NewsSource` (injetada via construtor/contexto)
-- [ ] Decidir estratégia baseado no `discovery_mode`:
-  - [ ] `feed` → Chamar `FeedParserService` (SimplePie)
-  - [ ] `sitemap` → Parsear `sitemap.xml` / `news-sitemap.xml`
-  - [ ] `html_listing` → Navegar `listing_urls`, buscar `<a>` que conferem `article_url_patterns`
-  - [ ] `auto` → Tentar feed → sitemap → listing (nessa ordem)
+- [ ] Decidir estratégia baseado no `discovery_mode` — **delegar sempre ao service especializado:**
+  - [ ] `feed` → Delegar ao `FeedParserService` (SimplePie)
+  - [ ] `sitemap` → Delegar ao `SitemapParserService` (index, lastmod, news sitemap)
+  - [ ] `html_listing` → Delegar ao `ListingDiscoveryService` (paginação, parada inteligente)
+  - [ ] `auto` → Tentar feed → sitemap → listing (nessa ordem, parar no primeiro que retornar resultados)
 - [ ] Para cada URL encontrada: normalizar via `UrlNormalizerService`, verificar `url_hash` no banco
 - [ ] Emitir itens novos para o `PersistencePipeline` → Criar `NewsRawItem` com status `pending`
 
 ### 3.2 `GenericArticleSpider` (RoachPHP) — Orquestrador fino
 - [ ] Receber `NewsRawItem` com `processing_status=pending` + configuração da `NewsSource`
-- [ ] Decidir se precisa buscar HTML:
-  - [ ] Se `feed_quality_profile=full` e item já veio completo do feed → promover direto do `raw_payload`
-  - [ ] Se `feed_quality_profile=partial|teaser_only` → buscar HTML via `HttpFetchService`
-  - [ ] Se `render_js_required=true` → usar Panther (Headless Browser)
-- [ ] Passar HTML para `ArticleExtractorService` (a lógica pesada está no service)
+- [ ] **A regra final de busca é `fetch_detail_mode`** (não `feed_quality_profile`, que vira apenas diagnóstico):
+  - [ ] `never` → Promover direto do `raw_payload` sem fetch externo. Ideal para feeds completos de prefeitura onde corpo + imagem já vieram. O `FieldResolverService` resolve campos apenas do feed.
+  - [ ] `when_incomplete` → Usar `FieldResolverService` para verificar completude. Se body, hero_image ou author faltarem → buscar HTML via `HttpFetchService`. Se já completo → pular fetch (ex: Itapema, Correio Catarin.)
+  - [ ] `always` → Sempre buscar HTML do artigo, independente do que veio no feed (ex: Diarinho, VIPSocial, SCC10, qualquer `html_listing`)
+  - [ ] Se `render_js_required=true` → usar Panther (Headless Browser) em vez de Guzzle
+- [ ] Passar HTML para `ArticleExtractorService`
+- [ ] Usar `FieldResolverService` para **merge final** de dados do listing + feed + detalhe HTML
 - [ ] Emitir item processado para pipelines de limpeza e persistência
-- [ ] Promover `NewsRawItem` → `NewsItem`
+- [ ] Promover `NewsRawItem` → `NewsItem`, registrar `content_source` (feed_only, feed_plus_html, html_only)
 
 ### 3.3 RoachPHP Pipelines
 - [ ] `DeduplicationPipeline` — Verifica `url_hash` no banco, descarta duplicatas
@@ -425,24 +558,25 @@ NewsRadar/
   - [ ] Criar registro `SourceDiscoveryRun` (status: running)
   - [ ] Usar `spatie/crawler` para navegar a homepage
   - [ ] Detectar `<link rel="alternate" type="application/rss+xml">`
-  - [ ] Tentar acessar `/sitemap.xml`, `/news-sitemap.xml`
+  - [ ] Tentar acessar `/sitemap.xml`, `/news-sitemap.xml` via `SitemapParserService`
   - [ ] Coletar links `<a href>` da homepage
   - [ ] Identificar padrões de URL de artigo
+  - [ ] Detectar possíveis `listing_container_selectors` automaticamente
   - [ ] Detectar se o site precisa de JS (resposta vazia / `<div id="app">`)
   - [ ] Salvar resultado em `SourceDiscoveryRun.result_json`
 - [ ] Método `analyzeFeed(string $feedUrl)`:
   - [ ] Parsear 5 itens com `FeedParserService` (SimplePie)
   - [ ] Calcular `FeedQualityScore`
   - [ ] Detectar boilerplates, retornar diagnóstico completo
-- [ ] Método `previewArticles(string $feedUrl, int $count = 3)`:
-  - [ ] Parsear feed, extrair os primeiros N itens
-  - [ ] Para cada: extrair título, data, imagem, corpo (via `ArticleExtractorService`)
-  - [ ] Retornar cards de preview para o frontend
+- [ ] Método `previewArticles(string $mode, string $url, int $count = 3)` — **Genérico, funciona com e sem feed:**
+  - [ ] Se `mode=feed` → Parsear feed, extrair primeiros N itens, usar `ArticleExtractorService` + `FieldResolverService`
+  - [ ] Se `mode=html_listing` → Usar `ListingDiscoveryService` para extrair N cards da listagem, buscar detalhe do primeiro para preview completo
+  - [ ] Retornar cards de preview unificados para o frontend (título, imagem, data, excerpt, score de completude)
 
 ### 4.2 `SourceDiscoveryController`
 - [ ] `POST /api/v1/news-radar/sources/discover` — Recebe `url`, cria `SourceDiscoveryRun`, dispara discovery async, retorna run ID
 - [ ] `GET /api/v1/news-radar/sources/discover/{runId}/status` — Retorna progresso e resultado do discovery
-- [ ] `POST /api/v1/news-radar/sources/preview` — Recebe `feed_url`, retorna 3 cards de preview
+- [ ] `POST /api/v1/news-radar/sources/preview` — **Genérico:** Recebe `mode` (feed|html_listing) + `url` (feed_url ou listing_url), retorna 3 cards de preview
 - [ ] `POST /api/v1/news-radar/sources/test-selector` — Recebe `url` + `selector`, retorna conteúdo extraído
 
 ### 4.3 `NewsSourceController` (CRUD)
@@ -554,25 +688,28 @@ NewsRadar/
 ## Fase 7 — Testes e Qualidade
 
 ### 7.1 Testes Unitários
-- [ ] `UrlNormalizerServiceTest` — UTMs, trailing slash, https
+- [ ] `UrlNormalizerServiceTest` — UTMs, trailing slash, https, URLs relativas com `relative_url_base`
 - [ ] `FeedParserServiceTest` — Fixtures de feeds reais (Mesorregional, SCC10, Itapema, Léo Nunes, SCMais)
 - [ ] `FeedQualityScorerServiceTest` — Scores corretos para cada perfil (full, partial, teaser)
-- [ ] `BoilerplateCleanerServiceTest` — Remoção de style, CTAs, rodapé WP, emojis
-- [ ] `DateParserServiceTest` — Formatos variados + timezones + fallbacks
-- [ ] `ArticleExtractorServiceTest` — Camadas A→E com HTML fixtures
+- [ ] `SitemapParserServiceTest` — Sitemap index, news sitemap, lastmod filtering
+- [ ] `ListingDiscoveryServiceTest` — Extração de cards, URLs relativas, filtros, paginação, parada inteligente
+- [ ] `FieldResolverServiceTest` — Merge de campos: listing+feed+detalhe em cada perfil de captura (HTML-only, RSS full, RSS teaser)
+- [ ] `BoilerplateCleanerServiceTest` — Remoção de style, CTAs, rodapé WP, emojis, stop markers
+- [ ] `DateParserServiceTest` — Formatos variados + timezones + fallbacks + `date_preprocessors` (replace, trim, regex_extract)
+- [ ] `ArticleExtractorServiceTest` — Camadas A→E com HTML fixtures, body stop markers, sibling iteration
 
 ### 7.2 Testes de Feature (API)
 - [ ] CRUD de `NewsSource`
 - [ ] Discovery + SourceDiscoveryRun
-- [ ] Preview endpoint
+- [ ] Preview endpoint (para `mode=feed` e `mode=html_listing`)
 - [ ] Listagem de `NewsItem` com filtros
 - [ ] Dashboard endpoint
 - [ ] Histórico de `NewsSourceRun`
 
 ### 7.3 Testes do Spider/Pipeline
 - [ ] RoachPHP helpers de teste para spiders
-- [ ] Fixtures HTML simulando portais (com e sem JSON-LD, com e sem OG)
-- [ ] Testar fluxo completo: `NewsRawItem` → `NewsItem` (promoção)
+- [ ] Fixtures HTML simulando portais (com e sem JSON-LD, com e sem OG, com listagem HTML)
+- [ ] Testar fluxo completo: `NewsRawItem` → `NewsItem` (promoção) com cada `fetch_detail_mode` (never, when_incomplete, always)
 
 ---
 
