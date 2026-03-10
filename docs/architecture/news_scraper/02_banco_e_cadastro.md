@@ -14,7 +14,8 @@ A tabela principal de fontes (`news_sources`) deve armazenar não apenas os meta
 | `name` | `string` | Nome do Portal (ex: Prefeitura de Tijucas) |
 | `active` | `boolean` | Controla as rotinas ativas / filas da fonte |
 | `discovery_mode` | `enum` | `auto`, `feed`, `sitemap`, `html_listing` |
-| `crawling_config` | `json` | (JSON Detalhado abaixo) Configuranção dos seletores HTML e extratores. |
+| `crawling_config` | `json` | (JSON Detalhado abaixo) Configuração dos seletores HTML, extratores e limpadores de boilerplate. |
+| `feed_quality_profile`| `enum` | Perfil inferido pelo sistema: `full`, `partial` ou `teaser_only`. Define se o Crawler precisará acessar a matéria completa. |
 | `throttle_config` | `json` | Configurações de periodicidade adaptativa (intervalo mín/máx). |
 | `timezone_default`| `string` | Exemplo: `America/Sao_Paulo` |
 | `date_formats` | `json` | Array de formatos de datas customizados em ordem de prioridade. Muito eficiente caso a home page misture formatos. |
@@ -38,29 +39,24 @@ O coração do extrator adaptável encontra-se neste campo JSON persistido na `n
     "/[0-9]{4}/[0-9]{2}/"
   ],
   "extractors": {
-    "title": [
-      "meta[property='og:title']",
-      "script[type='application/ld+json']::NewsArticle.headline",
-      "h1.titulo-materia"
-    ],
-    "published_at": [
-      "meta[property='article:published_time']",
-      "script[type='application/ld+json']::NewsArticle.datePublished",
-      "time.data-publicacao[datetime]",
-      ".post-date"
-    ],
-    "image": [
-      "meta[property='og:image']",
-      "script[type='application/ld+json']::NewsArticle.image",
-      ".article-content img:first-child"
-    ],
-    "body": [
-      "article",
-      ".entry-content",
-      ".materia-conteudo"
-    ]
+    "title": [ ... ],
+    "published_at": [ ... ],
+    "image": [ ... ],
+    "body": [ ... ]
   },
-  "date_formats": [
+  "boilerplate_rules": {
+     "remove_selectors": [
+       "style", 
+       "script",
+       ".whatsapp-cta", 
+       ".post-footer"
+     ],
+     "remove_text_patterns": [
+       "O post .* apareceu primeiro em",
+       "Clique aqui e faça parte do nosso grupo"
+     ]
+  },
+  "date_formats": [ ... ],
     "c",
     "Y-m-d H:i:s",
     "d/m/Y H:i",
@@ -95,8 +91,13 @@ A arquitetura do painel de administração é invertida em relação a antigos s
 
 1.  **URL Base:** O operador fornece "prefeitura.sc.gov.br", e o backend reage em `background`.
 2.  **AutoDiscovery (Bot SpatieCrawler em Ação):** Usando `spatie/crawler`, o Laravel viaja pela home. Tenta detectar `<link rel="alternate" type="application/rss+xml">` e requisitar `/sitemap.xml`.
-3.  **Apresentação do Preview:** A tela retorna três (3) _Cards_ de _Preview_. O formulário preenche automaticamente os campos que encontrou "magicamente" pelas marcações padronizadas.
-4.  **Ajuste Fino Manual (Seletores CSS):** O Operador só interfere se o portal não obedecer padrões. Utilizando a biblioteca `symfony/css-selector` acoplada internamente, o operador não fornece um XPath complexo, e sim parâmetros web convencionais como `.minha-lista-noticias h2 a`.
-5.  **Periodicidade Recomendada (Throttle):** O próprio Wizard pode avaliar a atividade do _Sitemap_ (caso a tag `<lastmod>` esteja disponível), sugerindo o perfil de Scan ("A cada 1 hora", "Lento: 1 a 6 horas", "Adaptativo").
+3.  **Avaliação Inteligente do Feed (Score de Completude):** O sistema não se limita a achar o RSS; ele lê 3 a 5 itens e calcula um *score*:
+    *   Tem `title` e `link` normalizado (sem UTM)?
+    *   Tem `pubDate`/`isoDate`? (+15 pts)
+    *   Tem `content:encoded` rico (> 600 caracteres)? (+20 pts)
+    *   Com base nisso, classifica a fonte automaticamente em **PERFIL:** `wordpress_full_content` (Usa o feed quase como matéria final), `wordpress_full_but_noisy` (Aplica limpadores de boilerplate nativos) ou `wordpress_teaser_only` (Obriga o sistema a visitar a URL HTML da matéria).
+4.  **Apresentação do Preview:** A tela retorna três (3) _Cards_ de _Preview_. O formulário preenche automaticamente os campos que encontrou "magicamente" pelas marcações padronizadas. Mostra o "Diagnóstico Automático da Fonte" (Ex: _"Conteúdo Completo via RSS: Sim | Precisa visitar a matéria: Não | Boilerplates detectados: CTA WhatsApp"_).
+5.  **Ajuste Fino Manual (Seletores CSS & Limpadores):** O Operador só interfere se o portal não obedecer padrões. Utilizando a biblioteca `symfony/css-selector` acoplada internamente, o operador não fornece um XPath complexo, e sim parâmetros web convencionais como `.minha-lista-noticias h2 a`. Pode também adicionar exclusões de *Boilerplate* (ex: "Remover parágrafo que diz: *Siga no instagram*").
+6.  **Periodicidade Recomendada (Throttle):** O próprio Wizard pode avaliar a atividade do _Sitemap_ (caso a tag `<lastmod>` esteja disponível), sugerindo o perfil de Scan ("A cada 1 hora", "Lento: 1 a 6 horas", "Adaptativo").
 
 Este fluxo preserva a integridade de "receitas" validadas no banco de dados e tira a dependência constante do time de desenvolvimento via deploys de novos seletores para _sites teimosos_.
