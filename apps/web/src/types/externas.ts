@@ -352,19 +352,15 @@ const VIP_GALLERY_STATUS_TEXT: Record<VipGalleryStatus, string> = {
     archived: "Arquivada",
 };
 
-const GOOGLE_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
-    timeZone: GOOGLE_CALENDAR_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-});
 
 const parseEventDate = (dateStr: string): Date => {
-    const normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T");
+    // DB stores dates in São Paulo local time. Strip any UTC/timezone suffix
+    // so that new Date() interprets the value as local time, not UTC.
+    let normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T");
+    // Remove trailing Z (UTC marker) or timezone offset like +00:00 / -03:00
+    normalized = normalized.replace(/Z$/i, "").replace(/[+-]\d{2}:\d{2}$/, "");
+    // Trim fractional seconds (.000000) to keep only YYYY-MM-DDTHH:mm:ss
+    normalized = normalized.replace(/\.\d+$/, "");
     const parsed = new Date(normalized);
 
     return Number.isNaN(parsed.getTime()) ? new Date(dateStr) : parsed;
@@ -372,10 +368,15 @@ const parseEventDate = (dateStr: string): Date => {
 
 const formatGoogleCalendarDate = (value: string | Date): string => {
     const date = value instanceof Date ? value : parseEventDate(value);
-    const parts = GOOGLE_DATE_FORMATTER.formatToParts(date);
-    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || "";
+    // Format directly from the Date object (already in local time)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
 
-    return `${part("year")}${part("month")}${part("day")}T${part("hour")}${part("minute")}${part("second")}`;
+    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
 };
 
 const formatCollaboratorLine = (collaborator: EventCollaborator): string => {
@@ -442,7 +443,7 @@ export const generateGoogleCalendarUrl = (event: ExternalEvent): string => {
         : new Date(start.getTime() + 2 * 60 * 60 * 1000);
     const startDate = formatGoogleCalendarDate(start);
     const endDate = formatGoogleCalendarDate(end);
-    const categoryName = event.category?.name?.trim() || "Evento";
+    const categoryName = (event.category?.name?.trim() || "Evento").toUpperCase();
 
     const params = new URLSearchParams({
         action: "TEMPLATE",

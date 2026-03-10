@@ -28,7 +28,7 @@ class SlideshowBootController extends BaseController
             ->where('slideshow_code', $slideshowCode)
             ->firstOrFail();
 
-        if (! $slideshow->isAvailable()) {
+        if (! $slideshow->event || ! $slideshow->isAvailable()) {
             return $this->jsonError(
                 'O telão solicitado nao esta disponivel',
                 'SLIDESHOW_UNAVAILABLE',

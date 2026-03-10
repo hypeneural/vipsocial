@@ -1051,11 +1051,11 @@ const EventForm = () => {
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="data_hora">Data e Hora de Início *</Label>
-                                    <Input id="data_hora" type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)} required className="rounded-xl" />
+                                    <Input id="data_hora" type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)} required className="rounded-xl" min={new Date().toISOString().slice(0, 16)} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="data_hora_fim">Data e Hora de Término</Label>
-                                    <Input id="data_hora_fim" type="datetime-local" value={dataHoraFim} onChange={(e) => setDataHoraFim(e.target.value)} className="rounded-xl" />
+                                    <Input id="data_hora_fim" type="datetime-local" value={dataHoraFim} onChange={(e) => setDataHoraFim(e.target.value)} className="rounded-xl" min={dataHora || new Date().toISOString().slice(0, 16)} />
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -1458,47 +1458,47 @@ const EventForm = () => {
                                                                     alt={banner.alt_text || "Banner VIP"}
                                                                     className="h-28 w-full object-cover"
                                                                 />
-                                                                    <div className="flex items-center justify-between gap-3 px-3 py-2">
-                                                                        <div className="min-w-0">
-                                                                            <p className="truncate text-sm font-medium">
-                                                                                {banner.alt_text || `Banner #${banner.sort_order}`}
-                                                                            </p>
-                                                                            <p className="text-xs text-muted-foreground">
-                                                                                Ordem {banner.sort_order}
-                                                                            </p>
-                                                                        </div>
-                                                                        <div className="flex items-center gap-1">
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-8 w-8"
-                                                                                onClick={() => handleMoveUploadedBanner(banner.id, -1)}
-                                                                                disabled={reorderVipGalleryBanners.isPending || banner.sort_order === 1}
-                                                                            >
-                                                                                <ArrowUp className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-8 w-8"
-                                                                                onClick={() => handleMoveUploadedBanner(banner.id, 1)}
-                                                                                disabled={reorderVipGalleryBanners.isPending || banner.sort_order === uploadedVipBanners.length}
-                                                                            >
-                                                                                <ArrowDown className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-8 w-8 text-destructive"
-                                                                                onClick={() => handleRemoveUploadedBanner(banner.id)}
-                                                                                disabled={deleteVipGalleryBanner.isPending}
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4" />
-                                                                            </Button>
-                                                                        </div>
+                                                                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-sm font-medium">
+                                                                            {banner.alt_text || `Banner #${banner.sort_order}`}
+                                                                        </p>
+                                                                        <p className="text-xs text-muted-foreground">
+                                                                            Ordem {banner.sort_order}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8"
+                                                                            onClick={() => handleMoveUploadedBanner(banner.id, -1)}
+                                                                            disabled={reorderVipGalleryBanners.isPending || banner.sort_order === 1}
+                                                                        >
+                                                                            <ArrowUp className="h-4 w-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8"
+                                                                            onClick={() => handleMoveUploadedBanner(banner.id, 1)}
+                                                                            disabled={reorderVipGalleryBanners.isPending || banner.sort_order === uploadedVipBanners.length}
+                                                                        >
+                                                                            <ArrowDown className="h-4 w-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8 text-destructive"
+                                                                            onClick={() => handleRemoveUploadedBanner(banner.id)}
+                                                                            disabled={deleteVipGalleryBanner.isPending}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         ))}

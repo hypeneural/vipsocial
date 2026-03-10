@@ -11,10 +11,11 @@ use App\Modules\VipGallery\Support\VipGalleryMediaManager;
 use App\Support\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ExternalEvent extends Model
 {
-    use Auditable;
+    use Auditable, SoftDeletes;
 
     protected $appends = [
         'custom_logo_url',
@@ -67,6 +68,7 @@ class ExternalEvent extends Model
         'views_count' => 'integer',
         'allow_pause_command' => 'boolean',
         'allow_delete_command' => 'boolean',
+        'deleted_at' => 'datetime',
     ];
 
     // ── Relationships ────────────────────────────

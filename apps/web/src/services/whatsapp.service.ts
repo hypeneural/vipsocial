@@ -81,6 +81,8 @@ export interface WhatsAppGroupsDashboardData {
   window: WhatsAppMetricsWindow;
   summary: {
     groups_count: number;
+    last_sync_at: string | null;
+    oldest_sync_at: string | null;
     total_memberships_current: number;
     unique_members_current: number;
     multi_group_members_current: number;

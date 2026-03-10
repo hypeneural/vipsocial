@@ -33,6 +33,10 @@ class GroupMetricsService
             $uniqueGrowthDelta = $currentUniqueMembers - $baselineUniqueMembers;
             $totalMembershipsCurrent = (int) ($overview['total_memberships_current'] ?? 0);
 
+            $activeGroups = WhatsAppGroup::query()->active()->get(['last_synced_at']);
+            $lastSyncAt = $activeGroups->max('last_synced_at');
+            $oldestSyncAt = $activeGroups->filter(fn($g) => $g->last_synced_at !== null)->min('last_synced_at');
+
             $groups = collect($groupsPayload['items'] ?? [])
                 ->map(function (array $group, int $index) use ($totalMembershipsCurrent) {
                     $membersCurrent = (int) ($group['members_current'] ?? 0);
@@ -52,6 +56,8 @@ class GroupMetricsService
                 'window' => $normalizedWindow,
                 'summary' => [
                     'groups_count' => (int) ($overview['groups_count'] ?? 0),
+                    'last_sync_at' => $lastSyncAt?->toIso8601String(),
+                    'oldest_sync_at' => $oldestSyncAt?->toIso8601String(),
                     'total_memberships_current' => $totalMembershipsCurrent,
                     'unique_members_current' => $currentUniqueMembers,
                     'multi_group_members_current' => (int) ($overview['multi_group_members_current'] ?? 0),

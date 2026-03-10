@@ -66,17 +66,13 @@ class VipGallerySlideshowController extends BaseController
         $slideshow->refresh();
 
         $after = $this->slideshowPayload($event, $slideshow);
+        $changes = $this->describeSlideshowChanges($before, $after);
 
         EventActivityLog::log(
             $event->id,
             'vip_gallery_slideshow_updated',
             'Configuracoes do telao/slideshow atualizadas.',
-            [
-                'Slideshow' => [
-                    'de' => $before,
-                    'para' => $after,
-                ],
-            ]
+            $changes ?: null
         );
 
         $statusChanged = ($before['status'] ?? null) !== ($after['status'] ?? null);
@@ -325,6 +321,54 @@ class VipGallerySlideshowController extends BaseController
                 ->map(fn (string $layout) => ['value' => $layout, 'label' => $this->layoutLabel($layout)])
                 ->values(),
         ];
+    }
+
+    private function describeSlideshowChanges(array $before, array $after): array
+    {
+        $fields = [
+            'is_enabled' => 'Telao ativo',
+            'status' => 'Status do telao',
+            'layout' => 'Layout',
+            'interval_ms' => 'Velocidade',
+            'queue_limit' => 'Limite da fila',
+            'background_url' => 'Background',
+            'partner_logo_url' => 'Logo do parceiro',
+            'show_neon' => 'Placa neon',
+            'show_sender_credit' => 'Credito do remetente',
+            'neon_text' => 'Texto da placa',
+            'instructions_text' => 'Texto de instrucao',
+            'expires_at' => 'Expira em',
+        ];
+
+        $changes = [];
+
+        foreach ($fields as $field => $label) {
+            $oldValue = $this->formatSlideshowLogValue($field, $before[$field] ?? null);
+            $newValue = $this->formatSlideshowLogValue($field, $after[$field] ?? null);
+
+            if ((string) $oldValue !== (string) $newValue) {
+                $changes[$label] = [
+                    'de' => $oldValue,
+                    'para' => $newValue,
+                ];
+            }
+        }
+
+        return $changes;
+    }
+
+    private function formatSlideshowLogValue(string $field, mixed $value): ?string
+    {
+        return match ($field) {
+            'is_enabled', 'show_neon', 'show_sender_credit' => $value === null ? null : ((bool) $value ? 'Sim' : 'Nao'),
+            'interval_ms' => $value === null ? null : sprintf('%ss', max(1, (int) round(((int) $value) / 1000))),
+            'background_url', 'partner_logo_url' => is_string($value) && trim($value) !== '' ? 'Configurado' : 'Nao configurado',
+            'layout' => $value === null ? null : $this->layoutLabel((string) $value),
+            'status' => $value === null ? null : ucfirst((string) $value),
+            'neon_text', 'instructions_text', 'expires_at' => is_string($value) && trim($value) !== '' ? trim($value) : null,
+            'queue_limit' => $value === null ? null : (string) ((int) $value),
+            default => is_scalar($value) ? (string) $value : null,
+        };
     }
 
     private function layoutLabel(string $layout): string

@@ -8,6 +8,7 @@ use App\Modules\Externas\Models\EventCategory;
 use App\Modules\Externas\Models\EventStatus;
 use App\Modules\Externas\Models\ExternalEvent;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
+use App\Modules\VipGallery\Models\VipGallerySlideshow;
 use App\Support\Http\Controllers\BaseController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -429,10 +430,34 @@ class ExternaController extends BaseController
 
     public function destroy(int $id): JsonResponse
     {
-        $event = ExternalEvent::findOrFail($id);
-        $event->delete();
+        $event = ExternalEvent::with('vipGallerySlideshow')->findOrFail($id);
 
-        return $this->jsonDeleted();
+        DB::transaction(function () use ($event): void {
+            if ($event->is_vip_gallery) {
+                $event->forceFill([
+                    'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_ARCHIVED,
+                ])->save();
+            }
+
+            $slideshow = $event->vipGallerySlideshow;
+
+            if ($slideshow) {
+                $slideshow->forceFill([
+                    'is_enabled' => false,
+                    'status' => VipGallerySlideshow::STATUS_ARCHIVED,
+                ])->save();
+            }
+
+            EventActivityLog::log(
+                $event->id,
+                'deleted',
+                sprintf('Evento "%s" marcado como deletado.', $event->titulo)
+            );
+
+            $event->delete();
+        });
+
+        return $this->jsonDeleted('Evento deletado com sucesso');
     }
 
     public function changeStatus(Request $request, int $id): JsonResponse

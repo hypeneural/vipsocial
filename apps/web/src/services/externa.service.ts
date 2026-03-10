@@ -474,7 +474,7 @@ export interface ActivityLog {
     user_id: number | null;
     action: string;
     description: string;
-    changes: Record<string, { de: string | null; para: string }> | null;
+    changes: Record<string, { de: unknown; para: unknown }> | null;
     created_at: string;
     user?: { id: number; name: string } | null;
 }

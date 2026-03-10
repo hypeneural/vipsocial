@@ -3,10 +3,12 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
+  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
   ChevronRight,
+  Clock,
   MessageCircle,
   RefreshCw,
   TrendingUp,
@@ -65,6 +67,26 @@ const formatHourMinute = (iso?: string | null) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const formatDateHourMinute = (iso?: string | null) => {
+  if (!iso) return null;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+
+  return `${day}/${month} ${hours}:${minutes}`;
+};
+
+const isSyncStale = (iso?: string | null, thresholdHours = 24): boolean => {
+  if (!iso) return true;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return true;
+  return Date.now() - parsed.getTime() > thresholdHours * 60 * 60 * 1000;
 };
 
 const windowOptions: Array<{ value: WhatsAppMetricsWindow; label: string }> = [
@@ -187,9 +209,30 @@ export function WhatsAppGroupsWidget() {
             <Badge variant="outline">
               Fonte: banco consolidado
             </Badge>
-            {data?.meta?.generated_at && (
-              <Badge variant="outline">
-                Atualizado às {formatHourMinute(data.meta.generated_at)}
+            {summary?.last_sync_at && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "inline-flex items-center gap-1",
+                  isSyncStale(summary.last_sync_at)
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                )}
+              >
+                <Clock className="h-3 w-3" />
+                Último sync: {formatDateHourMinute(summary.last_sync_at)}
+              </Badge>
+            )}
+            {summary && !summary.last_sync_at && (
+              <Badge variant="outline" className="border-rose-500/30 bg-rose-500/10 text-rose-700 inline-flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Nenhum sync realizado
+              </Badge>
+            )}
+            {summary?.last_sync_at && isSyncStale(summary.last_sync_at) && (
+              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700 inline-flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Sync desatualizado (&gt;24h)
               </Badge>
             )}
             {summary && !summary.unique_growth.has_history && (
@@ -474,8 +517,16 @@ export function WhatsAppGroupsWidget() {
                     <span className="rounded-full bg-muted px-2 py-1">
                       -{formatNumber(selectedGroup.movement.leaves)} saídas
                     </span>
-                    <span className="rounded-full bg-muted px-2 py-1">
-                      Sync às {formatHourMinute(selectedGroup.last_synced_at)}
+                    <span className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-1",
+                      isSyncStale(selectedGroup.last_synced_at)
+                        ? "bg-amber-500/10 text-amber-700"
+                        : "bg-muted"
+                    )}>
+                      <Clock className="h-3 w-3" />
+                      {formatDateHourMinute(selectedGroup.last_synced_at)
+                        ? `Sync: ${formatDateHourMinute(selectedGroup.last_synced_at)}`
+                        : "Sync: nunca"}
                     </span>
                   </div>
                 </motion.div>
@@ -528,6 +579,17 @@ export function WhatsAppGroupsWidget() {
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {formatNumber(group.members_current)} membros ativos
+                            {formatDateHourMinute(group.last_synced_at) && (
+                              <span className={cn(
+                                "ml-1",
+                                isSyncStale(group.last_synced_at) && "text-amber-600"
+                              )}>
+                                · sync {formatDateHourMinute(group.last_synced_at)}
+                              </span>
+                            )}
+                            {!formatDateHourMinute(group.last_synced_at) && (
+                              <span className="ml-1 text-rose-500">· sem sync</span>
+                            )}
                           </p>
                         </div>
                         <div className="text-right">

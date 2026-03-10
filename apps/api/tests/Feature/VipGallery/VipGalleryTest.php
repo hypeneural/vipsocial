@@ -120,6 +120,7 @@ beforeEach(function () {
         $table->boolean('allow_delete_command')->default(false);
         $table->string('pause_command_keyword', 100)->default('Parar,Pausar');
         $table->string('delete_command_keyword', 100)->default('Apagar');
+        $table->softDeletes();
         $table->timestamps();
     });
 
@@ -1709,4 +1710,50 @@ test('admin show payload exposes banner preview urls for edit screen and can reo
         ->assertJsonPath('data.banners.0.sort_order', 1)
         ->assertJsonPath('data.banners.1.id', $bannerOne->id)
         ->assertJsonPath('data.banners.1.sort_order', 2);
+});
+
+test('slideshow update logs scalar changes instead of raw snapshot objects', function () {
+    $event = createVipGalleryEvent();
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->patchJson("/api/v1/vip-gallery/events/{$event->id}/slideshow", [
+            'is_enabled' => true,
+            'layout' => VipGallerySlideshow::LAYOUT_SPLIT,
+            'interval_ms' => 15000,
+            'queue_limit' => 55,
+            'show_sender_credit' => true,
+        ])
+        ->assertOk();
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson("/api/v1/externas/{$event->id}/logs")
+        ->assertOk()
+        ->assertJsonPath('data.0.action', 'vip_gallery_slideshow_updated')
+        ->assertJsonPath('data.0.changes.Telao ativo.para', 'Sim')
+        ->assertJsonPath('data.0.changes.Layout.para', 'Dividido')
+        ->assertJsonPath('data.0.changes.Velocidade.para', '15s');
+});
+
+test('destroy externa soft deletes event and hides it from detail and list', function () {
+    $event = createVipGalleryEvent([
+        'titulo' => 'Evento para deletar',
+        'gallery_slug' => 'evento-para-deletar',
+    ]);
+    $user = User::factory()->make(['role' => 'admin']);
+
+    $this->actingAs($user, 'sanctum')
+        ->deleteJson("/api/v1/externas/{$event->id}")
+        ->assertOk();
+
+    expect(ExternalEvent::withTrashed()->find($event->id)?->trashed())->toBeTrue();
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson("/api/v1/externas/{$event->id}")
+        ->assertNotFound();
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/v1/externas')
+        ->assertOk()
+        ->assertJsonMissing(['id' => $event->id]);
 });

@@ -171,6 +171,8 @@ test('dashboard endpoint returns summary series and group shares', function () {
                 'window',
                 'summary' => [
                     'groups_count',
+                    'last_sync_at',
+                    'oldest_sync_at',
                     'total_memberships_current',
                     'unique_members_current',
                     'multi_group_members_current',

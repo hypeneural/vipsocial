@@ -25,6 +25,7 @@ import {
     History,
     ArrowRightLeft,
     User,
+    Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -50,6 +51,7 @@ import {
     useExterna,
     useEventStatuses,
     useChangeEventStatus,
+    useDeleteExterna,
     useUpdateChecklist,
     useEventLogs,
     useVipGalleryOptions,
@@ -105,6 +107,61 @@ const actionIcons: Record<string, { icon: LucideIcon; color: string }> = {
     created: { icon: CalendarCheck, color: "bg-green-500" },
     updated: { icon: Edit, color: "bg-blue-500" },
     status_changed: { icon: ArrowRightLeft, color: "bg-amber-500" },
+    deleted: { icon: Trash2, color: "bg-destructive" },
+    vip_gallery_slideshow_updated: { icon: Camera, color: "bg-sky-600" },
+};
+
+const isSlideshowSnapshot = (value: unknown): value is Record<string, unknown> => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+
+    const snapshot = value as Record<string, unknown>;
+
+    return (
+        "external_event_id" in snapshot
+        && "layout" in snapshot
+        && "interval_ms" in snapshot
+        && "queue_limit" in snapshot
+        && "status" in snapshot
+    );
+};
+
+const formatActivityLogValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") {
+        return "—";
+    }
+
+    if (typeof value === "boolean") {
+        return value ? "Sim" : "Não";
+    }
+
+    if (typeof value === "number" || typeof value === "string") {
+        return String(value);
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((entry) => formatActivityLogValue(entry)).join(", ");
+    }
+
+    if (isSlideshowSnapshot(value)) {
+        const intervalSeconds = Math.max(1, Math.round(Number(value.interval_ms || 0) / 1000));
+
+        return [
+            `Ativo: ${value.is_enabled ? "Sim" : "Não"}`,
+            `Status: ${String(value.status || "draft")}`,
+            `Layout: ${String(value.layout || "auto")}`,
+            `Velocidade: ${intervalSeconds}s`,
+            `Fila: ${String(value.queue_limit || 0)}`,
+            `Crédito: ${value.show_sender_credit ? "Sim" : "Não"}`,
+        ].join(" | ");
+    }
+
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return "[valor complexo]";
+    }
 };
 
 // ==========================================
@@ -123,6 +180,7 @@ const EventDetail = () => {
 
     // Mutations
     const changeStatus = useChangeEventStatus();
+    const deleteEvent = useDeleteExterna();
     const updateChecklist = useUpdateChecklist();
 
     const event = eventData?.data;
@@ -138,6 +196,7 @@ const EventDetail = () => {
     // Status change modal state
     const [statusModalOpen, setStatusModalOpen] = useState(false);
     const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
     // Initialize checklist from event data
     useEffect(() => {
@@ -196,6 +255,17 @@ const EventDetail = () => {
         );
     };
 
+    const confirmDelete = () => {
+        if (!event) return;
+
+        deleteEvent.mutate(event.id, {
+            onSuccess: () => {
+                setDeleteModalOpen(false);
+                navigate("/externas");
+            },
+        });
+    };
+
     // Loading
     if (isLoading) {
         return (
@@ -248,6 +318,9 @@ const EventDetail = () => {
                     <div className="flex items-center gap-2 flex-shrink-0">
                         <Button variant="outline" size="sm" onClick={() => navigate(`/externas/${event.id}/editar`)}>
                             <Edit className="w-4 h-4 mr-1" /> Editar
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => setDeleteModalOpen(true)}>
+                            <Trash2 className="w-4 h-4 mr-1" /> Deletar Evento
                         </Button>
                     </div>
                 </div>
@@ -389,8 +462,8 @@ const EventDetail = () => {
                                                             {Object.entries(log.changes).map(([field, vals]) => (
                                                                 <div key={field} className="text-xs bg-muted/50 rounded-md px-2 py-1">
                                                                     <span className="font-medium">{field}:</span>{" "}
-                                                                    <span className="text-red-500 line-through">{vals.de || "—"}</span>{" "}
-                                                                    → <span className="text-green-600">{vals.para}</span>
+                                                                    <span className="text-red-500 line-through">{formatActivityLogValue(vals.de)}</span>{" "}
+                                                                    → <span className="text-green-600">{formatActivityLogValue(vals.para)}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -639,6 +712,39 @@ const EventDetail = () => {
                         <Button onClick={confirmStatusChange} disabled={changeStatus.isPending}>
                             {changeStatus.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Confirmar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+                <DialogContent className="sm:max-w-[440px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                            Deletar Evento
+                        </DialogTitle>
+                        <DialogDescription>
+                            Esta ação é irreversível. O evento será marcado como deletado e deixará de aparecer no sistema.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 py-2">
+                        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                            <p className="font-medium text-destructive">{event.titulo}</p>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                                Depois da confirmação, este evento não será mais exibido nas listagens, no detalhe nem nos próximos eventos.
+                            </p>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" onClick={() => setDeleteModalOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button variant="destructive" onClick={confirmDelete} disabled={deleteEvent.isPending}>
+                            {deleteEvent.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Confirmar exclusão
                         </Button>
                     </DialogFooter>
                 </DialogContent>
