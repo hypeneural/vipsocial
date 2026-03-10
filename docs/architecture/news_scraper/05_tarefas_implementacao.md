@@ -128,13 +128,14 @@ NewsRadar/
 - [ ] `feed_quality_profile` (enum: full, partial, teaser_only, nullable)
 - [ ] `fetch_detail_mode` (enum: never, when_incomplete, always, default 'when_incomplete') — Determina quando o spider acessa a página HTML do artigo
 - [ ] `source_preset` (string, nullable) — Preset sugerido: `html_listing_detail`, `rss_full_with_image_fetch`, `rss_teaser_detail`, `rss_full_clean`, `rss_full_but_noisy`
-- [ ] `crawling_config` (json) — Schema expandido com listing_selectors, article_extractors, boilerplate_rules, date_preprocessors, body_stop_text_patterns
+- [ ] `crawling_config` (json) — Schema versionado com listing_selectors, article_extractors, boilerplate_rules, date_preprocessors, body_stop_text_patterns
 - [ ] `throttle_config` (json) — crawl_interval_min, crawl_interval_max, autoadjust_enabled
 - [ ] `timezone_default` (string, default 'America/Sao_Paulo')
 - [ ] `date_formats` (json, nullable) — Formatos custom por fonte
 - [ ] `render_js_required` (boolean, default false)
 - [ ] `last_sync_at` (timestamp, nullable)
 - [ ] `next_sync_at` (timestamp, nullable)
+- [ ] `sync_locked_until` (timestamp, nullable) — **Trava de concorrência.** Impede dispatch paralelo da mesma fonte. Job seta ao iniciar, limpa ao finalizar. Scheduler ignora fontes com lock ativo.
 - [ ] `consecutive_failures` (integer, default 0)
 - [ ] `success_rate` (float, default 100)
 - [ ] `avg_response_ms` (integer, nullable)
@@ -161,10 +162,11 @@ NewsRadar/
 #### 1.3.4 Tabela `source_discovery_runs` *(NOVA)*
 > Persistência do wizard assíncrono. Sem isso, o Step 1–5 fica dependente de cache efêmero sem rastreabilidade.
 
-- [ ] `id` (bigIncrements / uuid)
+- [ ] `id` (**uuid**) — UUID para evitar enumeração fácil e facilitar polling assíncrono no frontend
 - [ ] `requested_url` (string)
 - [ ] `status` (enum: pending, running, completed, failed)
 - [ ] `result_json` (json, nullable) — Feed detectado, sitemap, padrões de URL, score, preview cards
+- [ ] `selector_test_snapshots` (json, nullable) — Array de snapshots dos testes de seletor: `[{url, selector, result_preview, tested_at}]`. Facilita debug de "por que quebrou?"
 - [ ] `error_message` (text, nullable)
 - [ ] `started_at` (timestamp, nullable)
 - [ ] `finished_at` (timestamp, nullable)
@@ -172,20 +174,28 @@ NewsRadar/
 
 #### 1.3.5 Tabela `news_raw_items` *(NOVA)*
 > Camada bruta de staging antes do `news_items`. Preserva o dado "como veio" para replay, reprocessamento e comparação.
+> **Modelo canônico único (Modelo 1):** Cada URL existe uma única vez por fonte. O registro é atualizado a cada execução que a encontra.
 
 - [ ] `id` (bigIncrements)
 - [ ] `news_source_id` (foreignId, index)
-- [ ] `news_source_run_id` (foreignId, nullable, index)
+- [ ] `news_source_run_id` (foreignId, nullable, index) — Run que **primeiro** descobriu este item
+- [ ] `last_seen_run_id` (foreignId, nullable) — Run que **mais recentemente** viu este item
 - [ ] `raw_url` (string) — URL original como veio do feed/crawl
 - [ ] `normalized_url` (string, index) — URL limpa (sem UTMs)
-- [ ] `url_hash` (string, unique, index) — SHA-256 da URL canônica para dedupe rápido
+- [ ] `url_hash` (string, index) — SHA-256 da URL canônica
 - [ ] `guid` (string, nullable, index) — Identificador auxiliar RSS/WordPress
 - [ ] `title_raw` (string, nullable) — Título como veio
 - [ ] `body_raw` (longText, nullable) — HTML/texto cru original do feed
 - [ ] `raw_payload` (json, nullable) — Todos os campos do item RSS/sitemap como JSON
-- [ ] `discovered_at` (timestamp)
+- [ ] `first_seen_at` (timestamp) — Quando esta URL apareceu pela primeira vez
+- [ ] `last_seen_at` (timestamp) — Última vez que a URL foi vista num crawl
+- [ ] `seen_count` (integer, default 1) — Quantas vezes este item foi visto (para heurísticas)
 - [ ] `processing_status` (enum: pending, processing, promoted, skipped, failed)
+- [ ] `fetch_attempts` (integer, default 0) — **Fica aqui, não no NewsItem.** Erro pré-promoção é rastreado aqui.
+- [ ] `last_fetch_error` (text, nullable) — Se falhou antes de virar NewsItem, o erro fica aqui.
+- [ ] `last_fetch_at` (timestamp, nullable)
 - [ ] timestamps
+- [ ] **Unique composto:** `(news_source_id, url_hash)` — Modelo canônico: uma URL por fonte
 
 #### 1.3.6 Tabela `news_items`
 - [ ] `id` (bigIncrements)
@@ -214,14 +224,15 @@ NewsRadar/
 - [ ] `modified_at_utc` (timestamp, nullable)
 - [ ] `extraction_completeness` (integer, default 0) — Score 0–100
 - [ ] `content_source` (enum: feed_only, feed_plus_html, html_only)
-- [ ] `status` (enum: pending, extracted, enriched_l1, enriched_l2, failed)
+- [ ] `extraction_status` (enum: pending, extracted, extraction_failed) — **Separado de IA.** Rastreia apenas o resultado da extração/promoção.
+- [ ] `enrichment_status` (enum: none, enriched_l1, enriched_l2, enrichment_failed) — **Separado de extração.** Rastreia apenas o resultado do enriquecimento de IA.
 - [ ] `is_duplicate_candidate` (boolean, default false)
 - [ ] `duplicate_of_news_item_id` (foreignId, nullable) — Aponta para o item original
-- [ ] `fetch_attempts` (integer, default 0)
-- [ ] `last_fetch_error` (text, nullable)
 - [ ] timestamps + softDeletes
-- [ ] **Índice:** `(status, published_at_utc)`
+- [ ] **Índice:** `(extraction_status, enrichment_status, published_at_utc)` — Para filtros rápidos no painel
 - [ ] **Índice:** `(news_source_id, published_at_utc)`
+
+> **Decisão (Lifecycle):** `fetch_attempts` e `last_fetch_error` ficam no `NewsRawItem` porque erros de fetch/extração acontecem **antes** da promoção para `NewsItem`. Se o fetch falha, não existe `NewsItem` para armazenar o erro. O `NewsItem` só registra status pós-promoção.
 
 #### 1.3.7 Tabela `news_item_media`
 - [ ] `id` (bigIncrements)
@@ -266,10 +277,11 @@ NewsRadar/
 ### 1.4 Enums PHP
 
 - [ ] `DiscoveryMode` — auto, feed, sitemap, html_listing
-- [ ] `FeedQualityProfile` — full, partial, teaser_only
-- [ ] `FetchDetailMode` — never, when_incomplete, always
+- [ ] `FeedQualityProfile` — full, partial, teaser_only *(diagnóstico, não regra operacional)*
+- [ ] `FetchDetailMode` — never, when_incomplete, always *(regra operacional do spider)*
 - [ ] `PublishedAtSource` — rss, jsonld, og_tag, time_tag, text_pattern, manual
-- [ ] `NewsItemStatus` — pending, extracted, enriched_l1, enriched_l2, failed
+- [ ] `ExtractionStatus` — pending, extracted, extraction_failed
+- [ ] `EnrichmentStatus` — none, enriched_l1, enriched_l2, enrichment_failed
 - [ ] `ContentSource` — feed_only, feed_plus_html, html_only
 - [ ] `MediaType` — hero, gallery, video, embed
 - [ ] `Urgency` — baixa, media, alta
@@ -310,6 +322,9 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 
 ```json
 {
+  "config_version": 1,
+  "preset_origin": "html_listing_detail",
+
   "homepage_url": "https://portal.com.br",
   "feed_url": null,
   "sitemap_url": null,
@@ -361,6 +376,8 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
   "date_formats": ["c", "Y-m-d H:i:s", "d/m/Y H:i", "d/m/Y \\à\\s H:i"]
 }
 ```
+
+> **`config_version`** permite evolução futura do schema sem quebrar fontes já cadastradas. **`preset_origin`** registra qual preset gerou esta config inicialmente (o operador pode ter ajustado depois).
 ### 2.2 `DateParserService`
 - [ ] Receber data crua (string) + array de `date_formats` da fonte + `timezone_default`
 - [ ] Aplicar **`date_preprocessors`** antes do parse (da config da fonte):
@@ -523,20 +540,28 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 
 ### 3.4 `FetchNewsSourceJob` (Laravel Job)
 - [ ] Disparado pelo Scheduler conforme `throttle_config` de cada fonte ativa
+- [ ] **Adquirir lock:** Setar `sync_locked_until = now + timeout` na `NewsSource`. Se já locado → abortar (evita runs paralelos)
 - [ ] **Criar `NewsSourceRun`** (status: running, started_at: now)
 - [ ] Verificar `consecutive_failures` (Circuit Breaker: pausar se > N)
 - [ ] Executar `GenericDiscoverySpider` para a fonte
 - [ ] Para cada item novo encontrado: disparar `ProcessNewsItemJob`
 - [ ] **Finalizar `NewsSourceRun`** (items_found, items_new, response_time_avg_ms, status)
 - [ ] Atualizar `NewsSource`: `last_sync_at`, `success_rate`, `avg_response_ms`, `last_items_found`, `next_sync_at`
-- [ ] Em caso de erro: incrementar `consecutive_failures`, salvar `error_message` no run
+- [ ] **Liberar lock:** Setar `sync_locked_until = null`
+- [ ] Em caso de erro: incrementar `consecutive_failures`, salvar `error_message` no run, **liberar lock**
 
 ### 3.5 `ProcessNewsItemJob` (Laravel Job)
 - [ ] Receber `NewsRawItem` pendente
+- [ ] Atualizar `NewsRawItem.processing_status` → `processing`, incrementar `fetch_attempts`
 - [ ] Executar `GenericArticleSpider` para extração → promover para `NewsItem`
-- [ ] Após sucesso: atualizar `status` para `extracted`, incrementar `fetch_attempts`
-- [ ] Disparar `ClassifyNewsItemJob` (AI Job 1)
-- [ ] Em caso de erro: salvar `last_fetch_error`, incrementar `fetch_attempts`
+- [ ] Após sucesso:
+  - [ ] `NewsRawItem.processing_status` → `promoted`
+  - [ ] Criar `NewsItem` com `extraction_status = extracted`
+  - [ ] Disparar `ClassifyNewsItemJob` (AI Job 1)
+- [ ] Em caso de erro:
+  - [ ] `NewsRawItem.processing_status` → `failed`
+  - [ ] Salvar `last_fetch_error` no `NewsRawItem` (não no `NewsItem`, que pode não existir)
+  - [ ] Se `fetch_attempts < max_retries` → re-enfileirar com delay
 
 ### 3.6 Scheduler (Console Kernel)
 - [ ] Comando artisan `news-radar:dispatch-sources`
@@ -577,7 +602,7 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 - [ ] `POST /api/v1/news-radar/sources/discover` — Recebe `url`, cria `SourceDiscoveryRun`, dispara discovery async, retorna run ID
 - [ ] `GET /api/v1/news-radar/sources/discover/{runId}/status` — Retorna progresso e resultado do discovery
 - [ ] `POST /api/v1/news-radar/sources/preview` — **Genérico:** Recebe `mode` (feed|html_listing) + `url` (feed_url ou listing_url), retorna 3 cards de preview
-- [ ] `POST /api/v1/news-radar/sources/test-selector` — Recebe `url` + `selector`, retorna conteúdo extraído
+- [ ] `POST /api/v1/news-radar/sources/test-selector` — Recebe `url` + `selector`, retorna conteúdo extraído. **Salvar snapshot** em `source_discovery_runs.selector_test_snapshots` (se run ativo) para auditoria.
 
 ### 4.3 `NewsSourceController` (CRUD)
 - [ ] `GET    /api/v1/news-radar/sources` — Listar fontes (com filtros: active, profile, failures, source_type)
@@ -615,15 +640,17 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
   - [ ] Atualizar `news_item_ai_metadata` com nível `level_2`
 
 ### 5.2 `ClassifyNewsItemJob` (AI Job 1)
-- [ ] Receber `NewsItem` com `status=extracted`
+- [ ] Receber `NewsItem` com `extraction_status=extracted` e `enrichment_status=none`
 - [ ] Chamar `AiEnrichmentService::classifyBasic()`
-- [ ] Atualizar `status` para `enriched_l1`
+- [ ] Atualizar `enrichment_status` para `enriched_l1`
 - [ ] Se relevância alta → disparar `EnrichNewsItemJob`
+- [ ] Em caso de erro: atualizar `enrichment_status` para `enrichment_failed`
 
 ### 5.3 `EnrichNewsItemJob` (AI Job 2)
-- [ ] Receber `NewsItem` com `status=enriched_l1`
+- [ ] Receber `NewsItem` com `enrichment_status=enriched_l1`
 - [ ] Chamar `AiEnrichmentService::enrichEditorial()`
-- [ ] Atualizar `status` para `enriched_l2`
+- [ ] Atualizar `enrichment_status` para `enriched_l2`
+- [ ] Em caso de erro: manter `enriched_l1` (pode reprocessar)
 
 ### 5.4 Embeddings e Clusterização *(v2 — Fase futura)*
 - [ ] Gerar embedding via API OpenAI (`text-embedding-3-small`)
