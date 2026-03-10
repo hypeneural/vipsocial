@@ -8,17 +8,18 @@ A stack foi escolhida considerando as melhores práticas para _web scraping_, ex
 
 | Responsabilidade | Ferramenta Recomendada | Descrição |
 | :--- | :--- | :--- |
-| **Motor de Crawling & Pipeline** | `roach-php/laravel` | Toolkit completo inspirado no Scrapy. Ideal para criar spiders, gerenciar pipelines de itens e middlewares. Substitui lógicas complexas e repetitivas por spiders focados. |
-| **Parser de HTML** | `symfony/dom-crawler` | Extração segura via navegação em nós DOM (Xpath/CSS selectors), superando em muito a fragilidade de Expressões Regulares (Regex) no parseamento de HTML. |
-| **Transporte HTTP Concorrente** | `guzzlehttp/guzzle` | Cliente HTTP padrão, gerenciando requisições síncronas/assíncronas, retries, timeouts e alta concorrência. |
-| **Descoberta de Links** | `spatie/crawler` | Focado em descobrir páginas a partir de uma base. Excelente para auxiliar o usuário no cadastro da fonte (encontrar links de notícias na home, por exemplo). |
-| **Fallback para Sites Dinâmicos (JS)** | `symfony/panther` | Para sites onde o conteúdo essencial só é renderizado via JavaScript. Opera via headless browser. Deve ser usado estritamente como fallback (exceção), devido ao custo operacional (memória/tempo). |
-| **Normalização de Datas & Timezone** | `nesbot/carbon` | Tratamento robusto para os diversos formatos de data/hora (ex: `2026-03-10T14:23:00-03:00`, `10/03/2026 14:23`) com total suporte a locais e formatos customizados (`createFromLocaleFormat`, etc). |
-| **Integração com Inteligência Artificial** | `openai-php/laravel` | Cliente PHP consolidado para a API da OpenAI. Foco total em **Structured Outputs** (JSON Schema) para recebimento previsível e tipado das entidades extraídas da notícia. |
+| **Motor de Crawling & Pipeline** | `roach-php/laravel` | Toolkit completo inspirado no Scrapy. Ideal para criar pipelines e gerenciar requisições. O diferencial arquitetural aqui é ter apenas **um** `GenericArticleSpider`, que lê as regras do banco, e não "um spider por portal". |
+| **Parser de HTML** | `symfony/dom-crawler`<br>`symfony/css-selector` | Extração segura via navegação em nós DOM. O componente de CSS Selector é vital para permitir que o operador do painel cadastre os elementos usando seletores conhecidos web (ex: `.article-body h1`), sem a complexidade de XPath. |
+| **Transporte HTTP Concorrente & MIddlewares** | `guzzlehttp/guzzle` | Mais que um cliente HTTP padrão, atua como a camada operacional (`HttpFetchService`), gerenciando concorrência (Promises), `retries` com backoff, timeouts específicos, `user-agent` rotativos e limites de conexão (`politeness`). |
+| **Descoberta de Links (Painel Onboarding)** | `spatie/crawler` | Exclusivo para o assistente de cadastro/painel. Excelente para validar padrões de URL e descobrir links rápidos na home do portal alvo de forma assíncrona. Não participa da rotina diária pesada de extração (deixada para o Roach). |
+| **Fallback Dinâmico (JS Pesado)** | `symfony/panther` | Para sites onde o conteúdo essencial só é renderizado via JavaScript. Opera via headless browser. Deve ser mantido **estritamente como exceção** controlada (`render_js_required = false` por padrão), devido ao alto custo operacional. |
+| **Normalização de Datas & Timezone** | `nesbot/carbon` | Tratamento robusto para os diversos formatos (`createFromLocaleFormat`, etc). |
+| **Normalização de URLs** | `league/uri` | Vital para canonicalização de links: limpando traços finais (`trailing slash`), removendo tags inúteis de campanha (`?utm_source`), e padronizando acessos HTTP/HTTPS na desduplicação. |
+| **Integração com IA (Enriquecimento)** | `openai-php/laravel` | Foco total no uso do **Structured Outputs** para recebimento estrito do esquema JSON e Responses API. Opera de forma totalmente desconectada do processo imediato de *crawl*. |
 
-## 2. Princípios da Arquitetura
+## 2. Princípios da Decisão Arquitetural Chave
 
-*   **Configuração por Fonte (Data-Driven Crawler):** Os spiders não devem conter _hardcode_ da estrutura HTML do alvo. O código do spider deve ser limpo, extraindo as instruções de raspagem (URL, seletores, timezone) diretamente do banco de dados para a fonte correspondente.
+*   **Não criar código por portal:** Trocar o "Fluxo manual do portal A" por uma "Configuração SQL do Portal A". O sistema deverá ter Spiders e Serviços Genéricos (`GenericDiscoverySpider` e `GenericArticleSpider`) capazes de ler a instrução do Banco de Dados e processar as extrações.
 *   **Descoberta > Crawling Cego:** A coleta tenta vias estruturadas primeiro antes de varrer o HTML indiscriminadamente. A ordem preferencial de descoberta é:
     1.  RSS / Feed Automático (para conteúdo novo)
     2.  Sitemaps / News Sitemaps (`sitemap.xml`, `news-sitemap.xml`)
