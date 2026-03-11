@@ -53,6 +53,11 @@ class NewsItemController extends Controller
             $query->whereHas('aiMetadata', fn ($q) => $q->where('urgency', $request->input('urgency')));
         }
 
+        // Delta polling for streaming: only items with id > after_id
+        if ($request->filled('after_id')) {
+            $query->where('id', '>', (int) $request->input('after_id'));
+        }
+
         $query->orderByDesc('published_at_utc');
 
         $items = $query->paginate($request->input('per_page', 20));

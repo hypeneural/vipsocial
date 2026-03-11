@@ -205,6 +205,7 @@ export interface NewsItemFilters {
     urgency?: NewsUrgency;
     page?: number;
     per_page?: number;
+    after_id?: number;
 }
 
 export interface CreateNewsSourceDTO {
