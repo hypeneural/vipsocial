@@ -54,12 +54,19 @@ export function formatRelativeTime(dateString?: string | null): string {
     const diffMinutes = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMinutes / 60);
     const diffDays = Math.floor(diffHours / 24);
+    const isFuture = diffMs < 0;
+    const absMinutes = Math.abs(diffMinutes);
+    const absHours = Math.abs(diffHours);
+    const absDays = Math.abs(diffDays);
 
-    if (diffMinutes < 1) return "agora";
-    if (diffMinutes < 60) return `ha ${diffMinutes} min`;
-    if (diffHours < 24) return `ha ${diffHours}h`;
-    if (diffDays === 1) return "ontem";
-    return `ha ${diffDays} dias`;
+    if (Math.abs(diffMinutes) < 1) return "agora";
+    if (isFuture && absMinutes < 60) return `em ${absMinutes} min`;
+    if (!isFuture && diffMinutes < 60) return `ha ${diffMinutes} min`;
+    if (isFuture && absHours < 24) return `em ${absHours}h`;
+    if (!isFuture && diffHours < 24) return `ha ${diffHours}h`;
+    if (isFuture && absDays === 1) return "amanha";
+    if (!isFuture && diffDays === 1) return "ontem";
+    return isFuture ? `em ${absDays} dias` : `ha ${diffDays} dias`;
 }
 
 export function formatDateTime(dateString?: string | null): string {
@@ -92,7 +99,8 @@ export function isRecentItem(item: NewsItem): boolean {
     if (!item.published_at_utc) return false;
     const publishedAt = new Date(item.published_at_utc).getTime();
     if (Number.isNaN(publishedAt)) return false;
-    return Date.now() - publishedAt <= 1000 * 60 * 60 * 6;
+    const diffMs = Date.now() - publishedAt;
+    return diffMs >= 0 && diffMs <= 1000 * 60 * 60 * 6;
 }
 
 function normalizeAiValue(value: unknown): string | null {

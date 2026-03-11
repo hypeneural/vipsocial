@@ -72,6 +72,10 @@ const RaspagemFeed = () => {
                 onUrgencyFilterChange={filters.setUrgencyFilter}
                 viewFilter={filters.viewFilter}
                 onViewFilterChange={filters.setViewFilter as (v: FeedView) => void}
+                sortBy={filters.sortBy}
+                onSortByChange={filters.setSortBy}
+                sortDirection={filters.sortDirection}
+                onSortDirectionChange={filters.setSortDirection}
                 sources={(sourcesQuery.data?.data ?? []).map((s) => ({
                     id: s.id,
                     name: s.name,

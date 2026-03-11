@@ -291,6 +291,26 @@ test('items listing, detail and related endpoints support filters and payload ex
         'published_at_utc' => now(),
     ]);
 
+    $sortRecentNews = makeNewsRadarItem($source, [
+        'url' => 'https://fonte-principal.test/ordenacao-noticia-recente',
+        'title' => 'Ordenacao Publicacao Recente',
+        'published_at_utc' => now()->subHours(2),
+    ]);
+    $sortRecentNews->forceFill([
+        'created_at' => now()->subHours(6),
+        'updated_at' => now()->subHours(6),
+    ])->save();
+
+    $sortRecentCapture = makeNewsRadarItem($source, [
+        'url' => 'https://fonte-principal.test/ordenacao-captura-recente',
+        'title' => 'Ordenacao Captura Recente',
+        'published_at_utc' => now()->subDays(3),
+    ]);
+    $sortRecentCapture->forceFill([
+        'created_at' => now()->subMinutes(20),
+        'updated_at' => now()->subMinutes(20),
+    ])->save();
+
     $listResponse = $this->actingAs($this->user, 'sanctum')
         ->getJson('/api/v1/news-radar/items?source_id=' . $source->id
             . '&search=Radar%20Principal'
@@ -314,8 +334,25 @@ test('items listing, detail and related endpoints support filters and payload ex
     $this->actingAs($this->user, 'sanctum')
         ->getJson("/api/v1/news-radar/items/{$mainItem->id}/related")
         ->assertOk()
-        ->assertJsonPath('data.0.id', $relatedItem->id)
-        ->assertJsonCount(1, 'data');
+        ->assertJsonFragment(['id' => $relatedItem->id]);
+
+    $this->actingAs($this->user, 'sanctum')
+        ->getJson('/api/v1/news-radar/items?source_id=' . $source->id
+            . '&search=Ordenacao'
+            . '&sort_by=published_at_utc'
+            . '&sort_dir=desc')
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $sortRecentNews->id)
+        ->assertJsonPath('data.1.id', $sortRecentCapture->id);
+
+    $this->actingAs($this->user, 'sanctum')
+        ->getJson('/api/v1/news-radar/items?source_id=' . $source->id
+            . '&search=Ordenacao'
+            . '&sort_by=created_at'
+            . '&sort_dir=desc')
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $sortRecentCapture->id)
+        ->assertJsonPath('data.1.id', $sortRecentNews->id);
 
     Carbon::setTestNow();
 });

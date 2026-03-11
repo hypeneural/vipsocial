@@ -1,6 +1,10 @@
 import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import type { FeedView } from "./feed-utils";
-import type { NewsItemFilters } from "@/services/newsRadar.service";
+import type {
+    NewsItemFilters,
+    NewsItemSortBy,
+    NewsSortDirection,
+} from "@/services/newsRadar.service";
 
 export interface FeedFiltersState {
     search: string;
@@ -10,6 +14,8 @@ export interface FeedFiltersState {
     enrichmentFilter: string;
     urgencyFilter: string;
     viewFilter: FeedView;
+    sortBy: NewsItemSortBy;
+    sortDirection: NewsSortDirection;
     page: number;
 }
 
@@ -21,6 +27,8 @@ export function useFeedFiltersState() {
     const [enrichmentFilter, setEnrichmentFilter] = useState("all");
     const [urgencyFilter, setUrgencyFilter] = useState("all");
     const [viewFilter, setViewFilter] = useState<FeedView>("all");
+    const [sortBy, setSortBy] = useState<NewsItemSortBy>("published_at_utc");
+    const [sortDirection, setSortDirection] = useState<NewsSortDirection>("desc");
     const [page, setPage] = useState(1);
 
     const deferredSearch = useDeferredValue(search);
@@ -42,6 +50,8 @@ export function useFeedFiltersState() {
             enrichment_status:
                 enrichmentFilter === "all" ? undefined : enrichmentFilter,
             urgency: urgencyFilter === "all" ? undefined : urgencyFilter,
+            sort_by: sortBy,
+            sort_dir: sortDirection,
         }),
         [
             page,
@@ -51,6 +61,8 @@ export function useFeedFiltersState() {
             extractionFilter,
             enrichmentFilter,
             urgencyFilter,
+            sortBy,
+            sortDirection,
         ],
     );
 
@@ -69,6 +81,10 @@ export function useFeedFiltersState() {
         setUrgencyFilter,
         viewFilter,
         setViewFilter,
+        sortBy,
+        setSortBy,
+        sortDirection,
+        setSortDirection,
         page,
         setPage,
         resetToFirstPage,

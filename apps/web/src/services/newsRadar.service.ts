@@ -13,6 +13,8 @@ export type NewsUrgency = "baixa" | "media" | "alta";
 export type NewsSourceRunStatus = "running" | "success" | "partial" | "failed";
 export type NewsDiscoveryRunStatus = "pending" | "running" | "completed" | "failed";
 export type NewsPreviewMode = "feed" | "html_listing";
+export type NewsItemSortBy = "published_at_utc" | "created_at";
+export type NewsSortDirection = "asc" | "desc";
 
 export interface NewsRadarPaginatedResponse<T> {
     current_page: number;
@@ -240,6 +242,8 @@ export interface NewsItemFilters {
     city?: string;
     theme_id?: number;
     urgency?: NewsUrgency;
+    sort_by?: NewsItemSortBy;
+    sort_dir?: NewsSortDirection;
     page?: number;
     per_page?: number;
     after_id?: number;

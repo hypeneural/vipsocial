@@ -1,33 +1,39 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import type { LucideIcon } from "lucide-react";
 import {
     AlertTriangle,
     Brain,
+    CalendarClock,
+    CircleHelp,
     Clock,
     ExternalLink,
     FileSearch,
+    FileText,
     Globe,
     Image as ImageIcon,
+    MapPin,
     Sparkles,
     Timer,
+    UserRound,
+    Wrench,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { NewsItem } from "@/services/newsRadar.service";
 import { cn } from "@/lib/utils";
 import {
+    HIGH_RELEVANCE_SCORE,
     extractionLabels,
     enrichmentLabels,
-    urgencyLabels,
-    aiFactLabels,
-    HIGH_RELEVANCE_SCORE,
-    formatRelativeTime,
     formatDateTime,
-    getHostname,
-    getSummary,
+    formatRelativeTime,
     getAiFacts,
     getCaptureBadgeLabel,
+    getHostname,
+    getSummary,
     isRecentItem,
+    urgencyLabels,
 } from "./feed-utils";
 import type { AiFactKey } from "./feed-utils";
 
@@ -37,7 +43,37 @@ interface FeedCardProps {
     onSelect: (id: number) => void;
 }
 
-const allAiFactKeys = Object.keys(aiFactLabels) as AiFactKey[];
+const listAiFactKeys: AiFactKey[] = ["who", "where", "when", "what", "why", "how"];
+
+const aiFactVisuals: Record<
+    AiFactKey,
+    { icon: LucideIcon; tone: string }
+> = {
+    who: {
+        icon: UserRound,
+        tone: "border-primary/20 bg-primary/5 text-primary",
+    },
+    where: {
+        icon: MapPin,
+        tone: "border-info/20 bg-info/5 text-info",
+    },
+    when: {
+        icon: CalendarClock,
+        tone: "border-success/20 bg-success/5 text-success",
+    },
+    what: {
+        icon: FileText,
+        tone: "border-warning/20 bg-warning/5 text-warning",
+    },
+    why: {
+        icon: CircleHelp,
+        tone: "border-border/60 bg-background/80 text-foreground/80",
+    },
+    how: {
+        icon: Wrench,
+        tone: "border-border/60 bg-background/80 text-foreground/80",
+    },
+};
 
 function FeedCardImage({ item }: { item: NewsItem }) {
     const [hasError, setHasError] = useState(false);
@@ -72,9 +108,8 @@ function FeedCardImage({ item }: { item: NewsItem }) {
 }
 
 export function FeedCard({ item, index, onSelect }: FeedCardProps) {
-    const highRelevance =
-        (item.ai_metadata?.relevance_score ?? 0) >= HIGH_RELEVANCE_SCORE;
-    const allFacts = getAiFacts(item, allAiFactKeys);
+    const highRelevance = (item.ai_metadata?.relevance_score ?? 0) >= HIGH_RELEVANCE_SCORE;
+    const allFacts = getAiFacts(item, listAiFactKeys);
 
     return (
         <motion.div
@@ -84,14 +119,9 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
             transition={{ delay: index * 0.04 }}
             className={cn(
                 "overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:shadow-md",
-                item.is_duplicate_candidate &&
-                    "border-warning/40 bg-warning/5",
-                !item.is_duplicate_candidate &&
-                    highRelevance &&
-                    "border-primary/40 bg-primary/5",
-                !item.is_duplicate_candidate &&
-                    !highRelevance &&
-                    "border-border/50",
+                item.is_duplicate_candidate && "border-warning/40 bg-warning/5",
+                !item.is_duplicate_candidate && highRelevance && "border-primary/40 bg-primary/5",
+                !item.is_duplicate_candidate && !highRelevance && "border-border/50",
             )}
         >
             <div className="p-4">
@@ -118,13 +148,11 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                     )}
 
                     <Badge variant="outline" className="rounded-full">
-                        {extractionLabels[item.extraction_status] ??
-                            item.extraction_status}
+                        {extractionLabels[item.extraction_status] ?? item.extraction_status}
                     </Badge>
 
                     <Badge variant="outline" className="rounded-full">
-                        {enrichmentLabels[item.enrichment_status] ??
-                            item.enrichment_status}
+                        {enrichmentLabels[item.enrichment_status] ?? item.enrichment_status}
                     </Badge>
                 </div>
 
@@ -132,9 +160,7 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                     <FeedCardImage item={item} />
 
                     <div className="min-w-0 flex-1">
-                        <h3 className="mb-2 text-sm font-semibold md:text-base">
-                            {item.title}
-                        </h3>
+                        <h3 className="mb-2 text-sm font-semibold md:text-base">{item.title}</h3>
 
                         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -143,17 +169,23 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                                     {item.source?.name ?? "Fonte desconhecida"}
                                 </span>
                             </span>
-                            <span>•</span>
+                            <span>/</span>
                             <span>{getHostname(item.url)}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1" title="Data da notícia (publicação)">
+                            <span>/</span>
+                            <span
+                                className="flex items-center gap-1"
+                                title="Data da noticia publicada"
+                            >
                                 <Clock className="h-3 w-3" />
-                                Notícia {formatRelativeTime(item.published_at_utc)}
+                                Publicada {formatDateTime(item.published_at_utc)}
                             </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1" title="Data da captura pelo radar">
+                            <span>/</span>
+                            <span
+                                className="flex items-center gap-1"
+                                title="Data da captura pelo radar"
+                            >
                                 <Timer className="h-3 w-3" />
-                                Captura {formatRelativeTime(item.created_at)}
+                                Capturada {formatRelativeTime(item.created_at)}
                             </span>
                         </div>
 
@@ -162,35 +194,44 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                         </p>
 
                         {allFacts.length > 0 && (
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                {allFacts.map((fact) => (
-                                    <div
-                                        key={`${item.id}-${fact.key}`}
-                                        className="min-w-0 rounded-xl border border-border/50 bg-background/70 p-2.5"
-                                    >
-                                        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                                            {fact.label}
-                                        </p>
-                                        <p className="mt-1 line-clamp-2 text-sm font-medium text-foreground/90">
-                                            {fact.value}
-                                        </p>
-                                    </div>
-                                ))}
+                            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                {allFacts.map((fact) => {
+                                    const visual = aiFactVisuals[fact.key];
+                                    const FactIcon = visual.icon;
+
+                                    return (
+                                        <div
+                                            key={`${item.id}-${fact.key}`}
+                                            className={`min-w-0 rounded-xl border p-2.5 ${visual.tone}`}
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                <FactIcon className="h-3.5 w-3.5" />
+                                                <p className="text-[11px] font-medium uppercase tracking-[0.14em]">
+                                                    {fact.label}
+                                                </p>
+                                            </div>
+                                            <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-foreground/90">
+                                                {fact.value}
+                                            </p>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 
-                        {item.ai_metadata?.summary_bullets && item.ai_metadata.summary_bullets.length > 0 && (
-                            <div className="mt-3 space-y-1.5">
-                                {item.ai_metadata.summary_bullets.slice(0, 3).map((bullet) => (
-                                    <div
-                                        key={bullet}
-                                        className="rounded-lg bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground"
-                                    >
-                                        {bullet}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        {item.ai_metadata?.summary_bullets &&
+                            item.ai_metadata.summary_bullets.length > 0 && (
+                                <div className="mt-3 space-y-1.5">
+                                    {item.ai_metadata.summary_bullets.slice(0, 3).map((bullet) => (
+                                        <div
+                                            key={bullet}
+                                            className="rounded-lg bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground"
+                                        >
+                                            {bullet}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                             {item.ai_metadata?.city && (
@@ -208,27 +249,21 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                                 {getCaptureBadgeLabel(item.extraction_completeness)}
                             </Badge>
                             {!!item.categories_raw?.length &&
-                                item.categories_raw
-                                    .slice(0, 3)
-                                    .map((category) => (
-                                        <Badge
-                                            key={`${item.id}-${category}`}
-                                            variant="secondary"
-                                            className="rounded-full"
-                                        >
-                                            {category}
-                                        </Badge>
-                                    ))}
+                                item.categories_raw.slice(0, 3).map((category) => (
+                                    <Badge
+                                        key={`${item.id}-${category}`}
+                                        variant="secondary"
+                                        className="rounded-full"
+                                    >
+                                        {category}
+                                    </Badge>
+                                ))}
                         </div>
                     </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
-                    <Button
-                        className="rounded-lg"
-                        size="sm"
-                        onClick={() => onSelect(item.id)}
-                    >
+                    <Button className="rounded-lg" size="sm" onClick={() => onSelect(item.id)}>
                         <FileSearch className="mr-1 h-3 w-3" />
                         Detalhes
                     </Button>
@@ -244,8 +279,17 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                     </Button>
 
                     <div className="ml-auto flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
-                        <span title="Data da notícia">📰 {formatDateTime(item.published_at_utc)}</span>
-                        <span title="Data da captura" className="text-[10px]">⚡ {formatDateTime(item.created_at)}</span>
+                        <span className="flex items-center gap-1" title="Data da noticia publicada">
+                            <Clock className="h-3 w-3" />
+                            {formatDateTime(item.published_at_utc)}
+                        </span>
+                        <span
+                            className="flex items-center gap-1 text-[10px]"
+                            title="Data da captura pelo radar"
+                        >
+                            <Timer className="h-3 w-3" />
+                            {formatDateTime(item.created_at)}
+                        </span>
                     </div>
                 </div>
             </div>

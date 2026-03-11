@@ -13,6 +13,18 @@ class NewsItemController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $allowedSortColumns = ['published_at_utc', 'created_at'];
+        $sortBy = $request->input('sort_by', 'published_at_utc');
+        $sortDir = $request->input('sort_dir', 'desc');
+
+        if (! in_array($sortBy, $allowedSortColumns, true)) {
+            $sortBy = 'published_at_utc';
+        }
+
+        if (! in_array($sortDir, ['asc', 'desc'], true)) {
+            $sortDir = 'desc';
+        }
+
         $query = NewsItem::with(['source:id,name,source_type', 'aiMetadata:id,news_item_id,city,urgency,relevance_score,news_theme_id']);
 
         if ($request->filled('source_id')) {
@@ -59,7 +71,10 @@ class NewsItemController extends Controller
             $query->where('id', '>', (int) $request->input('after_id'));
         }
 
-        $query->orderByDesc('published_at_utc');
+        $query
+            ->orderByRaw("{$sortBy} is null")
+            ->orderBy($sortBy, $sortDir)
+            ->orderBy('id', $sortDir);
 
         $items = $query->paginate($request->input('per_page', 20));
 

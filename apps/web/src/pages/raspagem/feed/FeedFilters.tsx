@@ -9,7 +9,11 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import type { FeedView } from "./feed-utils";
-import type { NewsSourceSummary } from "@/services/newsRadar.service";
+import type {
+    NewsItemSortBy,
+    NewsSortDirection,
+    NewsSourceSummary,
+} from "@/services/newsRadar.service";
 
 interface FeedFiltersProps {
     search: string;
@@ -26,6 +30,10 @@ interface FeedFiltersProps {
     onUrgencyFilterChange: (value: string) => void;
     viewFilter: FeedView;
     onViewFilterChange: (value: FeedView) => void;
+    sortBy: NewsItemSortBy;
+    onSortByChange: (value: NewsItemSortBy) => void;
+    sortDirection: NewsSortDirection;
+    onSortDirectionChange: (value: NewsSortDirection) => void;
     sources: NewsSourceSummary[];
     onResetPage: () => void;
     onSetPage: (page: number) => void;
@@ -46,6 +54,10 @@ export function FeedFilters({
     onUrgencyFilterChange,
     viewFilter,
     onViewFilterChange,
+    sortBy,
+    onSortByChange,
+    sortDirection,
+    onSortDirectionChange,
     sources,
     onResetPage,
     onSetPage,
@@ -104,7 +116,43 @@ export function FeedFilters({
                 </Select>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+                <Select
+                    value={sortBy}
+                    onValueChange={(value: NewsItemSortBy) => {
+                        startTransition(() => {
+                            onSortByChange(value);
+                            onSetPage(1);
+                        });
+                    }}
+                >
+                    <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="Ordenar por" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="published_at_utc">Data da noticia</SelectItem>
+                        <SelectItem value="created_at">Data da captura</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                <Select
+                    value={sortDirection}
+                    onValueChange={(value: NewsSortDirection) => {
+                        startTransition(() => {
+                            onSortDirectionChange(value);
+                            onSetPage(1);
+                        });
+                    }}
+                >
+                    <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="Ordem" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="desc">Mais recente</SelectItem>
+                        <SelectItem value="asc">Mais antiga</SelectItem>
+                    </SelectContent>
+                </Select>
+
                 <Select
                     value={extractionFilter}
                     onValueChange={(value) => {
