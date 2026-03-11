@@ -12,6 +12,12 @@ import {
 } from "lucide-react";
 import { ShimmerKPI } from "@/components/Shimmer";
 import { Badge } from "@/components/ui/badge";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 import type {
     NewsAiModelHealth,
     NewsAiModelHealthLogSnapshot,
@@ -128,6 +134,23 @@ function prettyJson(value: unknown): string {
     }
 }
 
+function truncateText(value?: string | null, maxLength = 180): string | null {
+    if (!value) {
+        return null;
+    }
+
+    const normalized = value.trim();
+    if (!normalized) {
+        return null;
+    }
+
+    if (normalized.length <= maxLength) {
+        return normalized;
+    }
+
+    return `${normalized.slice(0, maxLength - 1)}…`;
+}
+
 function extractMetaString(
     metaJson: Record<string, unknown> | null | undefined,
     key: string,
@@ -200,7 +223,13 @@ function JsonBlock({
     );
 }
 
-function RecentLogCard({ log }: { log: NewsAiModelHealthLogSnapshot }) {
+function RecentLogAccordionItem({
+    log,
+    value,
+}: {
+    log: NewsAiModelHealthLogSnapshot;
+    value: string;
+}) {
     const metaJson = log.meta_json ?? null;
     const rawErrorPayload = metaJson?.raw_error_payload;
     const rawData = metaJson?.raw_data;
@@ -209,98 +238,116 @@ function RecentLogCard({ log }: { log: NewsAiModelHealthLogSnapshot }) {
     const rawErrorExcerpt = extractMetaString(metaJson, "raw_error_excerpt");
     const rawContentExcerpt = extractMetaString(metaJson, "raw_content_excerpt");
     const rawDataExcerpt = extractMetaString(metaJson, "raw_data_excerpt");
+    const previewMessage = truncateText(log.error_message ?? rawErrorExcerpt ?? rawContentExcerpt, 220);
 
     return (
-        <div className="rounded-xl border border-border/50 bg-background/60 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                    className={`rounded-full ${
-                        log.status === "success"
-                            ? "bg-success/15 text-success"
-                            : "bg-destructive/15 text-destructive"
-                    }`}
-                >
-                    {log.status === "success" ? "Sucesso" : "Falha"}
-                </Badge>
-                {metaJson?.strategy && (
-                    <Badge variant="secondary" className="rounded-full">
-                        {formatAiStrategy(String(metaJson.strategy))}
-                    </Badge>
-                )}
-                {metaJson?.category && (
-                    <Badge variant="secondary" className="rounded-full">
-                        {formatAiCategory(String(metaJson.category))}
-                    </Badge>
-                )}
-                {metaJson?.provider_status !== undefined && (
-                    <Badge variant="secondary" className="rounded-full">
-                        {formatAiProviderStatus(metaJson.provider_status as string | number)}
-                    </Badge>
-                )}
-                <span className="text-xs text-muted-foreground">
-                    {formatDateTime(log.created_at)}
-                </span>
-            </div>
+        <AccordionItem
+            value={value}
+            className="overflow-hidden rounded-xl border border-border/50 bg-background/60 px-4"
+        >
+            <AccordionTrigger className="py-4 text-left hover:no-underline">
+                <div className="flex flex-1 flex-col gap-3 pr-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge
+                                className={`rounded-full ${
+                                    log.status === "success"
+                                        ? "bg-success/15 text-success"
+                                        : "bg-destructive/15 text-destructive"
+                                }`}
+                            >
+                                {log.status === "success" ? "Sucesso" : "Falha"}
+                            </Badge>
+                            {metaJson?.strategy && (
+                                <Badge variant="secondary" className="rounded-full">
+                                    {formatAiStrategy(String(metaJson.strategy))}
+                                </Badge>
+                            )}
+                            {metaJson?.category && (
+                                <Badge variant="secondary" className="rounded-full">
+                                    {formatAiCategory(String(metaJson.category))}
+                                </Badge>
+                            )}
+                            {metaJson?.provider_status !== undefined && (
+                                <Badge variant="secondary" className="rounded-full">
+                                    {formatAiProviderStatus(metaJson.provider_status as string | number)}
+                                </Badge>
+                            )}
+                        </div>
 
-            <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-4">
-                <div>
-                    <span className="font-medium text-foreground">Item:</span>{" "}
-                    {log.news_item_id ?? "-"}
-                </div>
-                <div>
-                    <span className="font-medium text-foreground">Tokens:</span>{" "}
-                    {log.tokens_used ?? 0}
-                </div>
-                <div>
-                    <span className="font-medium text-foreground">Acao:</span>{" "}
-                    {formatAiNextAction(
-                        typeof metaJson?.next_action === "string" ? metaJson.next_action : null,
-                    )}
-                </div>
-                <div>
-                    <span className="font-medium text-foreground">Status provider:</span>{" "}
-                    {formatAiProviderStatus(
-                        (metaJson?.provider_status as string | number | undefined) ?? null,
-                    )}
-                </div>
-            </div>
+                        <div>
+                            <p className="text-sm font-medium text-foreground">
+                                {formatDateTime(log.created_at)}
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                {previewMessage ?? "Sem mensagem detalhada para este log."}
+                            </p>
+                        </div>
+                    </div>
 
-            {log.error_message && (
-                <div className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-foreground/90">
-                    {log.error_message}
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground xl:min-w-[360px] xl:grid-cols-4">
+                        <div className="rounded-lg border border-border/50 bg-background/70 p-2">
+                            <span className="font-medium text-foreground">Item:</span>{" "}
+                            {log.news_item_id ?? "-"}
+                        </div>
+                        <div className="rounded-lg border border-border/50 bg-background/70 p-2">
+                            <span className="font-medium text-foreground">Tokens:</span>{" "}
+                            {log.tokens_used ?? 0}
+                        </div>
+                        <div className="rounded-lg border border-border/50 bg-background/70 p-2">
+                            <span className="font-medium text-foreground">Acao:</span>{" "}
+                            {formatAiNextAction(
+                                typeof metaJson?.next_action === "string" ? metaJson.next_action : null,
+                            )}
+                        </div>
+                        <div className="rounded-lg border border-border/50 bg-background/70 p-2">
+                            <span className="font-medium text-foreground">Provider:</span>{" "}
+                            {formatAiProviderStatus(
+                                (metaJson?.provider_status as string | number | undefined) ?? null,
+                            )}
+                        </div>
+                    </div>
                 </div>
-            )}
+            </AccordionTrigger>
 
-            {(rawErrorPayload ||
-                rawErrorBody ||
-                rawContentBody ||
-                hasMetaValue(metaJson, "raw_data") ||
-                rawErrorExcerpt ||
-                rawContentExcerpt ||
-                rawDataExcerpt) && (
-                <div className="mt-3 grid gap-3 xl:grid-cols-3">
-                    {rawErrorPayload && (
-                        <JsonBlock title="raw_error_payload" value={rawErrorPayload} />
-                    )}
-                    {rawErrorBody && <JsonBlock title="raw_error_body" value={rawErrorBody} />}
-                    {rawContentBody && (
-                        <JsonBlock title="raw_content_body" value={rawContentBody} />
-                    )}
-                    {hasMetaValue(metaJson, "raw_data") && (
-                        <JsonBlock title="raw_data" value={rawData} />
-                    )}
-                    {rawErrorExcerpt && (
-                        <JsonBlock title="raw_error_excerpt" value={rawErrorExcerpt} />
-                    )}
-                    {rawContentExcerpt && (
-                        <JsonBlock title="raw_content_excerpt" value={rawContentExcerpt} />
-                    )}
-                    {rawDataExcerpt && (
-                        <JsonBlock title="raw_data_excerpt" value={rawDataExcerpt} />
-                    )}
-                </div>
-            )}
-        </div>
+            <AccordionContent className="pb-4 pt-0">
+                {log.error_message && (
+                    <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-foreground/90">
+                        {log.error_message}
+                    </div>
+                )}
+
+                {(rawErrorPayload ||
+                    rawErrorBody ||
+                    rawContentBody ||
+                    hasMetaValue(metaJson, "raw_data") ||
+                    rawErrorExcerpt ||
+                    rawContentExcerpt ||
+                    rawDataExcerpt) && (
+                    <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                        {rawErrorPayload && (
+                            <JsonBlock title="raw_error_payload" value={rawErrorPayload} />
+                        )}
+                        {rawErrorBody && <JsonBlock title="raw_error_body" value={rawErrorBody} />}
+                        {rawContentBody && (
+                            <JsonBlock title="raw_content_body" value={rawContentBody} />
+                        )}
+                        {hasMetaValue(metaJson, "raw_data") && (
+                            <JsonBlock title="raw_data" value={rawData} />
+                        )}
+                        {rawErrorExcerpt && (
+                            <JsonBlock title="raw_error_excerpt" value={rawErrorExcerpt} />
+                        )}
+                        {rawContentExcerpt && (
+                            <JsonBlock title="raw_content_excerpt" value={rawContentExcerpt} />
+                        )}
+                        {rawDataExcerpt && (
+                            <JsonBlock title="raw_data_excerpt" value={rawDataExcerpt} />
+                        )}
+                    </div>
+                )}
+            </AccordionContent>
+        </AccordionItem>
     );
 }
 
@@ -412,181 +459,247 @@ export function AiModelHealthPanel({ dashboard, isLoading }: AiModelHealthPanelP
                         </div>
                     </div>
 
-                    <div className="mt-6 space-y-4">
+                    <Accordion type="single" collapsible className="mt-6 space-y-4">
                         {entries.map((entry) => {
                             const tone = healthToneMap[entry.health_status] ?? healthToneMap.critical;
                             const StatusIcon = tone.icon;
+                            const lastErrorPreview = truncateText(entry.last_error_message, 220);
 
                             return (
-                                <article
+                                <AccordionItem
                                     key={`${entry.stage}-${entry.model}`}
-                                    className={`rounded-2xl border p-5 ${tone.border}`}
+                                    value={`${entry.stage}-${entry.model}`}
+                                    className={`overflow-hidden rounded-2xl border px-5 ${tone.border}`}
                                 >
-                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                                        <div className="space-y-2">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <Badge className={`rounded-full ${tone.badge}`}>
-                                                    <StatusIcon className="mr-1 h-3.5 w-3.5" />
-                                                    {formatAiHealthStatus(entry.health_status)}
-                                                </Badge>
-                                                <Badge variant="secondary" className="rounded-full">
-                                                    {formatAiStage(entry.stage)}
-                                                </Badge>
-                                                <Badge variant="secondary" className="rounded-full">
-                                                    {entry.model}
-                                                </Badge>
-                                            </div>
-
-                                            <p className="text-lg font-semibold">{entry.model}</p>
-
-                                            <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
-                                                <div>
-                                                    <span className="font-medium text-foreground">
-                                                        Taxa de falha:
-                                                    </span>{" "}
-                                                    {formatPercent(entry.failure_rate)}
+                                    <AccordionTrigger className="py-5 text-left hover:no-underline">
+                                        <div className="flex flex-1 flex-col gap-4 pr-4 xl:flex-row xl:items-start xl:justify-between">
+                                            <div className="space-y-3">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <Badge className={`rounded-full ${tone.badge}`}>
+                                                        <StatusIcon className="mr-1 h-3.5 w-3.5" />
+                                                        {formatAiHealthStatus(entry.health_status)}
+                                                    </Badge>
+                                                    <Badge variant="secondary" className="rounded-full">
+                                                        {formatAiStage(entry.stage)}
+                                                    </Badge>
+                                                    <Badge variant="secondary" className="rounded-full">
+                                                        {entry.model}
+                                                    </Badge>
                                                 </div>
+
                                                 <div>
-                                                    <span className="font-medium text-foreground">
-                                                        Taxa de sucesso:
-                                                    </span>{" "}
-                                                    {formatPercent(entry.success_rate)}
+                                                    <p className="text-lg font-semibold">{entry.model}</p>
+                                                    <p className="mt-1 text-sm text-muted-foreground">
+                                                        {lastErrorPreview ??
+                                                            "Clique para ver categorias de erro, payload bruto e historico recente do modelo."}
+                                                    </p>
                                                 </div>
-                                                <div>
-                                                    <span className="font-medium text-foreground">
-                                                        Ultima falha:
-                                                    </span>{" "}
-                                                    {formatDateTime(entry.last_failure_at)}
+
+                                                <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2 xl:grid-cols-4">
+                                                    <div>
+                                                        <span className="font-medium text-foreground">
+                                                            Taxa de falha:
+                                                        </span>{" "}
+                                                        {formatPercent(entry.failure_rate)}
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium text-foreground">
+                                                            Taxa de sucesso:
+                                                        </span>{" "}
+                                                        {formatPercent(entry.success_rate)}
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium text-foreground">
+                                                            Ultima falha:
+                                                        </span>{" "}
+                                                        {formatDateTime(entry.last_failure_at)}
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium text-foreground">
+                                                            Ultimo sucesso:
+                                                        </span>{" "}
+                                                        {formatDateTime(entry.last_success_at)}
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <span className="font-medium text-foreground">
-                                                        Ultimo sucesso:
-                                                    </span>{" "}
-                                                    {formatDateTime(entry.last_success_at)}
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3 xl:min-w-[420px] xl:grid-cols-3">
+                                                <div className="rounded-xl border border-border/50 bg-background/70 p-3">
+                                                    <p className="text-xs text-muted-foreground">Tentativas</p>
+                                                    <p className="mt-1 text-xl font-semibold">
+                                                        {entry.attempts_total}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded-xl border border-success/20 bg-background/70 p-3">
+                                                    <p className="text-xs text-muted-foreground">Sucessos</p>
+                                                    <p className="mt-1 text-xl font-semibold text-success">
+                                                        {entry.attempts_success}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded-xl border border-destructive/20 bg-background/70 p-3">
+                                                    <p className="text-xs text-muted-foreground">Falhas</p>
+                                                    <p className="mt-1 text-xl font-semibold text-destructive">
+                                                        {entry.attempts_failed}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded-xl border border-warning/20 bg-background/70 p-3">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Falhas finais
+                                                    </p>
+                                                    <p className="mt-1 text-xl font-semibold text-warning">
+                                                        {entry.unresolved_failures}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded-xl border border-info/20 bg-background/70 p-3">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Fallbacks
+                                                    </p>
+                                                    <p className="mt-1 text-xl font-semibold text-info">
+                                                        {entry.fallback_next_model_count}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded-xl border border-border/50 bg-background/70 p-3">
+                                                    <p className="text-xs text-muted-foreground">Retries</p>
+                                                    <p className="mt-1 text-xl font-semibold">
+                                                        {entry.retry_same_model_count}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
+                                    </AccordionTrigger>
 
-                                        <div className="grid grid-cols-2 gap-3 xl:min-w-[420px] xl:grid-cols-3">
-                                            <div className="rounded-xl border border-border/50 bg-background/70 p-3">
-                                                <p className="text-xs text-muted-foreground">Tentativas</p>
-                                                <p className="mt-1 text-xl font-semibold">
-                                                    {entry.attempts_total}
+                                    <AccordionContent className="pb-5 pt-0">
+                                        {entry.last_error_message && (
+                                            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <Gauge className="h-4 w-4 text-destructive" />
+                                                    <p className="text-sm font-medium">
+                                                        Ultima mensagem de erro consolidada
+                                                    </p>
+                                                </div>
+                                                <p className="mt-2 text-sm leading-6 text-foreground/90">
+                                                    {entry.last_error_message}
                                                 </p>
                                             </div>
-                                            <div className="rounded-xl border border-success/20 bg-background/70 p-3">
-                                                <p className="text-xs text-muted-foreground">Sucessos</p>
-                                                <p className="mt-1 text-xl font-semibold text-success">
-                                                    {entry.attempts_success}
-                                                </p>
-                                            </div>
-                                            <div className="rounded-xl border border-destructive/20 bg-background/70 p-3">
-                                                <p className="text-xs text-muted-foreground">Falhas</p>
-                                                <p className="mt-1 text-xl font-semibold text-destructive">
-                                                    {entry.attempts_failed}
-                                                </p>
-                                            </div>
-                                            <div className="rounded-xl border border-warning/20 bg-background/70 p-3">
-                                                <p className="text-xs text-muted-foreground">
-                                                    Falhas finais
-                                                </p>
-                                                <p className="mt-1 text-xl font-semibold text-warning">
-                                                    {entry.unresolved_failures}
-                                                </p>
-                                            </div>
-                                            <div className="rounded-xl border border-info/20 bg-background/70 p-3">
-                                                <p className="text-xs text-muted-foreground">
-                                                    Fallbacks
-                                                </p>
-                                                <p className="mt-1 text-xl font-semibold text-info">
-                                                    {entry.fallback_next_model_count}
-                                                </p>
-                                            </div>
-                                            <div className="rounded-xl border border-border/50 bg-background/70 p-3">
-                                                <p className="text-xs text-muted-foreground">Retries</p>
-                                                <p className="mt-1 text-xl font-semibold">
-                                                    {entry.retry_same_model_count}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        )}
 
-                                    {entry.last_error_message && (
-                                        <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/5 p-4">
-                                            <div className="flex items-center gap-2">
-                                                <Gauge className="h-4 w-4 text-destructive" />
-                                                <p className="text-sm font-medium">
-                                                    Ultima mensagem de erro consolidada
-                                                </p>
-                                            </div>
-                                            <p className="mt-2 text-sm leading-6 text-foreground/90">
-                                                {entry.last_error_message}
-                                            </p>
-                                        </div>
-                                    )}
+                                        <Accordion type="multiple" className="mt-4 space-y-3">
+                                            <AccordionItem
+                                                value={`${entry.stage}-${entry.model}-diagnostico`}
+                                                className="overflow-hidden rounded-xl border border-border/50 bg-background/60 px-4"
+                                            >
+                                                <AccordionTrigger className="py-4 text-left hover:no-underline">
+                                                    <div>
+                                                        <p className="text-sm font-medium">Diagnostico consolidado</p>
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            Categorias de erro, estrategias, decisoes de fallback e status do provider.
+                                                        </p>
+                                                    </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="pb-4 pt-0">
+                                                    <div className="grid gap-4 xl:grid-cols-2">
+                                                        <div className="space-y-3">
+                                                            <BreakdownGroup
+                                                                title="Categorias de erro"
+                                                                entries={breakdownEntries(entry.category_breakdown)}
+                                                                formatter={formatAiCategory}
+                                                            />
+                                                            <BreakdownGroup
+                                                                title="Estrategias usadas"
+                                                                entries={breakdownEntries(entry.strategy_breakdown)}
+                                                                formatter={formatAiStrategy}
+                                                            />
+                                                        </div>
 
-                                    <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                                        <div className="space-y-3">
-                                            <BreakdownGroup
-                                                title="Categorias de erro"
-                                                entries={breakdownEntries(entry.category_breakdown)}
-                                                formatter={formatAiCategory}
-                                            />
-                                            <BreakdownGroup
-                                                title="Estrategias usadas"
-                                                entries={breakdownEntries(entry.strategy_breakdown)}
-                                                formatter={formatAiStrategy}
-                                            />
-                                            <BreakdownGroup
-                                                title="Proximo passo decidido"
-                                                entries={breakdownEntries(entry.next_action_breakdown)}
-                                                formatter={formatAiNextAction}
-                                            />
-                                            <BreakdownGroup
-                                                title="Status do provider"
-                                                entries={breakdownEntries(
-                                                    entry.provider_status_breakdown,
-                                                )}
-                                                formatter={formatAiProviderStatus}
-                                            />
-                                        </div>
+                                                        <div className="space-y-3">
+                                                            <BreakdownGroup
+                                                                title="Proximo passo decidido"
+                                                                entries={breakdownEntries(entry.next_action_breakdown)}
+                                                                formatter={formatAiNextAction}
+                                                            />
+                                                            <BreakdownGroup
+                                                                title="Status do provider"
+                                                                entries={breakdownEntries(
+                                                                    entry.provider_status_breakdown,
+                                                                )}
+                                                                formatter={formatAiProviderStatus}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </AccordionContent>
+                                            </AccordionItem>
 
-                                        <div className="space-y-3">
-                                            <JsonBlock
-                                                title="Ultima falha - meta_json"
-                                                value={entry.latest_failure?.meta_json ?? null}
-                                            />
-                                            <JsonBlock
-                                                title="Ultimo sucesso - meta_json"
-                                                value={entry.latest_success?.meta_json ?? null}
-                                            />
-                                            <JsonBlock
-                                                title="Ultimo log observado"
-                                                value={entry.latest_log ?? null}
-                                            />
-                                        </div>
-                                    </div>
+                                            <AccordionItem
+                                                value={`${entry.stage}-${entry.model}-payloads`}
+                                                className="overflow-hidden rounded-xl border border-border/50 bg-background/60 px-4"
+                                            >
+                                                <AccordionTrigger className="py-4 text-left hover:no-underline">
+                                                    <div>
+                                                        <p className="text-sm font-medium">Payloads e metadados</p>
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            Meta JSON da ultima falha, ultimo sucesso e ultimo log observado.
+                                                        </p>
+                                                    </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="pb-4 pt-0">
+                                                    <div className="grid gap-3 xl:grid-cols-3">
+                                                        <JsonBlock
+                                                            title="Ultima falha - meta_json"
+                                                            value={entry.latest_failure?.meta_json ?? null}
+                                                        />
+                                                        <JsonBlock
+                                                            title="Ultimo sucesso - meta_json"
+                                                            value={entry.latest_success?.meta_json ?? null}
+                                                        />
+                                                        <JsonBlock
+                                                            title="Ultimo log observado"
+                                                            value={entry.latest_log ?? null}
+                                                        />
+                                                    </div>
+                                                </AccordionContent>
+                                            </AccordionItem>
 
-                                    <div className="mt-4 rounded-2xl border border-border/50 bg-background/60 p-4">
-                                        <div className="mb-3 flex items-center gap-2">
-                                            <ArrowRightLeft className="h-4 w-4 text-primary" />
-                                            <p className="text-sm font-medium">
-                                                Sequencia dos ultimos logs do modelo
-                                            </p>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {(entry.recent_logs ?? []).map((log, index) => (
-                                                <RecentLogCard
-                                                    key={`${entry.stage}-${entry.model}-${index}`}
-                                                    log={log}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-                                </article>
+                                            <AccordionItem
+                                                value={`${entry.stage}-${entry.model}-logs`}
+                                                className="overflow-hidden rounded-xl border border-border/50 bg-background/60 px-4"
+                                            >
+                                                <AccordionTrigger className="py-4 text-left hover:no-underline">
+                                                    <div className="flex items-center gap-2">
+                                                        <ArrowRightLeft className="h-4 w-4 text-primary" />
+                                                        <div>
+                                                            <p className="text-sm font-medium">
+                                                                Sequencia dos ultimos logs do modelo
+                                                            </p>
+                                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                                Expanda cada tentativa para ver erro bruto, JSON retornado e decisoes do pipeline.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="pb-4 pt-0">
+                                                    {(entry.recent_logs ?? []).length === 0 ? (
+                                                        <div className="rounded-xl border border-dashed border-border/50 p-4 text-sm text-muted-foreground">
+                                                            Sem logs recentes disponiveis para este modelo.
+                                                        </div>
+                                                    ) : (
+                                                        <Accordion type="single" collapsible className="space-y-3">
+                                                            {(entry.recent_logs ?? []).map((log, index) => (
+                                                                <RecentLogAccordionItem
+                                                                    key={`${entry.stage}-${entry.model}-${index}`}
+                                                                    value={`${entry.stage}-${entry.model}-recent-${index}`}
+                                                                    log={log}
+                                                                />
+                                                            ))}
+                                                        </Accordion>
+                                                    )}
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        </Accordion>
+                                    </AccordionContent>
+                                </AccordionItem>
                             );
                         })}
-                    </div>
+                    </Accordion>
                 </>
             )}
         </section>

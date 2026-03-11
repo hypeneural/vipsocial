@@ -138,7 +138,7 @@ class AiEnrichmentService
     public function classificationModelSequence(): array
     {
         return $this->buildModelSequence(
-            primary: (string) config('news_radar.ai.classification_model', 'z-ai/glm-4.5-air:free'),
+            primary: (string) config('news_radar.ai.classification_model', 'arcee-ai/trinity-large-preview:free'),
             fallbacks: (array) config('news_radar.ai.classification_fallback_models', []),
         );
     }
