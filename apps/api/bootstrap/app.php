@@ -6,6 +6,7 @@ use App\Console\Commands\SyncWhatsAppGroupsCommand;
 use App\Console\Commands\CaptureWhatsAppGroupsOverviewDailySnapshotCommand;
 use App\Console\Commands\SyncPollStatusCommand;
 use App\Console\Commands\SyncSocialProfilesDailyCommand;
+use App\Modules\NewsRadar\Console\DispatchNewsSourcesCommand;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         SyncWhatsAppGroupsCommand::class,
         CaptureWhatsAppGroupsOverviewDailySnapshotCommand::class,
         SyncSocialProfilesDailyCommand::class,
+        DispatchNewsSourcesCommand::class,
     ])
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('whatsapp:groups-sync')
@@ -58,6 +60,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('enquetes:reconcile-results')
             ->timezone((string) config('enquetes.timezone', 'America/Sao_Paulo'))
             ->everyTenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('news-radar:dispatch-sources')
+            ->timezone('America/Sao_Paulo')
+            ->everyMinute()
             ->withoutOverlapping()
             ->onOneServer();
     })
