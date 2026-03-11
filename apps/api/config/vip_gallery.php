@@ -41,6 +41,13 @@ return [
         'message' => (string) env('VIP_GALLERY_ACK_MESSAGE', 'Publicada!'),
     ],
 
+    'reactions' => [
+        'enabled' => (bool) env('VIP_GALLERY_REACTIONS_ENABLED', true),
+        'on_received' => '⏳',
+        'on_processed' => '📸',
+        'on_deleted' => '🗑️',
+    ],
+
     'delete' => [
         'default_keywords' => 'Deletar,Apagar,Excluir',
     ],

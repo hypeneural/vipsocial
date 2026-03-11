@@ -81,6 +81,18 @@ class DeleteVipGalleryPhotoJob implements ShouldQueue
             ]);
 
             $slideshowBroadcaster->broadcastMediaDeleted($photo);
+
+            // Reaction 🗑️ → photo deleted
+            $originalLog = VipGalleryWebhookLog::query()
+                ->where('vip_gallery_photo_id', $photo->id)
+                ->whereIn('routing_status', ['published', 'queued_ingest', 'deleted'])
+                ->first();
+
+            if ($originalLog && $originalLog->message_id && $originalLog->phone) {
+                $deletedEmoji = (string) config('vip_gallery.reactions.on_deleted', '🗑️');
+                SendVipGalleryReactionJob::dispatch($originalLog->phone, $originalLog->message_id, $deletedEmoji)
+                    ->onQueue((string) config('vip_gallery.queues.ack', 'vip-gallery-ack'));
+            }
         } catch (Throwable $e) {
             $log->update([
                 'routing_status' => 'failed',

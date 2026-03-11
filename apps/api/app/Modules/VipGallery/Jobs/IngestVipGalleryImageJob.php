@@ -47,6 +47,7 @@ class IngestVipGalleryImageJob implements ShouldQueue
         $messageId = ZApiGalleryPayload::messageId($payload);
         $imageUrl = ZApiGalleryPayload::imageUrl($payload);
         $participantPhone = ZApiGalleryPayload::participantPhone($payload);
+        $groupId = ZApiGalleryPayload::groupId($payload);
 
         if (! $messageId || ! $imageUrl) {
             $log->update([
@@ -77,6 +78,13 @@ class IngestVipGalleryImageJob implements ShouldQueue
                 'vip_gallery_photo_id' => $photo->id,
                 'error_message' => null,
             ]);
+
+            // Reaction ⏳ → photo received and being processed
+            if ($groupId && $messageId) {
+                $receivedEmoji = (string) config('vip_gallery.reactions.on_received', '⏳');
+                SendVipGalleryReactionJob::dispatch($groupId, $messageId, $receivedEmoji)
+                    ->onQueue((string) config('vip_gallery.queues.ack', 'vip-gallery-ack'));
+            }
 
             $photo->loadMissing('event.vipGallerySlideshow');
             $slideshowBroadcaster->broadcastNewMedia($photo);

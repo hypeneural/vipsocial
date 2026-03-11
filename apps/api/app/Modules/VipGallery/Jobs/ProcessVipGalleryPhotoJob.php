@@ -3,6 +3,7 @@
 namespace App\Modules\VipGallery\Jobs;
 
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
+use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
 use App\Modules\VipGallery\Support\VipGallerySlideshowBroadcaster;
 use Illuminate\Bus\Queueable;
@@ -46,6 +47,18 @@ class ProcessVipGalleryPhotoJob implements ShouldQueue
 
             $photo->refresh()->loadMissing('event.vipGallerySlideshow');
             $slideshowBroadcaster->broadcastMediaUpdated($photo);
+
+            // Reaction 📸 → photo fully processed
+            $webhookLog = VipGalleryWebhookLog::query()
+                ->where('vip_gallery_photo_id', $photo->id)
+                ->whereIn('routing_status', ['published', 'queued_ingest'])
+                ->first();
+
+            if ($webhookLog && $webhookLog->message_id && $webhookLog->phone) {
+                $processedEmoji = (string) config('vip_gallery.reactions.on_processed', '📸');
+                SendVipGalleryReactionJob::dispatch($webhookLog->phone, $webhookLog->message_id, $processedEmoji)
+                    ->onQueue((string) config('vip_gallery.queues.ack', 'vip-gallery-ack'));
+            }
         } catch (Throwable $e) {
             $photo->update([
                 'processing_status' => $this->fallbackStatus($photo),

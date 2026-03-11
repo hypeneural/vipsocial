@@ -67,6 +67,22 @@ class WhatsAppService
         return $this->client->post('send-link', $payload);
     }
 
+    /**
+     * Send an emoji reaction to a specific message.
+     *
+     * @param string $phone  Phone or group ID (e.g. "120363423950458112-group")
+     * @param string $messageId  The message ID to react to
+     * @param string $reaction  Emoji to react with (e.g. "⏳", "📸", "🗑️")
+     */
+    public function sendReaction(string $phone, string $messageId, string $reaction): array
+    {
+        return $this->client->post('send-reaction', [
+            'phone' => $phone,
+            'messageId' => $messageId,
+            'reaction' => $reaction,
+        ]);
+    }
+
     public function status(bool $fresh = false): array
     {
         $ttl = max(1, (int) config('whatsapp.cache.status_ttl_sec', 15));
