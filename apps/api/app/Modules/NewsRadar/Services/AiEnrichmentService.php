@@ -9,17 +9,16 @@ use OpenAI\Laravel\Facades\OpenAI;
 
 class AiEnrichmentService
 {
-    private string $defaultModel = 'gpt-4o-mini';
-
     /**
-     * Level 1 — Basic classification: city, theme, urgency, entities, relevance.
+     * Level 1 - Basic classification: city, theme, urgency, entities, relevance.
      */
     public function classifyBasic(NewsItem $item): AiClassificationResult
     {
         $textInput = $this->buildClassificationInput($item);
+        $model = $this->classificationModel();
 
         $response = OpenAI::chat()->create([
-            'model' => $this->defaultModel,
+            'model' => $model,
             'messages' => [
                 ['role' => 'system', 'content' => $this->classificationSystemPrompt()],
                 ['role' => 'user', 'content' => $textInput],
@@ -40,14 +39,12 @@ class AiEnrichmentService
         $data = json_decode($content, true);
         $tokensUsed = $response->usage->totalTokens;
 
-        // Resolve theme FK
         $themeId = null;
-        if (!empty($data['theme'])) {
+        if (! empty($data['theme'])) {
             $theme = NewsTheme::where('slug', $data['theme'])->first();
             $themeId = $theme?->id;
         }
 
-        // Save to news_item_ai_metadata
         $metadata = NewsItemAiMetadata::updateOrCreate(
             ['news_item_id' => $item->id],
             [
@@ -57,7 +54,7 @@ class AiEnrichmentService
                 'urgency' => $data['urgency'] ?? null,
                 'relevance_score' => $data['relevance_score'] ?? 0,
                 'entities' => $data['entities'] ?? [],
-                'ai_model_used' => $this->defaultModel,
+                'ai_model_used' => $model,
                 'ai_tokens_used' => $tokensUsed,
                 'enrichment_level' => 'level_1',
             ]
@@ -72,14 +69,15 @@ class AiEnrichmentService
     }
 
     /**
-     * Level 2 — Editorial enrichment: 5W1H, suggested titles, summary bullets.
+     * Level 2 - Editorial enrichment: 5W1H, suggested titles, summary bullets.
      */
     public function enrichEditorial(NewsItem $item): AiEnrichmentResult
     {
         $textInput = $this->buildEnrichmentInput($item);
+        $model = $this->editorialModel();
 
         $response = OpenAI::chat()->create([
-            'model' => $this->defaultModel,
+            'model' => $model,
             'messages' => [
                 ['role' => 'system', 'content' => $this->enrichmentSystemPrompt()],
                 ['role' => 'user', 'content' => $textInput],
@@ -100,7 +98,6 @@ class AiEnrichmentService
         $data = json_decode($content, true);
         $tokensUsed = $response->usage->totalTokens;
 
-        // Update existing metadata
         $metadata = NewsItemAiMetadata::where('news_item_id', $item->id)->first();
         if ($metadata) {
             $metadata->update([
@@ -108,6 +105,7 @@ class AiEnrichmentService
                 'suggested_titles' => $data['suggested_titles'] ?? [],
                 'summary_bullets' => $data['summary_bullets'] ?? [],
                 'enrichment_level' => 'level_2',
+                'ai_model_used' => $model,
                 'ai_tokens_used' => ($metadata->ai_tokens_used ?? 0) + $tokensUsed,
             ]);
         }
@@ -119,54 +117,68 @@ class AiEnrichmentService
         );
     }
 
-    // ── Input builders ─────────────────────────────
+    public function classificationModel(): string
+    {
+        return (string) config('news_radar.ai.classification_model', 'openai/gpt-oss-20b:free');
+    }
+
+    public function editorialModel(): string
+    {
+        return (string) config('news_radar.ai.editorial_model', $this->classificationModel());
+    }
 
     private function buildClassificationInput(NewsItem $item): string
     {
         $parts = [];
-        $parts[] = "TÍTULO: {$item->title}";
+        $parts[] = "TITULO: {$item->title}";
+
         if ($item->excerpt) {
             $parts[] = "RESUMO: {$item->excerpt}";
         }
+
         if ($item->body_text) {
-            $parts[] = "CORPO (primeiros 2000 chars): " . mb_substr($item->body_text, 0, 2000);
+            $parts[] = 'CORPO (primeiros 2000 chars): '.mb_substr($item->body_text, 0, 2000);
         }
+
         if ($item->source) {
             $parts[] = "FONTE: {$item->source->name}";
         }
+
         return implode("\n\n", $parts);
     }
 
     private function buildEnrichmentInput(NewsItem $item): string
     {
         $parts = [];
-        $parts[] = "TÍTULO: {$item->title}";
+        $parts[] = "TITULO: {$item->title}";
+
         if ($item->subtitle) {
-            $parts[] = "SUBTÍTULO: {$item->subtitle}";
+            $parts[] = "SUBTITULO: {$item->subtitle}";
         }
+
         if ($item->body_text) {
-            $parts[] = "CORPO COMPLETO:\n" . mb_substr($item->body_text, 0, 5000);
+            $parts[] = "CORPO COMPLETO:\n".mb_substr($item->body_text, 0, 5000);
         }
+
         if ($item->author_normalized) {
             $parts[] = "AUTOR: {$item->author_normalized}";
         }
+
         return implode("\n\n", $parts);
     }
-
-    // ── System prompts ─────────────────────────────
 
     private function classificationSystemPrompt(): string
     {
         return <<<'PROMPT'
-Você é um classificador de notícias para uma redação jornalística em Santa Catarina, Brasil.
-Analise a notícia e responda estritamente em JSON Schema.
+Voce e um classificador de noticias para uma redacao jornalistica em Santa Catarina, Brasil.
+Analise a noticia e responda estritamente em JSON Schema.
 
 Regras:
-- `city`: cidade principal mencionada na notícia. Se não identificável, null.
-- `state_abbr`: sigla do estado (2 letras). Se não identificável, null.
+- `city`: cidade principal mencionada na noticia. Se nao identificavel, null.
+- `state_abbr`: sigla do estado (2 letras). Se nao identificavel, null.
 - `theme`: slug do tema editorial (politica, policia, esporte, economia, saude, educacao, cultura, tecnologia, meio_ambiente, transporte, sociedade, internacional, outro).
 - `urgency`: "baixa" (informativo), "media" (relevante), "alta" (urgente/breaking news).
-- `relevance_score`: 0.0 a 1.0. Considere: impacto na comunidade, atualidade, abrangência.
+- `relevance_score`: 0.0 a 1.0. Considere: impacto na comunidade, atualidade, abrangencia.
 - `entities`: lista de entidades mencionadas ({type: "pessoa"|"organizacao"|"local"|"evento", name: string}).
 PROMPT;
     }
@@ -174,16 +186,14 @@ PROMPT;
     private function enrichmentSystemPrompt(): string
     {
         return <<<'PROMPT'
-Você é um assistente editorial para uma redação jornalística. Analise a notícia e produza conteúdo editorial auxiliar.
+Voce e um assistente editorial para uma redacao jornalistica. Analise a noticia e produza conteudo editorial auxiliar.
 
 Regras:
-- `five_ws`: extraia Quem, O quê, Onde, Quando, Por quê, Como da notícia. Cada campo é uma string curta.
-- `suggested_titles`: gere 3 títulos alternativos para a mesma notícia. Variando estilo (informativo, engajante, investigativo).
-- `summary_bullets`: gere 3-5 bullet points resumindo os pontos principais da notícia. Cada bullet é uma frase curta.
+- `five_ws`: extraia Quem, O que, Onde, Quando, Por que, Como da noticia. Cada campo e uma string curta.
+- `suggested_titles`: gere 3 titulos alternativos para a mesma noticia. Variando estilo (informativo, engajante, investigativo).
+- `summary_bullets`: gere 3-5 bullet points resumindo os pontos principais da noticia. Cada bullet e uma frase curta.
 PROMPT;
     }
-
-    // ── JSON Schemas ───────────────────────────────
 
     private function classificationJsonSchema(): array
     {
