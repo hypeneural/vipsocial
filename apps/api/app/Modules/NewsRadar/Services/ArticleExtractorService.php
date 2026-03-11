@@ -6,6 +6,59 @@ use Symfony\Component\DomCrawler\Crawler;
 
 class ArticleExtractorService
 {
+    private const DEFAULT_SELECTORS = [
+        'title' => [
+            '.entry-title',
+            '.post-title',
+            '.single-post-title',
+            'main h1',
+            'article h1',
+            'h1',
+        ],
+        'subtitle' => [
+            '.entry-subtitle',
+            '.post-subtitle',
+            '.the-subtitle',
+            '.post-excerpt',
+            '.single-excerpt',
+            '.subtitle',
+        ],
+        'author' => [
+            'a[rel="author"]',
+            '.author-name',
+            '.entry-author-name',
+            '.meta-author',
+            '.post-author',
+            '.author',
+        ],
+        'published_at' => [
+            'time[datetime]',
+            '.entry-date',
+            '.post-date',
+            '.published',
+            '.noticias_data',
+        ],
+        'image' => [
+            'meta[property="og:image"]',
+            '.single-featured-image img',
+            '.post-thumbnail img',
+            '.entry-content img',
+            '.post-content img',
+            '.texto img',
+            'article img',
+        ],
+        'body' => [
+            '.entry-content',
+            '.post-content',
+            '.single-post-content',
+            '.article-content',
+            '.story-body',
+            '.texto',
+            'article .content',
+            'main article',
+        ],
+    ];
+
     public function __construct(
         private readonly BoilerplateCleanerService $boilerplateCleaner,
     ) {}
@@ -146,8 +199,9 @@ class ArticleExtractorService
     private function extractByCssSelectors(Crawler $crawler, array $extractors, string $html): array
     {
         $data = [];
+        $resolvedExtractors = $this->resolveExtractors($extractors);
 
-        foreach ($extractors as $field => $selectors) {
+        foreach ($resolvedExtractors as $field => $selectors) {
             if (!is_array($selectors)) continue;
 
             $value = null;
@@ -179,6 +233,25 @@ class ArticleExtractorService
         }
 
         return $data;
+    }
+
+    private function resolveExtractors(array $extractors): array
+    {
+        $resolved = [];
+
+        foreach (self::DEFAULT_SELECTORS as $field => $defaults) {
+            $configured = $extractors[$field] ?? [];
+            $configured = is_array($configured) ? $configured : [];
+            $resolved[$field] = array_values(array_unique(array_merge($configured, $defaults)));
+        }
+
+        foreach ($extractors as $field => $selectors) {
+            if (! isset($resolved[$field]) && is_array($selectors)) {
+                $resolved[$field] = $selectors;
+            }
+        }
+
+        return $resolved;
     }
 
     private function extractImageValue(Crawler $node, string $html): ?string

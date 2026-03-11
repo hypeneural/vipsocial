@@ -50,4 +50,15 @@ HTML;
 
         $this->assertSame('Ola mundo Teste', $text);
     }
+
+    public function test_clean_text_removes_feed_trailers_in_english(): void
+    {
+        $service = new BoilerplateCleanerService();
+
+        $text = $service->cleanText(
+            'Resumo útil. <p>The post <a href="https://portal.test/materia">Materia</a> first appeared on <a href="https://portal.test">Portal</a>.</p>'
+        );
+
+        $this->assertSame('Resumo útil.', $text);
+    }
 }

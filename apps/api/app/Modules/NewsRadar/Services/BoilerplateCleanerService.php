@@ -14,7 +14,7 @@ class BoilerplateCleanerService
 
     /** Global text patterns always removed (regex). */
     private const GLOBAL_REMOVE_PATTERNS = [
-        '#O post[\s\S]{0,400}?apareceu primeiro em[\s\S]{0,200}#iu',
+        '#(?:O post|The post)[\s\S]{0,500}?(?:apareceu primeiro em|first appeared on)[\s\S]{0,250}#iu',
         '#Clique aqui e fa\S*a parte do nosso grupo(?: no WhatsApp)?#iu',
         '#Clique aqui e siga tamb\S*m[\s\S]{0,120}?(Instagram|Facebook|WhatsApp)#iu',
         '#Comente e compartilhe#iu',
@@ -66,6 +66,28 @@ class BoilerplateCleanerService
         }
 
         $cleaned = $this->normalizeWhitespace($cleaned);
+
+        return trim($cleaned);
+    }
+
+    /**
+     * Clean short plain text fields like feed excerpts.
+     */
+    public function cleanText(string $text, array $sourcePatterns = []): string
+    {
+        $cleaned = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $cleaned = strip_tags($cleaned);
+        $cleaned = str_replace("\xc2\xa0", ' ', $cleaned);
+
+        foreach (self::GLOBAL_REMOVE_PATTERNS as $pattern) {
+            $cleaned = preg_replace($pattern, '', $cleaned) ?? $cleaned;
+        }
+
+        foreach ($sourcePatterns as $pattern) {
+            $cleaned = preg_replace('#' . $pattern . '#iu', '', $cleaned) ?? $cleaned;
+        }
+
+        $cleaned = preg_replace('/\s+/u', ' ', trim($cleaned)) ?? trim($cleaned);
 
         return trim($cleaned);
     }

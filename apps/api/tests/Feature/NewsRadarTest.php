@@ -741,6 +741,81 @@ test('when incomplete mode fetches article html when the feed body is only a sho
     expect($newsItem->extraction_completeness)->toBe(100);
 });
 
+test('when feed image is only a tracking pixel the job fetches article html and keeps excerpt clean', function () {
+    Bus::fake();
+
+    $source = makeNewsRadarSource([
+        'name' => 'Feed com pixel',
+        'fetch_detail_mode' => 'when_incomplete',
+    ]);
+
+    $rawItem = NewsRawItem::create([
+        'news_source_id' => $source->id,
+        'raw_url' => 'https://conectasc.test/noticia',
+        'normalized_url' => 'https://conectasc.test/noticia',
+        'url_hash' => hash('sha256', 'https://conectasc.test/noticia'),
+        'guid' => 'feed-pixel-1',
+        'title_raw' => 'CFM publica regras para uso de IA na medicina',
+        'raw_payload' => [
+            'title' => 'CFM publica regras para uso de IA na medicina',
+            'author' => 'DINO',
+            'pubDate' => '2026-03-11T17:21:33Z',
+            'content' => '<p>Texto principal da matéria.</p><p><img src="https://api.dino.com.br/v2/news/tr/327612?partnerId=4324" width="1" height="1" /></p><p>&lt;p&gt;The post <a href="https://conectasc.test/noticia">CFM publica regras para uso de IA na medicina</a> first appeared on <a href="https://conectasc.test">Conecta SC</a>.&lt;/p&gt;</p>',
+            'description' => 'Especialistas apontam impactos jurídicos da norma. <p>The post CFM publica regras para uso de IA na medicina first appeared on Conecta SC.</p>',
+            'categories' => ['Notícias Corporativas'],
+            'hero_image_url' => 'https://api.dino.com.br/v2/news/tr/327612?partnerId=4324',
+        ],
+        'first_seen_at' => now(),
+        'last_seen_at' => now(),
+    ]);
+
+    $articleExtractor = Mockery::mock(ArticleExtractorService::class);
+    $articleExtractor->shouldReceive('extract')
+        ->once()
+        ->andReturn(new ArticleExtractedData(
+            title: 'CFM publica regras para uso de IA na medicina',
+            subtitle: 'Especialistas apontam impactos jurídicos da norma.',
+            author: 'DINO',
+            publishedAt: '2026-03-11T14:21:33-03:00',
+            modifiedAt: null,
+            heroImage: 'https://conectasc.com.br/wp-content/uploads/2026/03/0b9b9654-a9d9-4f36-bfbd-44099bcda6b2.jpeg',
+            bodyHtml: null,
+            bodyText: null,
+            categories: ['Notícias Corporativas'],
+            jsonLdRaw: [],
+            ogRaw: [
+                'og:image' => 'https://conectasc.com.br/wp-content/uploads/2026/03/0b9b9654-a9d9-4f36-bfbd-44099bcda6b2.jpeg',
+            ],
+        ));
+
+    $httpFetch = Mockery::mock(HttpFetchService::class);
+    $httpFetch->shouldReceive('fetch')
+        ->once()
+        ->with('https://conectasc.test/noticia')
+        ->andReturn(new HttpFetchResult(
+            success: true,
+            statusCode: 200,
+            body: '<html><head><meta property="og:image" content="https://conectasc.com.br/wp-content/uploads/2026/03/0b9b9654-a9d9-4f36-bfbd-44099bcda6b2.jpeg"></head></html>',
+            headers: [],
+            responseTimeMs: 80,
+        ));
+
+    $job = new ProcessNewsItemJob($rawItem->id);
+    $job->handle(
+        $articleExtractor,
+        app(FieldResolverService::class),
+        $httpFetch,
+        app(BoilerplateCleanerService::class),
+    );
+
+    $newsItem = NewsItem::where('news_raw_item_id', $rawItem->id)->firstOrFail();
+
+    expect($newsItem->content_source->value)->toBe(ContentSource::FeedPlusHtml->value);
+    expect($newsItem->hero_image_url)->toBe('https://conectasc.com.br/wp-content/uploads/2026/03/0b9b9654-a9d9-4f36-bfbd-44099bcda6b2.jpeg');
+    expect($newsItem->excerpt)->toBe('Especialistas apontam impactos jurídicos da norma.');
+    expect($newsItem->body_text)->not->toContain('The post');
+});
+
 test('feed ingestion persists long tracked urls and long subtitles without truncation errors', function () {
     Bus::fake();
 

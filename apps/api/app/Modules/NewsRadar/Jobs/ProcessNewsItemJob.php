@@ -16,6 +16,7 @@ use App\Modules\NewsRadar\Services\FieldResolverService;
 use App\Modules\NewsRadar\Services\HttpFetchService;
 use App\Modules\NewsRadar\Services\ListingItem;
 use App\Modules\NewsRadar\Services\ResolvedFields;
+use App\Modules\NewsRadar\Support\ImageUrlHeuristics;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -138,6 +139,15 @@ class ProcessNewsItemJob implements ShouldQueue
             );
         }
 
+        $excerpt = null;
+        if (!empty($payload['description'])) {
+            $excerpt = $boilerplateCleaner->cleanText(
+                (string) $payload['description'],
+                $config['boilerplate_rules']['remove_text_patterns'] ?? [],
+            );
+            $excerpt = $excerpt !== '' ? mb_substr($excerpt, 0, 500) : null;
+        }
+
         return new FeedItemDto(
             title: $payload['title'] ?? '',
             rawUrl: $rawItem->raw_url,
@@ -147,9 +157,9 @@ class ProcessNewsItemJob implements ShouldQueue
             authorRaw: $payload['author'] ?? null,
             publishedAtRaw: $payload['pubDate'] ?? null,
             bodyHtml: $bodyHtml,
-            excerpt: $payload['description'] ?? null,
+            excerpt: $excerpt,
             categoriesRaw: $payload['categories'] ?? [],
-            heroImageUrl: $payload['hero_image_url'] ?? null,
+            heroImageUrl: ImageUrlHeuristics::sanitize($payload['hero_image_url'] ?? null),
             rawPayload: $payload,
         );
     }

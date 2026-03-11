@@ -2,6 +2,7 @@
 
 namespace App\Modules\NewsRadar\Services;
 
+use App\Modules\NewsRadar\Support\ImageUrlHeuristics;
 use SimplePie\SimplePie;
 use Symfony\Component\DomCrawler\Crawler;
 
@@ -10,6 +11,7 @@ class FeedParserService
     public function __construct(
         private readonly UrlNormalizerService $urlNormalizer,
         private readonly HttpFetchService $httpFetch,
+        private readonly BoilerplateCleanerService $boilerplateCleaner,
     ) {}
 
     /**
@@ -133,10 +135,9 @@ class FeedParserService
     {
         $description = $item->get_description();
         if ($description) {
-            $text = strip_tags($description);
-            $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+            $text = $this->boilerplateCleaner->cleanText($description);
 
-            return mb_substr(trim($text), 0, 500);
+            return $text !== '' ? mb_substr($text, 0, 500) : null;
         }
 
         return null;
@@ -189,6 +190,13 @@ class FeedParserService
                         $maxIdx = array_search(max($matches[2]), $matches[2]);
                         $src = $matches[1][$maxIdx];
                         $width = (int) $matches[2][$maxIdx];
+                        $height = (int) ($img->attr('height') ?? 0);
+                        $style = $img->attr('style');
+                        $src = ImageUrlHeuristics::sanitize($src, $width, $height, $style);
+                        if ($src === null) {
+                            return;
+                        }
+
                         if ($width > $bestWidth) {
                             $bestWidth = $width;
                             $bestImage = $src;
@@ -198,7 +206,14 @@ class FeedParserService
                     }
                 }
 
+                $height = (int) ($img->attr('height') ?? 0);
                 $width = (int) ($img->attr('width') ?? 0);
+                $style = $img->attr('style');
+                $src = ImageUrlHeuristics::sanitize($src, $width, $height, $style);
+                if ($src === null) {
+                    return;
+                }
+
                 if ($width > $bestWidth || $bestImage === null) {
                     $bestWidth = $width;
                     $bestImage = $src;
