@@ -101,8 +101,8 @@ class ProcessNewsItemJob implements ShouldQueue
             // 8. Mark raw item as promoted
             $rawItem->markPromoted();
 
-            // 9. Dispatch AI classification (Phase 5)
-            // ClassifyNewsItemJob::dispatch($newsItem->id)->onQueue('news-radar-ai');
+            // 9. Dispatch AI classification
+            ClassifyNewsItemJob::dispatch($newsItem->id)->onQueue('news-radar-ai');
 
         } catch (\Throwable $e) {
             $rawItem->markFailed(mb_substr($e->getMessage(), 0, 2000));

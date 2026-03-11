@@ -29,13 +29,13 @@ Roadmap completo de implementação do módulo `NewsRadar`, organizado em **8 fa
 
 ### 1.1 Instalação de Dependências Composer
 
-- [ ] `roach-php/laravel` — Motor de crawling/spiders (já inclui `symfony/dom-crawler`)
-- [ ] `symfony/css-selector` — **Obrigatório.** Habilitar seletores CSS no DomCrawler e no editor visual do painel
-- [ ] `simplepie/simplepie` — Parser dedicado de RSS/Atom com suporte nativo a namespaces (`dc:creator`, `content:encoded`)
-- [ ] `spatie/crawler` — Descoberta de links (onboarding wizard)
-- [ ] `league/uri` — Normalização/canonicalização de URLs
-- [ ] `openai-php/laravel` — Adaptador para a API OpenAI (Structured Outputs via Responses API)
-- [ ] Verificar se `guzzlehttp/guzzle`, `nesbot/carbon` já estão no `composer.json` (normalmente sim no Laravel)
+- [x] `roach-php/laravel` — Motor de crawling/spiders (já inclui `symfony/dom-crawler`)
+- [x] `symfony/css-selector` — **Obrigatório.** Habilitar seletores CSS no DomCrawler e no editor visual do painel
+- [x] `simplepie/simplepie` — Parser dedicado de RSS/Atom com suporte nativo a namespaces (`dc:creator`, `content:encoded`)
+- [x] `spatie/crawler` — Descoberta de links (onboarding wizard)
+- [x] `league/uri` — Normalização/canonicalização de URLs
+- [x] `openai-php/laravel` — Adaptador para a API OpenAI (Structured Outputs via Responses API)
+- [x] Verificar se `guzzlehttp/guzzle`, `nesbot/carbon` já estão no `composer.json` (normalmente sim no Laravel)
 
 ### 1.2 Estrutura de Diretórios do Módulo
 
@@ -103,204 +103,204 @@ NewsRadar/
 └── routes.php
 ```
 
-- [ ] Criar todos os diretórios acima
-- [ ] Criar o arquivo `routes.php` com rotas prefixadas `/api/v1/news-radar/`
-- [ ] Registrar o módulo no `RouteServiceProvider` (ou equivalente)
+- [x] Criar todos os diretórios acima
+- [x] Criar o arquivo `routes.php` com rotas prefixadas `/api/v1/news-radar/`
+- [x] Registrar o módulo no `RouteServiceProvider` (ou equivalente)
 
 ### 1.3 Migrations (Banco de Dados)
 
 #### 1.3.1 Tabela `news_themes`
-- [ ] `id` (bigIncrements)
-- [ ] `slug` (string, unique) — Ex: `politica`, `policia`, `esporte`
-- [ ] `label` (string) — Ex: "Política", "Polícia"
-- [ ] `active` (boolean, default true)
-- [ ] timestamps
+- [x] `id` (bigIncrements)
+- [x] `slug` (string, unique) — Ex: `politica`, `policia`, `esporte`
+- [x] `label` (string) — Ex: "Política", "Polícia"
+- [x] `active` (boolean, default true)
+- [x] timestamps
 
 > **Decisão:** Temas editoriais ficam numa tabela para flexibilidade. O enum PHP valida o output da IA, mas novas categorias (turismo, mobilidade, justiça) são adicionadas pelo painel sem migração.
 
 #### 1.3.2 Tabela `news_sources`
-- [ ] `id` (bigIncrements)
-- [ ] `name` (string) — Nome do portal
-- [ ] `homepage_url` (string, unique)
-- [ ] `active` (boolean, default true)
-- [ ] `source_type` (enum: portal, prefeitura, blog, agencia, whatsapp)
-- [ ] `discovery_mode` (enum: auto, feed, sitemap, html_listing)
-- [ ] `feed_quality_profile` (enum: full, partial, teaser_only, nullable)
-- [ ] `fetch_detail_mode` (enum: never, when_incomplete, always, default 'when_incomplete') — Determina quando o spider acessa a página HTML do artigo
-- [ ] `source_preset` (string, nullable) — Preset sugerido: `html_listing_detail`, `rss_full_with_image_fetch`, `rss_teaser_detail`, `rss_full_clean`, `rss_full_but_noisy`
-- [ ] `crawling_config` (json) — Schema versionado com listing_selectors, article_extractors, boilerplate_rules, date_preprocessors, body_stop_text_patterns
-- [ ] `throttle_config` (json) — crawl_interval_min, crawl_interval_max, autoadjust_enabled
-- [ ] `timezone_default` (string, default 'America/Sao_Paulo')
-- [ ] `date_formats` (json, nullable) — Formatos custom por fonte
-- [ ] `render_js_required` (boolean, default false)
-- [ ] `last_sync_at` (timestamp, nullable)
-- [ ] `next_sync_at` (timestamp, nullable)
-- [ ] `sync_locked_until` (timestamp, nullable) — **Trava de concorrência.** Impede dispatch paralelo da mesma fonte. Job seta ao iniciar, limpa ao finalizar. Scheduler ignora fontes com lock ativo.
-- [ ] `consecutive_failures` (integer, default 0)
-- [ ] `success_rate` (float, default 100)
-- [ ] `avg_response_ms` (integer, nullable)
-- [ ] `last_items_found` (integer, default 0)
-- [ ] `notes` (text, nullable) — Observações do operador
-- [ ] timestamps + softDeletes
-- [ ] **Índice:** `(next_sync_at, active)` — Para o scheduler filtrar fontes pendentes rapidamente
+- [x] `id` (bigIncrements)
+- [x] `name` (string) — Nome do portal
+- [x] `homepage_url` (string, unique)
+- [x] `active` (boolean, default true)
+- [x] `source_type` (enum: portal, prefeitura, blog, agencia, whatsapp)
+- [x] `discovery_mode` (enum: auto, feed, sitemap, html_listing)
+- [x] `feed_quality_profile` (enum: full, partial, teaser_only, nullable)
+- [x] `fetch_detail_mode` (enum: never, when_incomplete, always, default 'when_incomplete') — Determina quando o spider acessa a página HTML do artigo
+- [x] `source_preset` (string, nullable) — Preset sugerido: `html_listing_detail`, `rss_full_with_image_fetch`, `rss_teaser_detail`, `rss_full_clean`, `rss_full_but_noisy`
+- [x] `crawling_config` (json) — Schema versionado com listing_selectors, article_extractors, boilerplate_rules, date_preprocessors, body_stop_text_patterns
+- [x] `throttle_config` (json) — crawl_interval_min, crawl_interval_max, autoadjust_enabled
+- [x] `timezone_default` (string, default 'America/Sao_Paulo')
+- [x] `date_formats` (json, nullable) — Formatos custom por fonte
+- [x] `render_js_required` (boolean, default false)
+- [x] `last_sync_at` (timestamp, nullable)
+- [x] `next_sync_at` (timestamp, nullable)
+- [x] `sync_locked_until` (timestamp, nullable) — **Trava de concorrência.** Impede dispatch paralelo da mesma fonte. Job seta ao iniciar, limpa ao finalizar. Scheduler ignora fontes com lock ativo.
+- [x] `consecutive_failures` (integer, default 0)
+- [x] `success_rate` (float, default 100)
+- [x] `avg_response_ms` (integer, nullable)
+- [x] `last_items_found` (integer, default 0)
+- [x] `notes` (text, nullable) — Observações do operador
+- [x] timestamps + softDeletes
+- [x] **Índice:** `(next_sync_at, active)` — Para o scheduler filtrar fontes pendentes rapidamente
 
 #### 1.3.3 Tabela `news_source_runs` *(NOVA)*
 > Histórico operacional de cada execução. Sem isso, debugging de falhas e o dashboard de saúde ficam superficiais.
 
-- [ ] `id` (bigIncrements)
-- [ ] `news_source_id` (foreignId, index)
-- [ ] `started_at` (timestamp)
-- [ ] `finished_at` (timestamp, nullable)
-- [ ] `status` (enum: running, success, partial, failed)
-- [ ] `items_found` (integer, default 0)
-- [ ] `items_new` (integer, default 0)
-- [ ] `items_failed` (integer, default 0)
-- [ ] `response_time_avg_ms` (integer, nullable)
-- [ ] `error_message` (text, nullable)
-- [ ] `meta_json` (json, nullable) — Dados extras de diagnóstico
+- [x] `id` (bigIncrements)
+- [x] `news_source_id` (foreignId, index)
+- [x] `started_at` (timestamp)
+- [x] `finished_at` (timestamp, nullable)
+- [x] `status` (enum: running, success, partial, failed)
+- [x] `items_found` (integer, default 0)
+- [x] `items_new` (integer, default 0)
+- [x] `items_failed` (integer, default 0)
+- [x] `response_time_avg_ms` (integer, nullable)
+- [x] `error_message` (text, nullable)
+- [x] `meta_json` (json, nullable) — Dados extras de diagnóstico
 
 #### 1.3.4 Tabela `source_discovery_runs` *(NOVA)*
 > Persistência do wizard assíncrono. Sem isso, o Step 1–5 fica dependente de cache efêmero sem rastreabilidade.
 
-- [ ] `id` (**uuid**) — UUID para evitar enumeração fácil e facilitar polling assíncrono no frontend
-- [ ] `requested_url` (string)
-- [ ] `status` (enum: pending, running, completed, failed)
-- [ ] `result_json` (json, nullable) — Feed detectado, sitemap, padrões de URL, score, preview cards
-- [ ] `selector_test_snapshots` (json, nullable) — Array de snapshots dos testes de seletor: `[{url, selector, result_preview, tested_at}]`. Facilita debug de "por que quebrou?"
-- [ ] `error_message` (text, nullable)
-- [ ] `started_at` (timestamp, nullable)
-- [ ] `finished_at` (timestamp, nullable)
-- [ ] timestamps
+- [x] `id` (**uuid**) — UUID para evitar enumeração fácil e facilitar polling assíncrono no frontend
+- [x] `requested_url` (string)
+- [x] `status` (enum: pending, running, completed, failed)
+- [x] `result_json` (json, nullable) — Feed detectado, sitemap, padrões de URL, score, preview cards
+- [x] `selector_test_snapshots` (json, nullable) — Array de snapshots dos testes de seletor: `[{url, selector, result_preview, tested_at}]`. Facilita debug de "por que quebrou?"
+- [x] `error_message` (text, nullable)
+- [x] `started_at` (timestamp, nullable)
+- [x] `finished_at` (timestamp, nullable)
+- [x] timestamps
 
 #### 1.3.5 Tabela `news_raw_items` *(NOVA)*
 > Camada bruta de staging antes do `news_items`. Preserva o dado "como veio" para replay, reprocessamento e comparação.
 > **Modelo canônico único (Modelo 1):** Cada URL existe uma única vez por fonte. O registro é atualizado a cada execução que a encontra.
 
-- [ ] `id` (bigIncrements)
-- [ ] `news_source_id` (foreignId, index)
-- [ ] `news_source_run_id` (foreignId, nullable, index) — Run que **primeiro** descobriu este item
-- [ ] `last_seen_run_id` (foreignId, nullable) — Run que **mais recentemente** viu este item
-- [ ] `raw_url` (string) — URL original como veio do feed/crawl
-- [ ] `normalized_url` (string, index) — URL limpa (sem UTMs)
-- [ ] `url_hash` (string, index) — SHA-256 da URL canônica
-- [ ] `guid` (string, nullable, index) — Identificador auxiliar RSS/WordPress
-- [ ] `title_raw` (string, nullable) — Título como veio
-- [ ] `body_raw` (longText, nullable) — HTML/texto cru original do feed
-- [ ] `raw_payload` (json, nullable) — Todos os campos do item RSS/sitemap como JSON
-- [ ] `first_seen_at` (timestamp) — Quando esta URL apareceu pela primeira vez
-- [ ] `last_seen_at` (timestamp) — Última vez que a URL foi vista num crawl
-- [ ] `seen_count` (integer, default 1) — Quantas vezes este item foi visto (para heurísticas)
-- [ ] `processing_status` (enum: pending, processing, promoted, skipped, failed)
-- [ ] `fetch_attempts` (integer, default 0) — **Fica aqui, não no NewsItem.** Erro pré-promoção é rastreado aqui.
-- [ ] `last_fetch_error` (text, nullable) — Se falhou antes de virar NewsItem, o erro fica aqui.
-- [ ] `last_fetch_at` (timestamp, nullable)
-- [ ] timestamps
-- [ ] **Unique composto:** `(news_source_id, url_hash)` — Modelo canônico: uma URL por fonte
+- [x] `id` (bigIncrements)
+- [x] `news_source_id` (foreignId, index)
+- [x] `news_source_run_id` (foreignId, nullable, index) — Run que **primeiro** descobriu este item
+- [x] `last_seen_run_id` (foreignId, nullable) — Run que **mais recentemente** viu este item
+- [x] `raw_url` (string) — URL original como veio do feed/crawl
+- [x] `normalized_url` (string, index) — URL limpa (sem UTMs)
+- [x] `url_hash` (string, index) — SHA-256 da URL canônica
+- [x] `guid` (string, nullable, index) — Identificador auxiliar RSS/WordPress
+- [x] `title_raw` (string, nullable) — Título como veio
+- [x] `body_raw` (longText, nullable) — HTML/texto cru original do feed
+- [x] `raw_payload` (json, nullable) — Todos os campos do item RSS/sitemap como JSON
+- [x] `first_seen_at` (timestamp) — Quando esta URL apareceu pela primeira vez
+- [x] `last_seen_at` (timestamp) — Última vez que a URL foi vista num crawl
+- [x] `seen_count` (integer, default 1) — Quantas vezes este item foi visto (para heurísticas)
+- [x] `processing_status` (enum: pending, processing, promoted, skipped, failed)
+- [x] `fetch_attempts` (integer, default 0) — **Fica aqui, não no NewsItem.** Erro pré-promoção é rastreado aqui.
+- [x] `last_fetch_error` (text, nullable) — Se falhou antes de virar NewsItem, o erro fica aqui.
+- [x] `last_fetch_at` (timestamp, nullable)
+- [x] timestamps
+- [x] **Unique composto:** `(news_source_id, url_hash)` — Modelo canônico: uma URL por fonte
 
 #### 1.3.6 Tabela `news_items`
-- [ ] `id` (bigIncrements)
-- [ ] `news_source_id` (foreignId)
-- [ ] `news_raw_item_id` (foreignId, nullable) — Referência ao item bruto de origem
-- [ ] `url` (string) — URL canônica (limpa de UTMs)
-- [ ] `url_hash` (string, unique, index) — SHA-256 da URL canônica
-- [ ] `raw_url` (string) — URL original como veio
-- [ ] `guid` (string, nullable, index) — Identificador auxiliar
-- [ ] `title` (string)
-- [ ] `subtitle` (string, nullable)
-- [ ] `author_raw` (string, nullable) — Texto cru do autor do feed
-- [ ] `author_normalized` (string, nullable) — Autor reconciliado
-- [ ] `body_html` (longText, nullable) — Corpo em HTML limpo
-- [ ] `body_text` (longText, nullable) — Corpo plain text (para IA/indexação)
-- [ ] `excerpt` (text, nullable) — Snippet/resumo curto
-- [ ] `hero_image_url` (string, nullable) — Imagem principal
-- [ ] `categories_raw` (json, nullable) — Array de categorias vindas do feed/HTML
-- [ ] `language` (string(5), nullable, default 'pt-BR')
-- [ ] `published_at_raw` (string, nullable) — Texto cru da data
-- [ ] `published_at_parsed` (timestamp, nullable)
-- [ ] `published_at_utc` (timestamp, nullable)
-- [ ] `published_at_timezone` (string, nullable)
-- [ ] `published_at_source` (enum: rss, jsonld, og_tag, time_tag, text_pattern, manual)
-- [ ] `modified_at_raw` (string, nullable)
-- [ ] `modified_at_utc` (timestamp, nullable)
-- [ ] `extraction_completeness` (integer, default 0) — Score 0–100
-- [ ] `content_source` (enum: feed_only, feed_plus_html, html_only)
-- [ ] `extraction_status` (enum: pending, extracted, extraction_failed) — **Separado de IA.** Rastreia apenas o resultado da extração/promoção.
-- [ ] `enrichment_status` (enum: none, enriched_l1, enriched_l2, enrichment_failed) — **Separado de extração.** Rastreia apenas o resultado do enriquecimento de IA.
-- [ ] `is_duplicate_candidate` (boolean, default false)
-- [ ] `duplicate_of_news_item_id` (foreignId, nullable) — Aponta para o item original
-- [ ] timestamps + softDeletes
-- [ ] **Índice:** `(extraction_status, enrichment_status, published_at_utc)` — Para filtros rápidos no painel
-- [ ] **Índice:** `(news_source_id, published_at_utc)`
+- [x] `id` (bigIncrements)
+- [x] `news_source_id` (foreignId)
+- [x] `news_raw_item_id` (foreignId, nullable) — Referência ao item bruto de origem
+- [x] `url` (string) — URL canônica (limpa de UTMs)
+- [x] `url_hash` (string, unique, index) — SHA-256 da URL canônica
+- [x] `raw_url` (string) — URL original como veio
+- [x] `guid` (string, nullable, index) — Identificador auxiliar
+- [x] `title` (string)
+- [x] `subtitle` (string, nullable)
+- [x] `author_raw` (string, nullable) — Texto cru do autor do feed
+- [x] `author_normalized` (string, nullable) — Autor reconciliado
+- [x] `body_html` (longText, nullable) — Corpo em HTML limpo
+- [x] `body_text` (longText, nullable) — Corpo plain text (para IA/indexação)
+- [x] `excerpt` (text, nullable) — Snippet/resumo curto
+- [x] `hero_image_url` (string, nullable) — Imagem principal
+- [x] `categories_raw` (json, nullable) — Array de categorias vindas do feed/HTML
+- [x] `language` (string(5), nullable, default 'pt-BR')
+- [x] `published_at_raw` (string, nullable) — Texto cru da data
+- [x] `published_at_parsed` (timestamp, nullable)
+- [x] `published_at_utc` (timestamp, nullable)
+- [x] `published_at_timezone` (string, nullable)
+- [x] `published_at_source` (enum: rss, jsonld, og_tag, time_tag, text_pattern, manual)
+- [x] `modified_at_raw` (string, nullable)
+- [x] `modified_at_utc` (timestamp, nullable)
+- [x] `extraction_completeness` (integer, default 0) — Score 0–100
+- [x] `content_source` (enum: feed_only, feed_plus_html, html_only)
+- [x] `extraction_status` (enum: pending, extracted, extraction_failed) — **Separado de IA.** Rastreia apenas o resultado da extração/promoção.
+- [x] `enrichment_status` (enum: none, enriched_l1, enriched_l2, enrichment_failed) — **Separado de extração.** Rastreia apenas o resultado do enriquecimento de IA.
+- [x] `is_duplicate_candidate` (boolean, default false)
+- [x] `duplicate_of_news_item_id` (foreignId, nullable) — Aponta para o item original
+- [x] timestamps + softDeletes
+- [x] **Índice:** `(extraction_status, enrichment_status, published_at_utc)` — Para filtros rápidos no painel
+- [x] **Índice:** `(news_source_id, published_at_utc)`
 
 > **Decisão (Lifecycle):** `fetch_attempts` e `last_fetch_error` ficam no `NewsRawItem` porque erros de fetch/extração acontecem **antes** da promoção para `NewsItem`. Se o fetch falha, não existe `NewsItem` para armazenar o erro. O `NewsItem` só registra status pós-promoção.
 
 #### 1.3.7 Tabela `news_item_media`
-- [ ] `id` (bigIncrements)
-- [ ] `news_item_id` (foreignId, index)
-- [ ] `type` (enum: hero, gallery, video, embed)
-- [ ] `url` (string)
-- [ ] `width` (integer, nullable)
-- [ ] `height` (integer, nullable)
-- [ ] `alt_text` (string, nullable)
-- [ ] `position` (integer, default 0)
-- [ ] timestamps
+- [x] `id` (bigIncrements)
+- [x] `news_item_id` (foreignId, index)
+- [x] `type` (enum: hero, gallery, video, embed)
+- [x] `url` (string)
+- [x] `width` (integer, nullable)
+- [x] `height` (integer, nullable)
+- [x] `alt_text` (string, nullable)
+- [x] `position` (integer, default 0)
+- [x] timestamps
 
 #### 1.3.8 Tabela `news_item_ai_metadata`
-- [ ] `id` (bigIncrements)
-- [ ] `news_item_id` (foreignId, unique)
-- [ ] `city` (string, nullable)
-- [ ] `state_abbr` (string(2), nullable)
-- [ ] `news_theme_id` (foreignId, nullable) — FK para `news_themes`
-- [ ] `urgency` (enum: baixa, media, alta, nullable)
-- [ ] `relevance_score` (float, nullable)
-- [ ] `entities` (json, nullable) — Array de {type, name}
-- [ ] `five_ws` (json, nullable) — {who, what, where, when, why, how}
-- [ ] `suggested_titles` (json, nullable)
-- [ ] `summary_bullets` (json, nullable)
-- [ ] `ai_model_used` (string, nullable) — Ex: gpt-4o-mini
-- [ ] `ai_tokens_used` (integer, nullable)
-- [ ] `enrichment_level` (enum: none, level_1, level_2)
-- [ ] timestamps
-- [ ] **Índice:** `(news_theme_id, city, urgency)` — Para filtros rápidos no painel
+- [x] `id` (bigIncrements)
+- [x] `news_item_id` (foreignId, unique)
+- [x] `city` (string, nullable)
+- [x] `state_abbr` (string(2), nullable)
+- [x] `news_theme_id` (foreignId, nullable) — FK para `news_themes`
+- [x] `urgency` (enum: baixa, media, alta, nullable)
+- [x] `relevance_score` (float, nullable)
+- [x] `entities` (json, nullable) — Array de {type, name}
+- [x] `five_ws` (json, nullable) — {who, what, where, when, why, how}
+- [x] `suggested_titles` (json, nullable)
+- [x] `summary_bullets` (json, nullable)
+- [x] `ai_model_used` (string, nullable) — Ex: gpt-4o-mini
+- [x] `ai_tokens_used` (integer, nullable)
+- [x] `enrichment_level` (enum: none, level_1, level_2)
+- [x] timestamps
+- [x] **Índice:** `(news_theme_id, city, urgency)` — Para filtros rápidos no painel
 
 #### 1.3.9 Tabela `news_clusters`
-- [ ] `id` (bigIncrements)
-- [ ] `label` (string, nullable)
-- [ ] timestamps
+- [x] `id` (bigIncrements)
+- [x] `label` (string, nullable)
+- [x] timestamps
 
 #### 1.3.10 Tabela pivot `news_cluster_items`
-- [ ] `news_cluster_id` (foreignId)
-- [ ] `news_item_id` (foreignId)
-- [ ] `similarity_score` (float)
+- [x] `news_cluster_id` (foreignId)
+- [x] `news_item_id` (foreignId)
+- [x] `similarity_score` (float)
 - [ ] **Unique composto:** `(news_cluster_id, news_item_id)`
 
 ### 1.4 Enums PHP
 
-- [ ] `DiscoveryMode` — auto, feed, sitemap, html_listing
-- [ ] `FeedQualityProfile` — full, partial, teaser_only *(diagnóstico, não regra operacional)*
-- [ ] `FetchDetailMode` — never, when_incomplete, always *(regra operacional do spider)*
-- [ ] `PublishedAtSource` — rss, jsonld, og_tag, time_tag, text_pattern, manual
-- [ ] `ExtractionStatus` — pending, extracted, extraction_failed
-- [ ] `EnrichmentStatus` — none, enriched_l1, enriched_l2, enrichment_failed
-- [ ] `ContentSource` — feed_only, feed_plus_html, html_only
-- [ ] `MediaType` — hero, gallery, video, embed
-- [ ] `Urgency` — baixa, media, alta
-- [ ] `SourceType` — portal, prefeitura, blog, agencia, whatsapp
-- [ ] `RawItemStatus` — pending, processing, promoted, skipped, failed
-- [ ] `SourceRunStatus` — running, success, partial, failed
-- [ ] `DiscoveryRunStatus` — pending, running, completed, failed
+- [x] `DiscoveryMode` — auto, feed, sitemap, html_listing
+- [x] `FeedQualityProfile` — full, partial, teaser_only *(diagnóstico, não regra operacional)*
+- [x] `FetchDetailMode` — never, when_incomplete, always *(regra operacional do spider)*
+- [x] `PublishedAtSource` — rss, jsonld, og_tag, time_tag, text_pattern, manual
+- [x] `ExtractionStatus` — pending, extracted, extraction_failed
+- [x] `EnrichmentStatus` — none, enriched_l1, enriched_l2, enrichment_failed
+- [x] `ContentSource` — feed_only, feed_plus_html, html_only
+- [x] `MediaType` — hero, gallery, video, embed
+- [x] `Urgency` — baixa, media, alta
+- [x] `SourceType` — portal, prefeitura, blog, agencia, whatsapp
+- [x] `RawItemStatus` — pending, processing, promoted, skipped, failed
+- [x] `SourceRunStatus` — running, success, partial, failed
+- [x] `DiscoveryRunStatus` — pending, running, completed, failed
 
 ### 1.5 Models Eloquent
 
-- [ ] `NewsTheme` — Tabela de temas editáveis. `hasMany(NewsItemAiMetadata)`
-- [ ] `NewsSource` — casts JSON, relação `hasMany(NewsItem)`, `hasMany(NewsSourceRun)`, `hasMany(NewsRawItem)`
-- [ ] `NewsSourceRun` — relação `belongsTo(NewsSource)`, `hasMany(NewsRawItem)`
-- [ ] `SourceDiscoveryRun` — Model independente (wizard async)
-- [ ] `NewsRawItem` — relação `belongsTo(NewsSource)`, `belongsTo(NewsSourceRun)`, `hasOne(NewsItem)`
-- [ ] `NewsItem` — relações: `belongsTo(NewsSource)`, `belongsTo(NewsRawItem)`, `hasOne(NewsItemAiMetadata)`, `hasMany(NewsItemMedia)`, `belongsToMany(NewsCluster)`, **`belongsTo(NewsItem::class, 'duplicate_of_news_item_id')` (self-reference)**, **`hasMany(NewsItem::class, 'duplicate_of_news_item_id')` (duplicatas reversas)**
-- [ ] `NewsItemMedia` — relação `belongsTo(NewsItem)`
-- [ ] `NewsItemAiMetadata` — relação `belongsTo(NewsItem)`, `belongsTo(NewsTheme)`
-- [ ] `NewsCluster` — relação `belongsToMany(NewsItem)`
+- [x] `NewsTheme` — Tabela de temas editáveis. `hasMany(NewsItemAiMetadata)`
+- [x] `NewsSource` — casts JSON, relação `hasMany(NewsItem)`, `hasMany(NewsSourceRun)`, `hasMany(NewsRawItem)`
+- [x] `NewsSourceRun` — relação `belongsTo(NewsSource)`, `hasMany(NewsRawItem)`
+- [x] `SourceDiscoveryRun` — Model independente (wizard async)
+- [x] `NewsRawItem` — relação `belongsTo(NewsSource)`, `belongsTo(NewsSourceRun)`, `hasOne(NewsItem)`
+- [x] `NewsItem` — relações: `belongsTo(NewsSource)`, `belongsTo(NewsRawItem)`, `hasOne(NewsItemAiMetadata)`, `hasMany(NewsItemMedia)`, `belongsToMany(NewsCluster)`, **`belongsTo(NewsItem::class, 'duplicate_of_news_item_id')` (self-reference)**, **`hasMany(NewsItem::class, 'duplicate_of_news_item_id')` (duplicatas reversas)**
+- [x] `NewsItemMedia` — relação `belongsTo(NewsItem)`
+- [x] `NewsItemAiMetadata` — relação `belongsTo(NewsItem)`, `belongsTo(NewsTheme)`
+- [x] `NewsCluster` — relação `belongsToMany(NewsItem)`
 
 ---
 
@@ -310,11 +310,11 @@ NewsRadar/
 > **Nota:** A inteligência de extração fica nos **Services** (testáveis unitariamente), não nos Spiders. Os Spiders são apenas orquestradores finos.
 
 ### 2.1 `UrlNormalizerService`
-- [ ] Utilizar `league/uri` para canonicalizar URLs
-- [ ] Remover parâmetros UTM (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`)
-- [ ] Normalizar trailing slash
-- [ ] Forçar HTTPS quando disponível
-- [ ] Gerar `url_hash` (SHA-256) para deduplicação rápida
+- [x] Utilizar `league/uri` para canonicalizar URLs
+- [x] Remover parâmetros UTM (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`)
+- [x] Normalizar trailing slash
+- [x] Forçar HTTPS quando disponível
+- [x] Gerar `url_hash` (SHA-256) para deduplicação rápida
 
 #### Destaque: Schema Oficial do Campo JSON (`crawling_config`)
 
@@ -379,130 +379,130 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 
 > **`config_version`** permite evolução futura do schema sem quebrar fontes já cadastradas. **`preset_origin`** registra qual preset gerou esta config inicialmente (o operador pode ter ajustado depois).
 ### 2.2 `DateParserService`
-- [ ] Receber data crua (string) + array de `date_formats` da fonte + `timezone_default`
-- [ ] Aplicar **`date_preprocessors`** antes do parse (da config da fonte):
-  - [ ] Suportar tipo `replace` (ex: remover "min", "hrs", "às")
-  - [ ] Suportar tipo `trim`
-  - [ ] Suportar tipo `regex_extract` (para capturar data de dentro de texto misto)
-- [ ] Tentar parse na ordem: formatos configurados da fonte → autodetect do Carbon
-- [ ] Retornar objeto DTO com: `raw`, `parsed`, `utc`, `timezone`, `source`
+- [x] Receber data crua (string) + array de `date_formats` da fonte + `timezone_default`
+- [x] Aplicar **`date_preprocessors`** antes do parse (da config da fonte):
+  - [x] Suportar tipo `replace` (ex: remover "min", "hrs", "às")
+  - [x] Suportar tipo `trim`
+  - [x] Suportar tipo `regex_extract` (para capturar data de dentro de texto misto)
+- [x] Tentar parse na ordem: formatos configurados da fonte → autodetect do Carbon
+- [x] Retornar objeto DTO com: `raw`, `parsed`, `utc`, `timezone`, `source`
 
 ### 2.3 `BoilerplateCleanerService`
-- [ ] Receber HTML bruto + regras de limpeza (do `crawling_config.boilerplate_rules`)
-- [ ] **Regras globais (padrão, sempre ativas):**
-  - [ ] Remover `<style>…</style>`, `<script>…</script>`
-  - [ ] Remover "O post … apareceu primeiro em …"
-  - [ ] Remover CTAs sociais ("Clique aqui e faça parte do nosso grupo")
-  - [ ] Remover imagens emoji WordPress (domínio `s.w.org`)
-  - [ ] Remover blocos CTA editoriais ("Comente e compartilhe")
-  - [ ] Decode HTML entities, normalizar quebras de linha
-- [ ] **Regras por fonte (editáveis no painel):**
-  - [ ] `remove_selectors` — seletores CSS para remover nós inteiros
-  - [ ] `remove_text_patterns` — regex para remover parágrafos com matches
+- [x] Receber HTML bruto + regras de limpeza (do `crawling_config.boilerplate_rules`)
+- [x] **Regras globais (padrão, sempre ativas):**
+  - [x] Remover `<style>…</style>`, `<script>…</script>`
+  - [x] Remover "O post … apareceu primeiro em …"
+  - [x] Remover CTAs sociais ("Clique aqui e faça parte do nosso grupo")
+  - [x] Remover imagens emoji WordPress (domínio `s.w.org`)
+  - [x] Remover blocos CTA editoriais ("Comente e compartilhe")
+  - [x] Decode HTML entities, normalizar quebras de linha
+- [x] **Regras por fonte (editáveis no painel):**
+  - [x] `remove_selectors` — seletores CSS para remover nós inteiros
+  - [x] `remove_text_patterns` — regex para remover parágrafos com matches
 
 ### 2.4 `FeedParserService`
-- [ ] Utilizar **SimplePie** para parsear RSS/Atom (namespaces, `dc:creator`, `content:encoded`)
-- [ ] Extrair campos na ordem de prioridade:
-  - [ ] Título: `title`
-  - [ ] Autor: `dc:creator` → `creator`
-  - [ ] Data: `isoDate` → `pubDate`
-  - [ ] Resumo: `contentSnippet` → `content:encodedSnippet` → `content`
-  - [ ] Corpo: `content:encoded` → `content` → vazio
-  - [ ] Tags: `categories`
-  - [ ] Identificador: `guid` (auxiliar, nunca como URL)
-  - [ ] URL: `link` (normalizado via `UrlNormalizerService`)
-- [ ] Salvar `author_raw` separado
-- [ ] Extrair imagens do HTML do `content:encoded`:
-  - [ ] Ignorar domínios de emoji (`s.w.org`, similares)
-  - [ ] Preferir imagem com maior `width` no `srcset`
-  - [ ] Separar `hero_image` de `gallery_images[]`
-- [ ] Retornar array de DTOs (Value Objects) para criação do `NewsRawItem`
+- [x] Utilizar **SimplePie** para parsear RSS/Atom (namespaces, `dc:creator`, `content:encoded`)
+- [x] Extrair campos na ordem de prioridade:
+  - [x] Título: `title`
+  - [x] Autor: `dc:creator` → `creator`
+  - [x] Data: `isoDate` → `pubDate`
+  - [x] Resumo: `contentSnippet` → `content:encodedSnippet` → `content`
+  - [x] Corpo: `content:encoded` → `content` → vazio
+  - [x] Tags: `categories`
+  - [x] Identificador: `guid` (auxiliar, nunca como URL)
+  - [x] URL: `link` (normalizado via `UrlNormalizerService`)
+- [x] Salvar `author_raw` separado
+- [x] Extrair imagens do HTML do `content:encoded`:
+  - [x] Ignorar domínios de emoji (`s.w.org`, similares)
+  - [x] Preferir imagem com maior `width` no `srcset`
+  - [x] Separar `hero_image` de `gallery_images[]`
+- [x] Retornar array de DTOs (Value Objects) para criação do `NewsRawItem`
 
 ### 2.5 `FeedQualityScorerService`
-- [ ] Receber array de 3–5 itens parseados do feed
-- [ ] Calcular score de completude:
-  - [ ] `title` presente = +20
-  - [ ] `link` presente = +20
-  - [ ] `isoDate`/`pubDate` presente = +15
-  - [ ] `content:encoded` > 600 chars = +20
-  - [ ] Imagem detectável = +10
-  - [ ] Autor presente = +5
-  - [ ] Categorias presentes = +5
-  - [ ] Teaser limpo (snippet) = +5
-- [ ] Resultado: score 80+ → `full` | 50–79 → `partial` | <50 → `teaser_only`
-- [ ] Detectar flags: `wordpress_like`, `has_inline_images`, `has_gallery`, `has_boilerplate`, `has_categories`
+- [x] Receber array de 3–5 itens parseados do feed
+- [x] Calcular score de completude:
+  - [x] `title` presente = +20
+  - [x] `link` presente = +20
+  - [x] `isoDate`/`pubDate` presente = +15
+  - [x] `content:encoded` > 600 chars = +20
+  - [x] Imagem detectável = +10
+  - [x] Autor presente = +5
+  - [x] Categorias presentes = +5
+  - [x] Teaser limpo (snippet) = +5
+- [x] Resultado: score 80+ → `full` | 50–79 → `partial` | <50 → `teaser_only`
+- [x] Detectar flags: `wordpress_like`, `has_inline_images`, `has_gallery`, `has_boilerplate`, `has_categories`
 
 ### 2.6 `SitemapParserService` *(NOVO)*
 > Sitemap tem comportamento próprio: index, lastmod, news sitemap. Merece tratamento dedicado.
 
-- [ ] Receber URL do sitemap (configurável ou autodescoberto)
-- [ ] Detectar tipo: **Sitemap Index** vs **Sitemap simples** vs **News Sitemap**
-  - [ ] Se Index → percorrer sitemaps filhos recursivamente
-- [ ] Extrair `<loc>` (URL do artigo) e `<lastmod>` (data de modificação)
-- [ ] Para News Sitemaps: extrair `<news:title>`, `<news:publication_date>`, `<news:keywords>`
-- [ ] Aplicar `article_url_patterns` e `ignore_url_patterns` para filtrar
-- [ ] Normalizar todas as URLs via `UrlNormalizerService`
-- [ ] Retornar array de DTOs ordenados por `lastmod` (mais recentes primeiro)
+- [x] Receber URL do sitemap (configurável ou autodescoberto)
+- [x] Detectar tipo: **Sitemap Index** vs **Sitemap simples** vs **News Sitemap**
+  - [x] Se Index → percorrer sitemaps filhos recursivamente
+- [x] Extrair `<loc>` (URL do artigo) e `<lastmod>` (data de modificação)
+- [x] Para News Sitemaps: extrair `<news:title>`, `<news:publication_date>`, `<news:keywords>`
+- [x] Aplicar `article_url_patterns` e `ignore_url_patterns` para filtrar
+- [x] Normalizar todas as URLs via `UrlNormalizerService`
+- [x] Retornar array de DTOs ordenados por `lastmod` (mais recentes primeiro)
 
 ### 2.7 `ListingDiscoveryService` *(NOVO — 1ª classe)*
 > Tratamento operacional completo para portais sem RSS (Ex: Diarinho, VIPSocial). Caso de primeira classe, não fallback.
 
-- [ ] Receber `listing_urls` + seletores de listagem da config da fonte
-- [ ] Para cada URL de listagem:
-  - [ ] Abrir via `HttpFetchService`
-  - [ ] Localizar container via `listing_container_selectors` (ex: `.news-list`, `main`)
-  - [ ] Extrair cards de notícia via `listing_item_selectors` (ex: `.card-noticia`, `article`)
-  - [ ] Para cada card, extrair:
-    - [ ] Link → `listing_link_selectors` (com resolução de URLs relativas via `relative_url_base`)
-    - [ ] Título prévio → `listing_title_selectors`
-    - [ ] Imagem prévia → `listing_image_selectors` (com resolução de URLs relativas)
-    - [ ] Excerpt prévio → `listing_excerpt_selectors`
-- [ ] Normalizar todas as URLs via `UrlNormalizerService`
-- [ ] Aplicar filtros `article_url_patterns` e `ignore_url_patterns`
-- [ ] Deduplicar links dentro da própria listagem
-- [ ] **Paginação automática:**
-  - [ ] Detectar link de próxima página via `next_page_selectors` (ex: `a.next`, `.pagination a.next`)
-  - [ ] Seguir até `listing_max_pages` (padrão: 3)
-  - [ ] **Parada inteligente:** Se `stop_when_seen_known_urls = true`, parar após encontrar `max_known_urls_before_stop` URLs que já existem no banco (evita re-crawling desnecessário)
-- [ ] Retornar array de candidatos de notícia (DTOs)
+- [x] Receber `listing_urls` + seletores de listagem da config da fonte
+- [x] Para cada URL de listagem:
+  - [x] Abrir via `HttpFetchService`
+  - [x] Localizar container via `listing_container_selectors` (ex: `.news-list`, `main`)
+  - [x] Extrair cards de notícia via `listing_item_selectors` (ex: `.card-noticia`, `article`)
+  - [x] Para cada card, extrair:
+    - [x] Link → `listing_link_selectors` (com resolução de URLs relativas via `relative_url_base`)
+    - [x] Título prévio → `listing_title_selectors`
+    - [x] Imagem prévia → `listing_image_selectors` (com resolução de URLs relativas)
+    - [x] Excerpt prévio → `listing_excerpt_selectors`
+- [x] Normalizar todas as URLs via `UrlNormalizerService`
+- [x] Aplicar filtros `article_url_patterns` e `ignore_url_patterns`
+- [x] Deduplicar links dentro da própria listagem
+- [x] **Paginação automática:**
+  - [x] Detectar link de próxima página via `next_page_selectors` (ex: `a.next`, `.pagination a.next`)
+  - [x] Seguir até `listing_max_pages` (padrão: 3)
+  - [x] **Parada inteligente:** Se `stop_when_seen_known_urls = true`, parar após encontrar `max_known_urls_before_stop` URLs que já existem no banco (evita re-crawling desnecessário)
+- [x] Retornar array de candidatos de notícia (DTOs)
 
 ### 2.8 `FieldResolverService` *(NOVO)*
 > Cada campo da notícia pode vir de fontes diferentes (listing, feed, detalhe HTML, JSON-LD, OG). Este service centraliza a resolução, evitando lógica espalhada pelos spiders.
 
-- [ ] `resolveTitle(listingData, feedData, articleData)` — Prioridade: articleJSON-LD > article OG > article H1 > feed title > listing title
-- [ ] `resolveSubtitle(feedData, articleData)` — Prioridade: article meta description > articleJSON-LD description > feed snippet
-- [ ] `resolveAuthor(feedData, articleData)` — Prioridade: `dc:creator` > articleJSON-LD author > article selector > feed creator
-- [ ] `resolvePublishedAt(feedData, articleData, config)` — Aplica `DateParserService` com `date_preprocessors`. Prioridade: articleJSON-LD datePublished > article `<time>` > article OG article:published_time > feed isoDate > feed pubDate > text_pattern
-- [ ] `resolveBody(feedData, articleData, config)` — Prioridade: article body selector (limpo) > feed `content:encoded`. Aplica `body_stop_text_patterns` para cortar conteúdo após marcadores de encerramento
-- [ ] `resolveHeroImage(listingData, feedData, articleData, config)` — Aplica `image_extraction_strategy`:
-  - [ ] `listing_first_then_og_then_body` (padrão para VIPSocial/Diarinho)
-  - [ ] `og_first_then_body` (padrão para Itapema/Correio)
-  - [ ] `body_only` (casos raros)
-- [ ] `resolveCategories(feedData, articleData)` — Merge de tags do feed (`categories`) com meta keywords + seletores do artigo. Normalizar strings (lowercase, trim)
-- [ ] **Merge final:** Preencher campos faltantes usando fontes de prioridade inferior. Registrar a `source` de cada campo resolvido (para auditoria)
+- [x] `resolveTitle(listingData, feedData, articleData)` — Prioridade: articleJSON-LD > article OG > article H1 > feed title > listing title
+- [x] `resolveSubtitle(feedData, articleData)` — Prioridade: article meta description > articleJSON-LD description > feed snippet
+- [x] `resolveAuthor(feedData, articleData)` — Prioridade: `dc:creator` > articleJSON-LD author > article selector > feed creator
+- [x] `resolvePublishedAt(feedData, articleData, config)` — Aplica `DateParserService` com `date_preprocessors`. Prioridade: articleJSON-LD datePublished > article `<time>` > article OG article:published_time > feed isoDate > feed pubDate > text_pattern
+- [x] `resolveBody(feedData, articleData, config)` — Prioridade: article body selector (limpo) > feed `content:encoded`. Aplica `body_stop_text_patterns` para cortar conteúdo após marcadores de encerramento
+- [x] `resolveHeroImage(listingData, feedData, articleData, config)` — Aplica `image_extraction_strategy`:
+  - [x] `listing_first_then_og_then_body` (padrão para VIPSocial/Diarinho)
+  - [x] `og_first_then_body` (padrão para Itapema/Correio)
+  - [x] `body_only` (casos raros)
+- [x] `resolveCategories(feedData, articleData)` — Merge de tags do feed (`categories`) com meta keywords + seletores do artigo. Normalizar strings (lowercase, trim)
+- [x] **Merge final:** Preencher campos faltantes usando fontes de prioridade inferior. Registrar a `source` de cada campo resolvido (para auditoria)
 
 ### 2.9 `ArticleExtractorService`
-- [ ] Receber HTML da página + configuração de `article_extractors` da fonte
-- [ ] Implementar extração em camadas (A → B → C → D → E):
-  - [ ] **Camada A:** Parse JSON-LD (`schema.org/NewsArticle`)
-  - [ ] **Camada B:** Parse Open Graph meta tags
-  - [ ] **Camada C:** Parse HTML semântico com seletores CSS do banco (via `symfony/css-selector`)
-  - [ ] **Camada D:** Aplicar `BoilerplateCleanerService` + `body_stop_text_patterns` ao corpo
-  - [ ] **Camada E:** Aplicar seletores custom (override por fonte)
-- [ ] Suportar extração de corpo por **container + marcador de parada** (ex: `.post__content` até "Para mais notícias")
-- [ ] Suportar iteração em siblings quando corpo não vem num único container (caso Diarinho)
-- [ ] Calcular `extraction_completeness` (score 0–100)
-- [ ] Delegar resolução final de campos ao `FieldResolverService`
+- [x] Receber HTML da página + configuração de `article_extractors` da fonte
+- [x] Implementar extração em camadas (A → B → C → D → E):
+  - [x] **Camada A:** Parse JSON-LD (`schema.org/NewsArticle`)
+  - [x] **Camada B:** Parse Open Graph meta tags
+  - [x] **Camada C:** Parse HTML semântico com seletores CSS do banco (via `symfony/css-selector`)
+  - [x] **Camada D:** Aplicar `BoilerplateCleanerService` + `body_stop_text_patterns` ao corpo
+  - [x] **Camada E:** Aplicar seletores custom (override por fonte)
+- [x] Suportar extração de corpo por **container + marcador de parada** (ex: `.post__content` até "Para mais notícias")
+- [x] Suportar iteração em siblings quando corpo não vem num único container (caso Diarinho)
+- [x] Calcular `extraction_completeness` (score 0–100)
+- [x] Delegar resolução final de campos ao `FieldResolverService`
 
 ### 2.10 `HttpFetchService`
-- [ ] Wrapper **unificado** do Guzzle, reaproveitado tanto no onboarding quanto nos spiders
-- [ ] Configurar via **Roach Downloader Middleware** (não criar pilha paralela):
-  - [ ] Throttle por host (delay configurável)
-  - [ ] Retry com backoff exponencial (429, 500, timeout)
-  - [ ] User-Agent (rotação ou fixo por fonte)
-  - [ ] Headers custom por fonte (Accept-Language, etc.)
-- [ ] Suporte a concorrência via Promises (pool de requests)
-- [ ] Métricas: medir `response_time_ms` por request (alimenta `news_source_runs`)
+- [x] Wrapper **unificado** do Guzzle, reaproveitado tanto no onboarding quanto nos spiders
+- [x] Configurar via **Roach Downloader Middleware** (não criar pilha paralela):
+  - [x] Throttle por host (delay configurável)
+  - [x] Retry com backoff exponencial (429, 500, timeout)
+  - [x] User-Agent (rotação ou fixo por fonte)
+  - [x] Headers custom por fonte (Accept-Language, etc.)
+- [x] Suporte a concorrência via Promises (pool de requests)
+- [x] Métricas: medir `response_time_ms` por request (alimenta `news_source_runs`)
 
 ---
 
@@ -512,65 +512,65 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 > **Princípio:** Spiders são orquestradores finos. A inteligência pesada fica nos Services.
 
 ### 3.1 `GenericDiscoverySpider` (RoachPHP)
-- [ ] Receber configuração da `NewsSource` (injetada via construtor/contexto)
-- [ ] Decidir estratégia baseado no `discovery_mode` — **delegar sempre ao service especializado:**
-  - [ ] `feed` → Delegar ao `FeedParserService` (SimplePie)
-  - [ ] `sitemap` → Delegar ao `SitemapParserService` (index, lastmod, news sitemap)
-  - [ ] `html_listing` → Delegar ao `ListingDiscoveryService` (paginação, parada inteligente)
-  - [ ] `auto` → Tentar feed → sitemap → listing (nessa ordem, parar no primeiro que retornar resultados)
-- [ ] Para cada URL encontrada: normalizar via `UrlNormalizerService`, verificar `url_hash` no banco
-- [ ] Emitir itens novos para o `PersistencePipeline` → Criar `NewsRawItem` com status `pending`
+- [x] Receber configuração da `NewsSource` (injetada via construtor/contexto)
+- [x] Decidir estratégia baseado no `discovery_mode` — **delegar sempre ao service especializado:**
+  - [x] `feed` → Delegar ao `FeedParserService` (SimplePie)
+  - [x] `sitemap` → Delegar ao `SitemapParserService` (index, lastmod, news sitemap)
+  - [x] `html_listing` → Delegar ao `ListingDiscoveryService` (paginação, parada inteligente)
+  - [x] `auto` → Tentar feed → sitemap → listing (nessa ordem, parar no primeiro que retornar resultados)
+- [x] Para cada URL encontrada: normalizar via `UrlNormalizerService`, verificar `url_hash` no banco
+- [x] Emitir itens novos para o `PersistencePipeline` → Criar `NewsRawItem` com status `pending`
 
 ### 3.2 `GenericArticleSpider` (RoachPHP) — Orquestrador fino
-- [ ] Receber `NewsRawItem` com `processing_status=pending` + configuração da `NewsSource`
-- [ ] **A regra final de busca é `fetch_detail_mode`** (não `feed_quality_profile`, que vira apenas diagnóstico):
-  - [ ] `never` → Promover direto do `raw_payload` sem fetch externo. Ideal para feeds completos de prefeitura onde corpo + imagem já vieram. O `FieldResolverService` resolve campos apenas do feed.
-  - [ ] `when_incomplete` → Usar `FieldResolverService` para verificar completude. Se body, hero_image ou author faltarem → buscar HTML via `HttpFetchService`. Se já completo → pular fetch (ex: Itapema, Correio Catarin.)
-  - [ ] `always` → Sempre buscar HTML do artigo, independente do que veio no feed (ex: Diarinho, VIPSocial, SCC10, qualquer `html_listing`)
-  - [ ] Se `render_js_required=true` → usar Panther (Headless Browser) em vez de Guzzle
-- [ ] Passar HTML para `ArticleExtractorService`
-- [ ] Usar `FieldResolverService` para **merge final** de dados do listing + feed + detalhe HTML
-- [ ] Emitir item processado para pipelines de limpeza e persistência
-- [ ] Promover `NewsRawItem` → `NewsItem`, registrar `content_source` (feed_only, feed_plus_html, html_only)
+- [x] Receber `NewsRawItem` com `processing_status=pending` + configuração da `NewsSource`
+- [x] **A regra final de busca é `fetch_detail_mode`** (não `feed_quality_profile`, que vira apenas diagnóstico):
+  - [x] `never` → Promover direto do `raw_payload` sem fetch externo. Ideal para feeds completos de prefeitura onde corpo + imagem já vieram. O `FieldResolverService` resolve campos apenas do feed.
+  - [x] `when_incomplete` → Usar `FieldResolverService` para verificar completude. Se body, hero_image ou author faltarem → buscar HTML via `HttpFetchService`. Se já completo → pular fetch (ex: Itapema, Correio Catarin.)
+  - [x] `always` → Sempre buscar HTML do artigo, independente do que veio no feed (ex: Diarinho, VIPSocial, SCC10, qualquer `html_listing`)
+  - [x] Se `render_js_required=true` → usar Panther (Headless Browser) em vez de Guzzle
+- [x] Passar HTML para `ArticleExtractorService`
+- [x] Usar `FieldResolverService` para **merge final** de dados do listing + feed + detalhe HTML
+- [x] Emitir item processado para pipelines de limpeza e persistência
+- [x] Promover `NewsRawItem` → `NewsItem`, registrar `content_source` (feed_only, feed_plus_html, html_only)
 
 ### 3.3 RoachPHP Pipelines
-- [ ] `DeduplicationPipeline` — Verifica `url_hash` no banco, descarta duplicatas
-- [ ] `BoilerplateCleaningPipeline` — Aplica `BoilerplateCleanerService`
-- [ ] `PersistencePipeline` — Salva/atualiza `NewsRawItem` e `NewsItem` + `NewsItemMedia`
+- [x] `DeduplicationPipeline` — Verifica `url_hash` no banco, descarta duplicatas
+- [x] `BoilerplateCleaningPipeline` — Aplica `BoilerplateCleanerService`
+- [x] `PersistencePipeline` — Salva/atualiza `NewsRawItem` e `NewsItem` + `NewsItemMedia`
 
 ### 3.4 `FetchNewsSourceJob` (Laravel Job)
-- [ ] Disparado pelo Scheduler conforme `throttle_config` de cada fonte ativa
-- [ ] **Adquirir lock:** Setar `sync_locked_until = now + timeout` na `NewsSource`. Se já locado → abortar (evita runs paralelos)
-- [ ] **Criar `NewsSourceRun`** (status: running, started_at: now)
-- [ ] Verificar `consecutive_failures` (Circuit Breaker: pausar se > N)
-- [ ] Executar `GenericDiscoverySpider` para a fonte
-- [ ] Para cada item novo encontrado: disparar `ProcessNewsItemJob`
-- [ ] **Finalizar `NewsSourceRun`** (items_found, items_new, response_time_avg_ms, status)
-- [ ] Atualizar `NewsSource`: `last_sync_at`, `success_rate`, `avg_response_ms`, `last_items_found`, `next_sync_at`
-- [ ] **Liberar lock:** Setar `sync_locked_until = null`
-- [ ] Em caso de erro: incrementar `consecutive_failures`, salvar `error_message` no run, **liberar lock**
+- [x] Disparado pelo Scheduler conforme `throttle_config` de cada fonte ativa
+- [x] **Adquirir lock:** Setar `sync_locked_until = now + timeout` na `NewsSource`. Se já locado → abortar (evita runs paralelos)
+- [x] **Criar `NewsSourceRun`** (status: running, started_at: now)
+- [x] Verificar `consecutive_failures` (Circuit Breaker: pausar se > N)
+- [x] Executar `GenericDiscoverySpider` para a fonte
+- [x] Para cada item novo encontrado: disparar `ProcessNewsItemJob`
+- [x] **Finalizar `NewsSourceRun`** (items_found, items_new, response_time_avg_ms, status)
+- [x] Atualizar `NewsSource`: `last_sync_at`, `success_rate`, `avg_response_ms`, `last_items_found`, `next_sync_at`
+- [x] **Liberar lock:** Setar `sync_locked_until = null`
+- [x] Em caso de erro: incrementar `consecutive_failures`, salvar `error_message` no run, **liberar lock**
 
 ### 3.5 `ProcessNewsItemJob` (Laravel Job)
-- [ ] Receber `NewsRawItem` pendente
-- [ ] Atualizar `NewsRawItem.processing_status` → `processing`, incrementar `fetch_attempts`
-- [ ] Executar `GenericArticleSpider` para extração → promover para `NewsItem`
-- [ ] Após sucesso:
-  - [ ] `NewsRawItem.processing_status` → `promoted`
-  - [ ] Criar `NewsItem` com `extraction_status = extracted`
-  - [ ] Disparar `ClassifyNewsItemJob` (AI Job 1)
-- [ ] Em caso de erro:
-  - [ ] `NewsRawItem.processing_status` → `failed`
-  - [ ] Salvar `last_fetch_error` no `NewsRawItem` (não no `NewsItem`, que pode não existir)
-  - [ ] Se `fetch_attempts < max_retries` → re-enfileirar com delay
+- [x] Receber `NewsRawItem` pendente
+- [x] Atualizar `NewsRawItem.processing_status` → `processing`, incrementar `fetch_attempts`
+- [x] Executar `GenericArticleSpider` para extração → promover para `NewsItem`
+- [x] Após sucesso:
+  - [x] `NewsRawItem.processing_status` → `promoted`
+  - [x] Criar `NewsItem` com `extraction_status = extracted`
+  - [x] Disparar `ClassifyNewsItemJob` (AI Job 1)
+- [x] Em caso de erro:
+  - [x] `NewsRawItem.processing_status` → `failed`
+  - [x] Salvar `last_fetch_error` no `NewsRawItem` (não no `NewsItem`, que pode não existir)
+  - [x] Se `fetch_attempts < max_retries` → re-enfileirar com delay
 
 ### 3.6 Scheduler (Console Kernel)
-- [ ] Comando artisan `news-radar:dispatch-sources`
-  - [ ] Percorre `NewsSource` ativas onde `now >= next_sync_at`
-  - [ ] Enfileira `FetchNewsSourceJob`
-  - [ ] Roda a cada 1 minuto (o comando respeita o throttle interno de cada fonte)
-- [ ] Comando artisan `news-radar:health-check`
-  - [ ] Relatório de fontes com `consecutive_failures >= 5`
-  - [ ] Roda a cada 1 hora
+- [x] Comando artisan `news-radar:dispatch-sources`
+  - [x] Percorre `NewsSource` ativas onde `now >= next_sync_at`
+  - [x] Enfileira `FetchNewsSourceJob`
+  - [x] Roda a cada 1 minuto (o comando respeita o throttle interno de cada fonte)
+- [x] Comando artisan `news-radar:health-check`
+  - [x] Relatório de fontes com `consecutive_failures >= 5`
+  - [x] Roda a cada 1 hora
 
 ---
 
@@ -579,45 +579,45 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 > **Objetivo:** Criar o "Wizard" de cadastro de fonte no backend. O `spatie/crawler` é usado aqui para discovery e validação, nunca como extrator principal de matéria.
 
 ### 4.1 `SourceDiscoveryService`
-- [ ] Método `discover(string $url)`:
-  - [ ] Criar registro `SourceDiscoveryRun` (status: running)
-  - [ ] Usar `spatie/crawler` para navegar a homepage
-  - [ ] Detectar `<link rel="alternate" type="application/rss+xml">`
-  - [ ] Tentar acessar `/sitemap.xml`, `/news-sitemap.xml` via `SitemapParserService`
-  - [ ] Coletar links `<a href>` da homepage
-  - [ ] Identificar padrões de URL de artigo
-  - [ ] Detectar possíveis `listing_container_selectors` automaticamente
-  - [ ] Detectar se o site precisa de JS (resposta vazia / `<div id="app">`)
-  - [ ] Salvar resultado em `SourceDiscoveryRun.result_json`
-- [ ] Método `analyzeFeed(string $feedUrl)`:
-  - [ ] Parsear 5 itens com `FeedParserService` (SimplePie)
-  - [ ] Calcular `FeedQualityScore`
-  - [ ] Detectar boilerplates, retornar diagnóstico completo
-- [ ] Método `previewArticles(string $mode, string $url, int $count = 3)` — **Genérico, funciona com e sem feed:**
-  - [ ] Se `mode=feed` → Parsear feed, extrair primeiros N itens, usar `ArticleExtractorService` + `FieldResolverService`
-  - [ ] Se `mode=html_listing` → Usar `ListingDiscoveryService` para extrair N cards da listagem, buscar detalhe do primeiro para preview completo
-  - [ ] Retornar cards de preview unificados para o frontend (título, imagem, data, excerpt, score de completude)
+- [x] Método `discover(string $url)`:
+  - [x] Criar registro `SourceDiscoveryRun` (status: running)
+  - [x] Usar `spatie/crawler` para navegar a homepage
+  - [x] Detectar `<link rel="alternate" type="application/rss+xml">`
+  - [x] Tentar acessar `/sitemap.xml`, `/news-sitemap.xml` via `SitemapParserService`
+  - [x] Coletar links `<a href>` da homepage
+  - [x] Identificar padrões de URL de artigo
+  - [x] Detectar possíveis `listing_container_selectors` automaticamente
+  - [x] Detectar se o site precisa de JS (resposta vazia / `<div id="app">`)
+  - [x] Salvar resultado em `SourceDiscoveryRun.result_json`
+- [x] Método `analyzeFeed(string $feedUrl)`:
+  - [x] Parsear 5 itens com `FeedParserService` (SimplePie)
+  - [x] Calcular `FeedQualityScore`
+  - [x] Detectar boilerplates, retornar diagnóstico completo
+- [x] Método `previewArticles(string $mode, string $url, int $count = 3)` — **Genérico, funciona com e sem feed:**
+  - [x] Se `mode=feed` → Parsear feed, extrair primeiros N itens, usar `ArticleExtractorService` + `FieldResolverService`
+  - [x] Se `mode=html_listing` → Usar `ListingDiscoveryService` para extrair N cards da listagem, buscar detalhe do primeiro para preview completo
+  - [x] Retornar cards de preview unificados para o frontend (título, imagem, data, excerpt, score de completude)
 
 ### 4.2 `SourceDiscoveryController`
-- [ ] `POST /api/v1/news-radar/sources/discover` — Recebe `url`, cria `SourceDiscoveryRun`, dispara discovery async, retorna run ID
-- [ ] `GET /api/v1/news-radar/sources/discover/{runId}/status` — Retorna progresso e resultado do discovery
-- [ ] `POST /api/v1/news-radar/sources/preview` — **Genérico:** Recebe `mode` (feed|html_listing) + `url` (feed_url ou listing_url), retorna 3 cards de preview
-- [ ] `POST /api/v1/news-radar/sources/test-selector` — Recebe `url` + `selector`, retorna conteúdo extraído. **Salvar snapshot** em `source_discovery_runs.selector_test_snapshots` (se run ativo) para auditoria.
+- [x] `POST /api/v1/news-radar/sources/discover` — Recebe `url`, cria `SourceDiscoveryRun`, dispara discovery async, retorna run ID
+- [x] `GET /api/v1/news-radar/sources/discover/{runId}/status` — Retorna progresso e resultado do discovery
+- [x] `POST /api/v1/news-radar/sources/preview` — **Genérico:** Recebe `mode` (feed|html_listing) + `url` (feed_url ou listing_url), retorna 3 cards de preview
+- [x] `POST /api/v1/news-radar/sources/test-selector` — Recebe `url` + `selector`, retorna conteúdo extraído. **Salvar snapshot** em `source_discovery_runs.selector_test_snapshots` (se run ativo) para auditoria.
 
 ### 4.3 `NewsSourceController` (CRUD)
-- [ ] `GET    /api/v1/news-radar/sources` — Listar fontes (com filtros: active, profile, failures, source_type)
-- [ ] `POST   /api/v1/news-radar/sources` — Criar nova fonte
-- [ ] `GET    /api/v1/news-radar/sources/{id}` — Detalhes da fonte (com métricas + últimos runs)
-- [ ] `PUT    /api/v1/news-radar/sources/{id}` — Atualizar configuração
-- [ ] `DELETE /api/v1/news-radar/sources/{id}` — Desativar (soft delete)
-- [ ] `POST   /api/v1/news-radar/sources/{id}/sync` — Forçar sync manual imediato
-- [ ] `GET    /api/v1/news-radar/sources/{id}/runs` — Histórico de execuções
+- [x] `GET    /api/v1/news-radar/sources` — Listar fontes (com filtros: active, profile, failures, source_type)
+- [x] `POST   /api/v1/news-radar/sources` — Criar nova fonte
+- [x] `GET    /api/v1/news-radar/sources/{id}` — Detalhes da fonte (com métricas + últimos runs)
+- [x] `PUT    /api/v1/news-radar/sources/{id}` — Atualizar configuração
+- [x] `DELETE /api/v1/news-radar/sources/{id}` — Desativar (soft delete)
+- [x] `POST   /api/v1/news-radar/sources/{id}/sync` — Forçar sync manual imediato
+- [x] `GET    /api/v1/news-radar/sources/{id}/runs` — Histórico de execuções
 
 ### 4.4 `NewsItemController` (Leitura)
-- [ ] `GET /api/v1/news-radar/items` — Listar notícias (filtros: source, theme, city, date_range, status, urgency)
-- [ ] `GET /api/v1/news-radar/items/{id}` — Detalhe (com AI metadata, media, cluster)
-- [ ] `GET /api/v1/news-radar/items/{id}/related` — Notícias relacionadas (embeddings/cluster)
-- [ ] `GET /api/v1/news-radar/dashboard` — Resumo: totais por fonte, por tema, alertas de fontes com falha
+- [x] `GET /api/v1/news-radar/items` — Listar notícias (filtros: source, theme, city, date_range, status, urgency)
+- [x] `GET /api/v1/news-radar/items/{id}` — Detalhe (com AI metadata, media, cluster)
+- [x] `GET /api/v1/news-radar/items/{id}/related` — Notícias relacionadas (embeddings/cluster)
+- [x] `GET /api/v1/news-radar/dashboard` — Resumo: totais por fonte, por tema, alertas de fontes com falha
 
 ---
 
@@ -627,30 +627,30 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 > **Nota técnica:** Na API atual da OpenAI, Structured Outputs na Responses API usa `text.format` (não o antigo `response_format` do Chat Completions). A documentação oficial da OpenAI é a fonte de verdade para o contrato, não o pacote `openai-php/laravel`.
 
 ### 5.1 `AiEnrichmentService`
-- [ ] Configurar client `openai-php/laravel` (API key, model default)
-- [ ] Método `classifyBasic(NewsItem $item)` — **Job 1 (ClassifyNewsItemJob)**
-  - [ ] Montar prompt com título + excerpt + primeiros 2000 chars do `body_text`
-  - [ ] Enviar via Responses API com JSON Schema estrito (`text.format`):
-    - [ ] `city`, `state_abbr`, `theme` (string validada contra `news_themes`), `urgency` (enum), `relevance_score`, `entities[]`
-  - [ ] Salvar resultado em `news_item_ai_metadata` (nível `level_1`)
-  - [ ] Se `relevance_score >= 0.7` → disparar Job 2
-- [ ] Método `enrichEditorial(NewsItem $item)` — **Job 2 (EnrichNewsItemJob)**
-  - [ ] Montar prompt expandido para 5W1H
-  - [ ] JSON Schema: `five_ws{}`, `suggested_titles[]`, `summary_bullets[]`
-  - [ ] Atualizar `news_item_ai_metadata` com nível `level_2`
+- [x] Configurar client `openai-php/laravel` (API key, model default)
+- [x] Método `classifyBasic(NewsItem $item)` — **Job 1 (ClassifyNewsItemJob)**
+  - [x] Montar prompt com título + excerpt + primeiros 2000 chars do `body_text`
+  - [x] Enviar via Responses API com JSON Schema estrito (`text.format`):
+    - [x] `city`, `state_abbr`, `theme` (string validada contra `news_themes`), `urgency` (enum), `relevance_score`, `entities[]`
+  - [x] Salvar resultado em `news_item_ai_metadata` (nível `level_1`)
+  - [x] Se `relevance_score >= 0.7` → disparar Job 2
+- [x] Método `enrichEditorial(NewsItem $item)` — **Job 2 (EnrichNewsItemJob)**
+  - [x] Montar prompt expandido para 5W1H
+  - [x] JSON Schema: `five_ws{}`, `suggested_titles[]`, `summary_bullets[]`
+  - [x] Atualizar `news_item_ai_metadata` com nível `level_2`
 
 ### 5.2 `ClassifyNewsItemJob` (AI Job 1)
-- [ ] Receber `NewsItem` com `extraction_status=extracted` e `enrichment_status=none`
-- [ ] Chamar `AiEnrichmentService::classifyBasic()`
-- [ ] Atualizar `enrichment_status` para `enriched_l1`
-- [ ] Se relevância alta → disparar `EnrichNewsItemJob`
-- [ ] Em caso de erro: atualizar `enrichment_status` para `enrichment_failed`
+- [x] Receber `NewsItem` com `extraction_status=extracted` e `enrichment_status=none`
+- [x] Chamar `AiEnrichmentService::classifyBasic()`
+- [x] Atualizar `enrichment_status` para `enriched_l1`
+- [x] Se relevância alta → disparar `EnrichNewsItemJob`
+- [x] Em caso de erro: atualizar `enrichment_status` para `enrichment_failed`
 
 ### 5.3 `EnrichNewsItemJob` (AI Job 2)
-- [ ] Receber `NewsItem` com `enrichment_status=enriched_l1`
-- [ ] Chamar `AiEnrichmentService::enrichEditorial()`
-- [ ] Atualizar `enrichment_status` para `enriched_l2`
-- [ ] Em caso de erro: manter `enriched_l1` (pode reprocessar)
+- [x] Receber `NewsItem` com `enrichment_status=enriched_l1`
+- [x] Chamar `AiEnrichmentService::enrichEditorial()`
+- [x] Atualizar `enrichment_status` para `enriched_l2`
+- [x] Em caso de erro: manter `enriched_l1` (pode reprocessar)
 
 ### 5.4 Embeddings e Clusterização *(v2 — Fase futura)*
 - [ ] Gerar embedding via API OpenAI (`text-embedding-3-small`)
