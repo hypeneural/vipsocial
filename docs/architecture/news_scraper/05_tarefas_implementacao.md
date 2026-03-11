@@ -724,23 +724,23 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 ## Fase 7 — Testes e Qualidade
 
 ### 7.1 Testes Unitários
-- [ ] `UrlNormalizerServiceTest` — UTMs, trailing slash, https, URLs relativas com `relative_url_base`
+- [x] `UrlNormalizerServiceTest` — UTMs, trailing slash, https, URLs relativas com `relative_url_base`
 - [ ] `FeedParserServiceTest` — Fixtures de feeds reais (Mesorregional, SCC10, Itapema, Léo Nunes, SCMais)
-- [ ] `FeedQualityScorerServiceTest` — Scores corretos para cada perfil (full, partial, teaser)
-- [ ] `SitemapParserServiceTest` — Sitemap index, news sitemap, lastmod filtering
+- [x] `FeedQualityScorerServiceTest` — Scores corretos para cada perfil (full, partial, teaser)
+- [x] `SitemapParserServiceTest` — Sitemap index, news sitemap, lastmod filtering
 - [ ] `ListingDiscoveryServiceTest` — Extração de cards, URLs relativas, filtros, paginação, parada inteligente
 - [ ] `FieldResolverServiceTest` — Merge de campos: listing+feed+detalhe em cada perfil de captura (HTML-only, RSS full, RSS teaser)
-- [ ] `BoilerplateCleanerServiceTest` — Remoção de style, CTAs, rodapé WP, emojis, stop markers
-- [ ] `DateParserServiceTest` — Formatos variados + timezones + fallbacks + `date_preprocessors` (replace, trim, regex_extract)
+- [x] `BoilerplateCleanerServiceTest` — Remoção de style, CTAs, rodapé WP, emojis, stop markers
+- [x] `DateParserServiceTest` — Formatos variados + timezones + fallbacks + `date_preprocessors` (replace, trim, regex_extract)
 - [ ] `ArticleExtractorServiceTest` — Camadas A→E com HTML fixtures, body stop markers, sibling iteration
 
 ### 7.2 Testes de Feature (API)
-- [ ] CRUD de `NewsSource`
-- [ ] Discovery + SourceDiscoveryRun
-- [ ] Preview endpoint (para `mode=feed` e `mode=html_listing`)
-- [ ] Listagem de `NewsItem` com filtros
-- [ ] Dashboard endpoint
-- [ ] Histórico de `NewsSourceRun`
+- [x] CRUD de `NewsSource`
+- [x] Discovery + SourceDiscoveryRun
+- [x] Preview endpoint (para `mode=feed` e `mode=html_listing`)
+- [x] Listagem de `NewsItem` com filtros
+- [x] Dashboard endpoint
+- [x] Histórico de `NewsSourceRun`
 
 ### 7.3 Testes do Spider/Pipeline
 - [ ] RoachPHP helpers de teste para spiders
@@ -762,7 +762,7 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 - [ ] Alerta quando nenhuma notícia nova em 24h para fonte ativa
 - [ ] Dashboard de saúde baseado em `news_source_runs`
 
-### 8.3 Circuit Breaker
+### 8.3 Circuit Breaker 
 - [ ] Após N falhas consecutivas: marcar fonte como `active=false`
 - [ ] Notificar operador via painel (badge de alerta)
 - [ ] Botão "Reativar e testar agora"

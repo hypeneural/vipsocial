@@ -204,37 +204,3 @@ class FeedParserService
         ];
     }
 }
-
-class FeedParseResult
-{
-    public function __construct(
-        public readonly bool $success,
-        public readonly array $items,
-        public readonly ?string $feedTitle,
-        public readonly string $feedUrl,
-        public readonly ?string $error,
-    ) {}
-
-    public function count(): int
-    {
-        return count($this->items);
-    }
-}
-
-class FeedItemDto
-{
-    public function __construct(
-        public readonly string $title,
-        public readonly string $rawUrl,
-        public readonly string $normalizedUrl,
-        public readonly string $urlHash,
-        public readonly ?string $guid,
-        public readonly ?string $authorRaw,
-        public readonly ?string $publishedAtRaw,
-        public readonly ?string $bodyHtml,
-        public readonly ?string $excerpt,
-        public readonly array $categoriesRaw,
-        public readonly ?string $heroImageUrl,
-        public readonly array $rawPayload,
-    ) {}
-}

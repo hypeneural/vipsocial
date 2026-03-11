@@ -3,7 +3,6 @@
 namespace App\Modules\NewsRadar\Services;
 
 use League\Uri\Uri;
-use League\Uri\Components\Query;
 
 class UrlNormalizerService
 {
@@ -37,7 +36,7 @@ class UrlNormalizerService
         // Remove UTM params
         $query = $uri->getQuery();
         if ($query) {
-            $params = Query::fromUri($uri);
+            parse_str($query, $params);
             $cleaned = [];
             foreach ($params as $key => $value) {
                 if (!in_array(strtolower($key), self::UTM_PARAMS, true)) {

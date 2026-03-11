@@ -30,12 +30,16 @@ return new class extends Migration {
         ]);
 
         // Change materias.status from enum to varchar so it accepts any slug
-        DB::statement("ALTER TABLE materias MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'pendente'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE materias MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'pendente'");
+        }
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE materias MODIFY COLUMN status ENUM('pendente','em_producao','pronto','aprovado','no_ar') NOT NULL DEFAULT 'pendente'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE materias MODIFY COLUMN status ENUM('pendente','em_producao','pronto','aprovado','no_ar') NOT NULL DEFAULT 'pendente'");
+        }
         Schema::dropIfExists('status_materias');
     }
 };
