@@ -4,6 +4,7 @@ namespace App\Modules\NewsRadar\Jobs;
 
 use App\Modules\NewsRadar\Enums\EnrichmentStatus;
 use App\Modules\NewsRadar\Models\NewsItem;
+use App\Modules\NewsRadar\Models\NewsItemAiLog;
 use App\Modules\NewsRadar\Services\AiEnrichmentService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,15 +34,30 @@ class EnrichNewsItemJob implements ShouldQueue
         if ($item->enrichment_status->value !== 'enriched_l1') return;
 
         try {
-            $aiService->enrichEditorial($item);
+            $result = $aiService->enrichEditorial($item);
+
+            NewsItemAiLog::recordSuccess(
+                item: $item,
+                stage: 'editorial',
+                model: $result->model,
+                tokensUsed: $result->tokensUsed,
+                meta: [
+                    'enrichment_level' => 'level_2',
+                ],
+            );
 
             $item->update([
                 'enrichment_status' => EnrichmentStatus::EnrichedL2,
             ]);
-
         } catch (\Throwable $e) {
-            // Keep enriched_l1 status — can retry later
-            // Don't downgrade to failed since L1 data is still valid
+            NewsItemAiLog::recordFailure(
+                item: $item,
+                stage: 'editorial',
+                model: $aiService->editorialModel(),
+                throwable: $e,
+            );
+
+            // Keep enriched_l1 status so the item stays usable while we retry.
             report($e);
         }
     }

@@ -4,6 +4,7 @@ namespace App\Modules\NewsRadar\Jobs;
 
 use App\Modules\NewsRadar\Enums\EnrichmentStatus;
 use App\Modules\NewsRadar\Models\NewsItem;
+use App\Modules\NewsRadar\Models\NewsItemAiLog;
 use App\Modules\NewsRadar\Services\AiEnrichmentService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -36,6 +37,16 @@ class ClassifyNewsItemJob implements ShouldQueue
         try {
             $result = $aiService->classifyBasic($item);
 
+            NewsItemAiLog::recordSuccess(
+                item: $item,
+                stage: 'classification',
+                model: $result->model,
+                tokensUsed: $result->tokensUsed,
+                meta: [
+                    'relevance_score' => $result->relevanceScore,
+                ],
+            );
+
             $item->update([
                 'enrichment_status' => EnrichmentStatus::EnrichedL1,
             ]);
@@ -46,6 +57,13 @@ class ClassifyNewsItemJob implements ShouldQueue
             }
 
         } catch (\Throwable $e) {
+            NewsItemAiLog::recordFailure(
+                item: $item,
+                stage: 'classification',
+                model: $aiService->classificationModel(),
+                throwable: $e,
+            );
+
             $item->update([
                 'enrichment_status' => EnrichmentStatus::EnrichmentFailed,
             ]);

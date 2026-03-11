@@ -65,6 +65,7 @@ class NewsItemController extends Controller
         $item = NewsItem::with([
             'source:id,name,homepage_url,source_type',
             'aiMetadata',
+            'aiLogs',
             'media',
             'rawItem:id,raw_payload,first_seen_at,seen_count',
         ])->findOrFail($id);

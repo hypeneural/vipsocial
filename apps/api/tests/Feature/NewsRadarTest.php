@@ -5,7 +5,9 @@ use App\Modules\NewsRadar\Enums\ContentSource;
 use App\Modules\NewsRadar\Enums\EnrichmentStatus;
 use App\Modules\NewsRadar\Enums\ExtractionStatus;
 use App\Modules\NewsRadar\Enums\PublishedAtSource;
+use App\Modules\NewsRadar\Exceptions\AiRequestException;
 use App\Modules\NewsRadar\Jobs\FetchNewsSourceJob;
+use App\Modules\NewsRadar\Jobs\ClassifyNewsItemJob;
 use App\Modules\NewsRadar\Jobs\ProcessNewsItemJob;
 use App\Modules\NewsRadar\Models\NewsItem;
 use App\Modules\NewsRadar\Models\NewsItemAiMetadata;
@@ -17,6 +19,7 @@ use App\Modules\NewsRadar\Models\NewsTheme;
 use App\Modules\NewsRadar\Models\SourceDiscoveryRun;
 use App\Modules\NewsRadar\Services\ArticleExtractedData;
 use App\Modules\NewsRadar\Services\ArticleExtractorService;
+use App\Modules\NewsRadar\Services\AiEnrichmentService;
 use App\Modules\NewsRadar\Services\BoilerplateCleanerService;
 use App\Modules\NewsRadar\Services\FeedItemDto;
 use App\Modules\NewsRadar\Services\FeedParseResult;
@@ -385,6 +388,63 @@ test('dashboard endpoint aggregates source and item metrics', function () {
         ->assertJsonPath('failing_sources.0.id', $failingSource->id);
 
     Carbon::setTestNow();
+});
+
+test('classification failures are logged and exposed on item detail', function () {
+    $source = makeNewsRadarSource(['name' => 'Fonte com IA']);
+    $item = makeNewsRadarItem($source, [
+        'title' => 'Item com falha de IA',
+        'url' => 'https://fonte-ia.test/falha',
+        'extraction_status' => ExtractionStatus::Extracted->value,
+        'enrichment_status' => EnrichmentStatus::None->value,
+    ]);
+
+    $aiService = Mockery::mock(AiEnrichmentService::class);
+    $aiService->shouldReceive('classifyBasic')
+        ->once()
+        ->andThrow(new AiRequestException(
+            stage: 'classification',
+            model: 'openai/gpt-oss-20b:free',
+            message: 'No endpoints available matching your guardrail restrictions and data policy.',
+            context: [
+                'provider_status' => 404,
+            ],
+        ));
+    $aiService->shouldReceive('classificationModel')
+        ->once()
+        ->andReturn('openai/gpt-oss-20b:free');
+
+    $job = new ClassifyNewsItemJob($item->id);
+
+    try {
+        $job->handle($aiService);
+        $this->fail('Era esperado que a classificacao lancasse excecao.');
+    } catch (AiRequestException) {
+        // expected
+    }
+
+    $item->refresh();
+
+    expect($item->enrichment_status)->toBe(EnrichmentStatus::EnrichmentFailed);
+
+    $this->assertDatabaseHas('news_item_ai_logs', [
+        'news_item_id' => $item->id,
+        'stage' => 'classification',
+        'status' => 'failed',
+        'model' => 'openai/gpt-oss-20b:free',
+    ]);
+
+    $this->actingAs($this->user, 'sanctum')
+        ->getJson("/api/v1/news-radar/items/{$item->id}")
+        ->assertOk()
+        ->assertJsonPath('ai_logs.0.stage', 'classification')
+        ->assertJsonPath('ai_logs.0.status', 'failed')
+        ->assertJsonPath('ai_logs.0.model', 'openai/gpt-oss-20b:free')
+        ->assertJsonPath(
+            'ai_logs.0.error_message',
+            'No endpoints available matching your guardrail restrictions and data policy.'
+        )
+        ->assertJsonPath('ai_logs.0.meta_json.provider_status', 404);
 });
 
 test('discovery endpoints create and expose source discovery runs', function () {

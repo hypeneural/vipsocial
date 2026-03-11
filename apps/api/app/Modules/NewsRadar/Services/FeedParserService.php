@@ -9,6 +9,7 @@ class FeedParserService
 {
     public function __construct(
         private readonly UrlNormalizerService $urlNormalizer,
+        private readonly HttpFetchService $httpFetch,
     ) {}
 
     /**
@@ -18,9 +19,19 @@ class FeedParserService
      */
     public function parseFromUrl(string $feedUrl): FeedParseResult
     {
+        $prefetched = $this->httpFetch->fetchXml($feedUrl);
+        if ($prefetched->success && trim($prefetched->body) !== '') {
+            $prefetchedResult = $this->parseFromString($prefetched->body, $feedUrl);
+            if ($prefetchedResult->success) {
+                return $prefetchedResult;
+            }
+        }
+
         $feed = new SimplePie();
         $feed->set_feed_url($feedUrl);
         $feed->enable_cache(false);
+        $feed->set_timeout(20);
+        $feed->set_useragent('VIPSocial-NewsRadar/1.0 (+https://vipsocial.com.br)');
         $feed->init();
 
         if ($feed->error()) {
@@ -29,7 +40,9 @@ class FeedParserService
                 items: [],
                 feedTitle: null,
                 feedUrl: $feedUrl,
-                error: $feed->error(),
+                error: $prefetched->success
+                    ? $feed->error()
+                    : trim(implode(' | ', array_filter([$prefetched->error, $feed->error()]))),
             );
         }
 
@@ -42,8 +55,10 @@ class FeedParserService
     public function parseFromString(string $xml, string $feedUrl = ''): FeedParseResult
     {
         $feed = new SimplePie();
-        $feed->set_raw_data($xml);
+        $feed->set_raw_data($this->sanitizeXml($xml));
         $feed->enable_cache(false);
+        $feed->set_timeout(20);
+        $feed->set_useragent('VIPSocial-NewsRadar/1.0 (+https://vipsocial.com.br)');
         $feed->init();
 
         if ($feed->error()) {
@@ -102,6 +117,7 @@ class FeedParserService
     {
         // Priority: dc:creator > creator > author
         $author = $item->get_author();
+
         return $author ? $author->get_name() : null;
     }
 
@@ -109,6 +125,7 @@ class FeedParserService
     {
         // Priority: content:encoded > content > description
         $content = $item->get_content();
+
         return !empty($content) ? $content : null;
     }
 
@@ -118,8 +135,10 @@ class FeedParserService
         if ($description) {
             $text = strip_tags($description);
             $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+
             return mb_substr(trim($text), 0, 500);
         }
+
         return null;
     }
 
@@ -135,6 +154,7 @@ class FeedParserService
                 }
             }
         }
+
         return array_unique($categories);
     }
 
@@ -156,14 +176,12 @@ class FeedParserService
             $images->each(function (Crawler $img) use (&$bestImage, &$bestWidth, $emojiDomains) {
                 $src = $img->attr('src') ?? '';
 
-                // Skip emoji images
                 foreach ($emojiDomains as $domain) {
                     if (str_contains($src, $domain)) {
                         return;
                     }
                 }
 
-                // Check srcset for larger images
                 $srcset = $img->attr('srcset') ?? '';
                 if ($srcset) {
                     preg_match_all('/(\S+)\s+(\d+)w/', $srcset, $matches);
@@ -175,6 +193,7 @@ class FeedParserService
                             $bestWidth = $width;
                             $bestImage = $src;
                         }
+
                         return;
                     }
                 }
@@ -199,8 +218,7 @@ class FeedParserService
         ?string $excerpt,
         array $categories,
         ?string $heroImage,
-    ): array
-    {
+    ): array {
         return [
             'title' => $item->get_title(),
             'link' => $item->get_link(),
@@ -212,5 +230,33 @@ class FeedParserService
             'categories' => $categories,
             'hero_image_url' => $heroImage,
         ];
+    }
+
+    private function sanitizeXml(string $xml): string
+    {
+        $sanitized = preg_replace('/^\xEF\xBB\xBF/', '', $xml) ?? $xml;
+        $sanitized = preg_replace('/[^\x09\x0A\x0D\x20-\x{D7FF}\x{E000}-\x{FFFD}]/u', '', $sanitized) ?? $sanitized;
+
+        $rootStart = null;
+        foreach (['<rss', '<feed', '<rdf:RDF'] as $candidate) {
+            $position = stripos($sanitized, $candidate);
+            if ($position !== false && ($rootStart === null || $position < $rootStart)) {
+                $rootStart = $position;
+            }
+        }
+
+        if ($rootStart !== null && $rootStart > 0) {
+            $sanitized = substr($sanitized, $rootStart);
+        }
+
+        foreach (['</rss>', '</feed>', '</rdf:RDF>'] as $closingTag) {
+            $position = stripos($sanitized, $closingTag);
+            if ($position !== false) {
+                $sanitized = substr($sanitized, 0, $position + strlen($closingTag));
+                break;
+            }
+        }
+
+        return trim($sanitized);
     }
 }

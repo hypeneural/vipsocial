@@ -79,6 +79,11 @@ class NewsItem extends Model
         return $this->hasOne(NewsItemAiMetadata::class);
     }
 
+    public function aiLogs(): HasMany
+    {
+        return $this->hasMany(NewsItemAiLog::class)->latest('created_at');
+    }
+
     public function media(): HasMany
     {
         return $this->hasMany(NewsItemMedia::class)->orderBy('position');

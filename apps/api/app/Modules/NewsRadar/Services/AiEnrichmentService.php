@@ -2,6 +2,7 @@
 
 namespace App\Modules\NewsRadar\Services;
 
+use App\Modules\NewsRadar\Exceptions\AiRequestException;
 use App\Modules\NewsRadar\Models\NewsItem;
 use App\Modules\NewsRadar\Models\NewsItemAiMetadata;
 use App\Modules\NewsRadar\Models\NewsTheme;
@@ -17,26 +18,21 @@ class AiEnrichmentService
         $textInput = $this->buildClassificationInput($item);
         $model = $this->classificationModel();
 
-        $response = OpenAI::chat()->create([
-            'model' => $model,
-            'messages' => [
+        $response = $this->createChatCompletion(
+            stage: 'classification',
+            model: $model,
+            messages: [
                 ['role' => 'system', 'content' => $this->classificationSystemPrompt()],
                 ['role' => 'user', 'content' => $textInput],
             ],
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'name' => 'news_classification',
-                    'strict' => true,
-                    'schema' => $this->classificationJsonSchema(),
-                ],
-            ],
-            'temperature' => 0.1,
-            'max_tokens' => 1000,
-        ]);
+            schemaName: 'news_classification',
+            schema: $this->classificationJsonSchema(),
+            temperature: 0.1,
+            maxTokens: 1000,
+        );
 
-        $content = $response->choices[0]->message->content;
-        $data = json_decode($content, true);
+        $content = $response->choices[0]->message->content ?? null;
+        $data = $this->decodeJsonContent($content, 'classification', $model);
         $tokensUsed = $response->usage->totalTokens;
 
         $themeId = null;
@@ -65,6 +61,7 @@ class AiEnrichmentService
             metadata: $metadata,
             relevanceScore: $data['relevance_score'] ?? 0,
             tokensUsed: $tokensUsed,
+            model: $model,
         );
     }
 
@@ -76,26 +73,21 @@ class AiEnrichmentService
         $textInput = $this->buildEnrichmentInput($item);
         $model = $this->editorialModel();
 
-        $response = OpenAI::chat()->create([
-            'model' => $model,
-            'messages' => [
+        $response = $this->createChatCompletion(
+            stage: 'editorial',
+            model: $model,
+            messages: [
                 ['role' => 'system', 'content' => $this->enrichmentSystemPrompt()],
                 ['role' => 'user', 'content' => $textInput],
             ],
-            'response_format' => [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'name' => 'news_enrichment',
-                    'strict' => true,
-                    'schema' => $this->enrichmentJsonSchema(),
-                ],
-            ],
-            'temperature' => 0.3,
-            'max_tokens' => 2000,
-        ]);
+            schemaName: 'news_enrichment',
+            schema: $this->enrichmentJsonSchema(),
+            temperature: 0.3,
+            maxTokens: 2000,
+        );
 
-        $content = $response->choices[0]->message->content;
-        $data = json_decode($content, true);
+        $content = $response->choices[0]->message->content ?? null;
+        $data = $this->decodeJsonContent($content, 'editorial', $model);
         $tokensUsed = $response->usage->totalTokens;
 
         $metadata = NewsItemAiMetadata::where('news_item_id', $item->id)->first();
@@ -114,6 +106,7 @@ class AiEnrichmentService
             success: true,
             metadata: $metadata,
             tokensUsed: $tokensUsed,
+            model: $model,
         );
     }
 
@@ -125,6 +118,73 @@ class AiEnrichmentService
     public function editorialModel(): string
     {
         return (string) config('news_radar.ai.editorial_model', $this->classificationModel());
+    }
+
+    private function createChatCompletion(
+        string $stage,
+        string $model,
+        array $messages,
+        string $schemaName,
+        array $schema,
+        float $temperature,
+        int $maxTokens,
+    ): mixed {
+        try {
+            return OpenAI::chat()->create([
+                'model' => $model,
+                'messages' => $messages,
+                'response_format' => [
+                    'type' => 'json_schema',
+                    'json_schema' => [
+                        'name' => $schemaName,
+                        'strict' => true,
+                        'schema' => $schema,
+                    ],
+                ],
+                'temperature' => $temperature,
+                'max_tokens' => $maxTokens,
+            ]);
+        } catch (\Throwable $throwable) {
+            throw AiRequestException::fromThrowable($stage, $model, $throwable);
+        }
+    }
+
+    private function decodeJsonContent(mixed $content, string $stage, string $model): array
+    {
+        if (! is_string($content) || trim($content) === '') {
+            throw new AiRequestException(
+                stage: $stage,
+                model: $model,
+                message: 'Resposta vazia da IA.',
+            );
+        }
+
+        try {
+            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new AiRequestException(
+                stage: $stage,
+                model: $model,
+                message: 'Resposta JSON invalida da IA.',
+                context: [
+                    'raw_content_excerpt' => mb_substr($content, 0, 500),
+                ],
+                previous: $exception,
+            );
+        }
+
+        if (! is_array($decoded)) {
+            throw new AiRequestException(
+                stage: $stage,
+                model: $model,
+                message: 'Resposta da IA nao retornou um objeto JSON valido.',
+                context: [
+                    'raw_content_excerpt' => mb_substr($content, 0, 500),
+                ],
+            );
+        }
+
+        return $decoded;
     }
 
     private function buildClassificationInput(NewsItem $item): string
@@ -263,6 +323,7 @@ class AiClassificationResult
         public readonly ?NewsItemAiMetadata $metadata,
         public readonly float $relevanceScore,
         public readonly int $tokensUsed,
+        public readonly string $model,
     ) {}
 }
 
@@ -272,5 +333,6 @@ class AiEnrichmentResult
         public readonly bool $success,
         public readonly ?NewsItemAiMetadata $metadata,
         public readonly int $tokensUsed,
+        public readonly string $model,
     ) {}
 }

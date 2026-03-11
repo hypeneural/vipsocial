@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
     AlertTriangle,
@@ -71,6 +71,19 @@ const urgencyLabels: Record<string, string> = {
     alta: "Alta",
 };
 
+const aiFactLabels = {
+    who: "Quem",
+    what: "O que",
+    where: "Onde",
+    when: "Quando",
+    why: "Por que",
+    how: "Como",
+} as const;
+
+const listingAiFactKeys = ["who", "what", "where"] as const;
+
+type AiFactKey = keyof typeof aiFactLabels;
+
 function formatRelativeTime(dateString?: string | null): string {
     if (!dateString) return "sem data";
 
@@ -120,6 +133,146 @@ function isRecentItem(item: NewsItem): boolean {
     const publishedAt = new Date(item.published_at_utc).getTime();
     if (Number.isNaN(publishedAt)) return false;
     return Date.now() - publishedAt <= 1000 * 60 * 60 * 6;
+}
+
+function normalizeAiValue(value: unknown): string | null {
+    if (typeof value === "string") {
+        const normalized = value.trim();
+        return normalized || null;
+    }
+
+    if (Array.isArray(value)) {
+        const normalized = value
+            .map((entry) => String(entry ?? "").trim())
+            .filter(Boolean)
+            .join(", ");
+
+        return normalized || null;
+    }
+
+    return null;
+}
+
+function getAiFacts(
+    item?: NewsItem | null,
+    keys: readonly AiFactKey[] = Object.keys(aiFactLabels) as AiFactKey[],
+) {
+    const fiveWs = item?.ai_metadata?.five_ws;
+    if (!fiveWs) return [];
+
+    return keys
+        .map((key) => {
+            const value = normalizeAiValue(fiveWs[key]);
+            if (!value) return null;
+
+            return {
+                key,
+                label: aiFactLabels[key],
+                value,
+            };
+        })
+        .filter(
+            (
+                fact,
+            ): fact is {
+                key: AiFactKey;
+                label: string;
+                value: string;
+            } => Boolean(fact),
+        );
+}
+
+function getCaptureBadgeLabel(percentage: number): string {
+    return `Captura ${percentage}%`;
+}
+
+function getCaptureQualityLabel(percentage: number): string {
+    if (percentage >= 90) return "Alta";
+    if (percentage >= 70) return "Boa";
+    return "Parcial";
+}
+
+function formatAiStage(stage?: string | null): string {
+    if (stage === "classification") return "Classificacao";
+    if (stage === "editorial") return "Editorial";
+    return stage || "IA";
+}
+
+function getLatestFailedAiLog(item?: NewsItem | null) {
+    return item?.ai_logs?.find((log) => log.status === "failed") ?? null;
+}
+
+function FeedCardImage({ item }: { item: NewsItem }) {
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        setHasError(false);
+    }, [item.hero_image_url]);
+
+    if (!item.hero_image_url || hasError) {
+        return (
+            <div className="hidden w-28 flex-shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-muted/40 px-3 py-4 sm:flex md:w-36">
+                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                <span className="text-center text-[11px] leading-tight text-muted-foreground">
+                    Imagem indisponivel
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="hidden w-28 flex-shrink-0 overflow-hidden rounded-xl sm:block md:w-36">
+            <img
+                src={item.hero_image_url}
+                alt={item.title}
+                className="h-20 w-full object-cover md:h-24"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setHasError(true)}
+            />
+        </div>
+    );
+}
+
+function FeedDetailImage({ item }: { item: NewsItem }) {
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        setHasError(false);
+    }, [item.hero_image_url]);
+
+    if (!item.hero_image_url || hasError) {
+        const message = item.hero_image_url
+            ? "A materia tem imagem cadastrada, mas a origem nao entregou a miniatura para o admin."
+            : "Esta materia nao trouxe uma imagem utilizavel para exibicao no painel.";
+
+        return (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 px-6 py-10">
+                <div className="flex flex-col items-center gap-3 text-center">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    <div className="space-y-1">
+                        <p className="font-medium">Imagem indisponivel</p>
+                        <p className="text-sm text-muted-foreground">
+                            {message}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="overflow-hidden rounded-2xl border border-border/50">
+            <img
+                src={item.hero_image_url}
+                alt={item.title}
+                className="max-h-[340px] w-full object-cover"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setHasError(true)}
+            />
+        </div>
+    );
 }
 
 const RaspagemFeed = () => {
@@ -195,6 +348,10 @@ const RaspagemFeed = () => {
     const dashboard = dashboardQuery.data;
     const pagination = itemsQuery.data;
     const selectedItem = itemDetailQuery.data;
+    const selectedPrimaryFacts = getAiFacts(selectedItem, listingAiFactKeys);
+    const selectedAllFacts = getAiFacts(selectedItem);
+    const latestAiFailure = getLatestFailedAiLog(selectedItem);
+    const recentAiLogs = selectedItem?.ai_logs?.slice(0, 5) ?? [];
 
     const isRefreshing =
         dashboardQuery.isFetching || itemsQuery.isFetching || sourcesQuery.isFetching;
@@ -443,6 +600,7 @@ const RaspagemFeed = () => {
                     {visibleItems.map((item, index) => {
                         const highRelevance =
                             (item.ai_metadata?.relevance_score ?? 0) >= HIGH_RELEVANCE_SCORE;
+                        const quickFacts = getAiFacts(item, listingAiFactKeys);
 
                         return (
                             <motion.div
@@ -497,20 +655,7 @@ const RaspagemFeed = () => {
                                     </div>
 
                                     <div className="flex gap-4">
-                                        {item.hero_image_url ? (
-                                            <div className="hidden w-28 flex-shrink-0 overflow-hidden rounded-xl sm:block md:w-36">
-                                                <img
-                                                    src={item.hero_image_url}
-                                                    alt={item.title}
-                                                    className="h-20 w-full object-cover md:h-24"
-                                                    loading="lazy"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="hidden w-28 flex-shrink-0 items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/40 sm:flex md:w-36">
-                                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                                            </div>
-                                        )}
+                                        <FeedCardImage item={item} />
 
                                         <div className="min-w-0 flex-1">
                                             <h3 className="mb-2 text-sm font-semibold md:text-base">
@@ -537,6 +682,24 @@ const RaspagemFeed = () => {
                                                 {getSummary(item)}
                                             </p>
 
+                                            {quickFacts.length > 0 && (
+                                                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                                                    {quickFacts.map((fact) => (
+                                                        <div
+                                                            key={`${item.id}-${fact.key}`}
+                                                            className="min-w-0 rounded-xl border border-border/50 bg-background/70 p-2.5"
+                                                        >
+                                                            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                                                {fact.label}
+                                                            </p>
+                                                            <p className="mt-1 line-clamp-2 text-sm font-medium text-foreground/90">
+                                                                {fact.value}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
                                             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                                                 {item.ai_metadata?.city && (
                                                     <Badge variant="secondary" className="rounded-full">
@@ -550,7 +713,7 @@ const RaspagemFeed = () => {
                                                     </Badge>
                                                 )}
                                                 <Badge variant="secondary" className="rounded-full">
-                                                    Completeza {item.extraction_completeness}%
+                                                    {getCaptureBadgeLabel(item.extraction_completeness)}
                                                 </Badge>
                                                 {!!item.categories_raw?.length &&
                                                     item.categories_raw
@@ -652,7 +815,7 @@ const RaspagemFeed = () => {
                     }
                 }}
             >
-                <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-2xl">
+                <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto rounded-2xl">
                     <DialogHeader>
                         <DialogTitle>
                             {selectedItem?.title ?? "Detalhes da noticia"}
@@ -696,13 +859,23 @@ const RaspagemFeed = () => {
                                 )}
                             </div>
 
-                            {selectedItem.hero_image_url && (
-                                <div className="overflow-hidden rounded-2xl border border-border/50">
-                                    <img
-                                        src={selectedItem.hero_image_url}
-                                        alt={selectedItem.title}
-                                        className="max-h-[340px] w-full object-cover"
-                                    />
+                            <FeedDetailImage item={selectedItem} />
+
+                            {selectedPrimaryFacts.length > 0 && (
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                    {selectedPrimaryFacts.map((fact) => (
+                                        <div
+                                            key={`selected-${fact.key}`}
+                                            className="rounded-2xl border border-border/50 bg-background/70 p-4"
+                                        >
+                                            <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                                                {fact.label}
+                                            </p>
+                                            <p className="mt-2 text-sm font-semibold leading-6">
+                                                {fact.value}
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 
@@ -767,11 +940,18 @@ const RaspagemFeed = () => {
                                             </div>
                                             <div className="flex items-center justify-between gap-3">
                                                 <span className="text-muted-foreground">
-                                                    Completeza
+                                                    Qualidade da captura
                                                 </span>
-                                                <span className="text-right font-medium">
-                                                    {selectedItem.extraction_completeness}%
-                                                </span>
+                                                <div className="text-right">
+                                                    <div className="font-medium">
+                                                        {selectedItem.extraction_completeness}%
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {getCaptureQualityLabel(
+                                                            selectedItem.extraction_completeness,
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -812,7 +992,48 @@ const RaspagemFeed = () => {
                                     </div>
 
                                     <div className="rounded-2xl border border-border/50 bg-card p-4">
-                                        <h3 className="mb-3 font-semibold">IA e enrich</h3>
+                                        <h3 className="mb-3 font-semibold">Leitura da IA</h3>
+
+                                        {latestAiFailure && (
+                                            <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-4">
+                                                <div className="flex items-start gap-3">
+                                                    <AlertTriangle className="mt-0.5 h-4 w-4 text-warning" />
+                                                    <div className="min-w-0 space-y-2">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-foreground">
+                                                                Ultima falha da IA
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {formatAiStage(latestAiFailure.stage)} •{" "}
+                                                                {latestAiFailure.model || "modelo nao informado"} •{" "}
+                                                                {formatDateTime(latestAiFailure.created_at)}
+                                                            </p>
+                                                        </div>
+                                                        <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                                                            {latestAiFailure.error_message || "Falha sem mensagem."}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {!!selectedAllFacts.length && (
+                                            <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                                                {selectedAllFacts.map((fact) => (
+                                                    <div
+                                                        key={`fact-${fact.key}`}
+                                                        className="rounded-xl border border-border/50 bg-background/70 p-3"
+                                                    >
+                                                        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                                            {fact.label}
+                                                        </p>
+                                                        <p className="mt-2 text-sm font-medium leading-6">
+                                                            {fact.value}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
 
                                         {!!selectedItem.ai_metadata?.summary_bullets?.length && (
                                             <div className="mb-4 space-y-2">
@@ -825,31 +1046,48 @@ const RaspagemFeed = () => {
                                                     </div>
                                                 ))}
                                             </div>
-                                        )}
+                                            )}
 
-                                        {!!selectedItem.ai_metadata?.five_ws && (
-                                            <div className="space-y-2 text-sm">
-                                                {Object.entries(
-                                                    selectedItem.ai_metadata.five_ws,
-                                                ).map(([key, value]) => (
-                                                    <div key={key}>
-                                                        <span className="font-medium capitalize">
-                                                            {key}:
-                                                        </span>{" "}
-                                                        <span className="text-muted-foreground">
-                                                            {Array.isArray(value)
-                                                                ? value.join(", ")
-                                                                : String(value || "-")}
-                                                        </span>
-                                                    </div>
-                                                ))}
+                                        {recentAiLogs.length > 0 && (
+                                            <div className="space-y-2 border-t border-border/50 pt-4">
+                                                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                                    Log recente da IA
+                                                </p>
+                                                <div className="space-y-2">
+                                                    {recentAiLogs.map((log) => (
+                                                        <div
+                                                            key={log.id}
+                                                            className="rounded-xl border border-border/50 bg-background/70 p-3"
+                                                        >
+                                                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                                <Badge variant="outline" className="rounded-full">
+                                                                    {formatAiStage(log.stage)}
+                                                                </Badge>
+                                                                <Badge variant="outline" className="rounded-full">
+                                                                    {log.status === "failed" ? "Falha" : "Sucesso"}
+                                                                </Badge>
+                                                                <span className="text-muted-foreground">
+                                                                    {log.model || "modelo nao informado"}
+                                                                </span>
+                                                                <span className="text-muted-foreground">
+                                                                    {formatDateTime(log.created_at)}
+                                                                </span>
+                                                            </div>
+                                                            {log.error_message && (
+                                                                <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                                                                    {log.error_message}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
 
                                         {!selectedItem.ai_metadata?.summary_bullets?.length &&
-                                            !selectedItem.ai_metadata?.five_ws && (
+                                            !selectedAllFacts.length && (
                                                 <p className="text-sm text-muted-foreground">
-                                                    Nenhum enrich detalhado disponivel ainda.
+                                                    A IA ainda nao gerou leitura detalhada para esta materia.
                                                 </p>
                                             )}
                                     </div>

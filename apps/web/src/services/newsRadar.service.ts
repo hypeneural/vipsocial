@@ -95,6 +95,19 @@ export interface NewsItemAiMetadata {
     enrichment_level?: string | null;
 }
 
+export interface NewsItemAiLog {
+    id: number;
+    news_item_id?: number;
+    stage: string;
+    status: "success" | "failed";
+    model?: string | null;
+    tokens_used?: number | null;
+    error_message?: string | null;
+    meta_json?: Record<string, unknown> | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface NewsItemMedia {
     id: number;
     news_item_id?: number;
@@ -147,6 +160,7 @@ export interface NewsItem {
     updated_at?: string;
     source?: NewsSourceSummary;
     ai_metadata?: NewsItemAiMetadata | null;
+    ai_logs?: NewsItemAiLog[];
     media?: NewsItemMedia[];
     raw_item?: NewsItemRawItem | null;
 }
