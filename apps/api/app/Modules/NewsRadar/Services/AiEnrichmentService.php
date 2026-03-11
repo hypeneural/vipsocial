@@ -433,6 +433,7 @@ class AiEnrichmentService
                 message: 'Resposta JSON invalida da IA.',
                 context: [
                     'strategy' => $strategy,
+                    'raw_content_body' => $content,
                     'raw_content_excerpt' => mb_substr($content, 0, 1200),
                 ],
                 category: 'invalid_json',
@@ -450,6 +451,7 @@ class AiEnrichmentService
                 message: 'Resposta da IA nao retornou um objeto JSON valido.',
                 context: [
                     'strategy' => $strategy,
+                    'raw_content_body' => $content,
                     'raw_content_excerpt' => mb_substr($content, 0, 1200),
                 ],
                 category: 'invalid_json',
@@ -789,6 +791,7 @@ PROMPT;
             message: $message,
             context: [
                 'strategy' => $strategy,
+                'raw_data' => $rawData,
                 'raw_data_excerpt' => mb_substr(
                     json_encode($rawData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
                     0,

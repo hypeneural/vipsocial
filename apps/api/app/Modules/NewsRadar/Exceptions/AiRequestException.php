@@ -56,6 +56,8 @@ class AiRequestException extends RuntimeException
             'provider_status' => $statusCode,
             'provider_error_code' => $providerErrorCode,
             'provider_error_type' => $providerErrorType,
+            'raw_error_body' => $rawErrorBody,
+            'raw_error_payload' => self::decodeJsonBody($rawErrorBody),
             'raw_error_excerpt' => $rawErrorBody !== null ? mb_substr($rawErrorBody, 0, 1500) : null,
             'response_headers' => self::normalizeHeaders($responseHeaders),
         ], static fn (mixed $value): bool => $value !== null && $value !== []);
@@ -195,5 +197,16 @@ class AiRequestException extends RuntimeException
         }
 
         return null;
+    }
+
+    private static function decodeJsonBody(?string $body): mixed
+    {
+        if (! is_string($body) || trim($body) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($body, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : null;
     }
 }

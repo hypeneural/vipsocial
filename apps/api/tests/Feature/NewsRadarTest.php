@@ -410,8 +410,11 @@ test('dashboard endpoint aggregates source and item metrics', function () {
         ->assertJsonPath('by_source.0.count', 2)
         ->assertJsonPath('failing_sources.0.id', $failingSource->id)
         ->assertJsonPath('ai_model_health.0.model', 'z-ai/glm-4.5-air:free')
+        ->assertJsonPath('ai_model_health.0.health_status', 'critical')
         ->assertJsonPath('ai_model_health.0.attempts_failed', 1)
-        ->assertJsonPath('ai_model_health.0.failure_rate', 1);
+        ->assertJsonPath('ai_model_health.0.failure_rate', 1)
+        ->assertJsonPath('ai_model_health.0.category_breakdown.unsupported_parameters', 1)
+        ->assertJsonPath('ai_model_health.0.latest_failure.meta_json.category', 'unsupported_parameters');
 
     Carbon::setTestNow();
 });

@@ -96,42 +96,155 @@ class NewsItemController extends Controller
 
     public function dashboard(Request $request): JsonResponse
     {
-        $aiModelHealth = NewsItemAiLog::query()
+        $aiMonitorWindowStart = now()->subDays(7);
+
+        $aiModelHealthSummary = NewsItemAiLog::query()
             ->selectRaw('stage, model, count(*) as attempts_total')
             ->selectRaw("sum(case when status = 'success' then 1 else 0 end) as attempts_success")
             ->selectRaw("sum(case when status = 'failed' then 1 else 0 end) as attempts_failed")
             ->selectRaw('max(created_at) as last_attempt_at')
             ->whereNotNull('model')
-            ->where('created_at', '>=', now()->subDays(7))
+            ->where('created_at', '>=', $aiMonitorWindowStart)
             ->groupBy('stage', 'model')
             ->orderByDesc('attempts_failed')
             ->orderByDesc('last_attempt_at')
             ->limit(10)
-            ->get()
-            ->map(function ($row) {
-                $latestFailure = NewsItemAiLog::query()
-                    ->where('stage', $row->stage)
-                    ->where('model', $row->model)
-                    ->where('status', 'failed')
-                    ->latest('created_at')
-                    ->first(['error_message', 'created_at']);
+            ->get();
+
+        $aiModelHealthLogs = $aiModelHealthSummary->isEmpty()
+            ? collect()
+            : NewsItemAiLog::query()
+                ->where('created_at', '>=', $aiMonitorWindowStart)
+                ->where(function ($query) use ($aiModelHealthSummary) {
+                    foreach ($aiModelHealthSummary as $row) {
+                        $query->orWhere(function ($nested) use ($row) {
+                            $nested->where('stage', $row->stage)
+                                ->where('model', $row->model);
+                        });
+                    }
+                })
+                ->orderByDesc('created_at')
+                ->get([
+                    'id',
+                    'news_item_id',
+                    'stage',
+                    'status',
+                    'model',
+                    'tokens_used',
+                    'error_message',
+                    'meta_json',
+                    'created_at',
+                ])
+                ->groupBy(static fn (NewsItemAiLog $log): string => "{$log->stage}|{$log->model}");
+
+        $aiModelHealth = $aiModelHealthSummary
+            ->map(function ($row) use ($aiModelHealthLogs) {
+                $groupKey = "{$row->stage}|{$row->model}";
+                $logs = $aiModelHealthLogs->get($groupKey, collect())->values();
+                $failedLogs = $logs->where('status', 'failed')->values();
+                $successLogs = $logs->where('status', 'success')->values();
 
                 $attemptsTotal = (int) $row->attempts_total;
                 $attemptsFailed = (int) $row->attempts_failed;
                 $attemptsSuccess = (int) $row->attempts_success;
 
+                $fallbackNextModelCount = $failedLogs
+                    ->filter(fn (NewsItemAiLog $log): bool => data_get($log->meta_json, 'next_action') === 'fallback_next_model')
+                    ->count();
+                $retrySameModelCount = $failedLogs
+                    ->filter(fn (NewsItemAiLog $log): bool => data_get($log->meta_json, 'next_action') === 'retry_same_model_prompt_json')
+                    ->count();
+                $unresolvedFailures = $failedLogs
+                    ->filter(fn (NewsItemAiLog $log): bool => ! in_array(
+                        data_get($log->meta_json, 'next_action'),
+                        ['fallback_next_model', 'retry_same_model_prompt_json'],
+                        true,
+                    ))
+                    ->count();
+
+                $healthStatus = match (true) {
+                    $attemptsFailed === 0 => 'healthy',
+                    $unresolvedFailures > 0 && $attemptsSuccess === 0 => 'critical',
+                    $unresolvedFailures > 0 => 'unstable',
+                    default => 'recovering',
+                };
+
+                $latestLog = $logs->first();
+                $latestFailure = $failedLogs->first();
+                $latestSuccess = $successLogs->first();
+
                 return [
                     'stage' => $row->stage,
                     'model' => $row->model,
+                    'health_status' => $healthStatus,
                     'attempts_total' => $attemptsTotal,
                     'attempts_success' => $attemptsSuccess,
                     'attempts_failed' => $attemptsFailed,
                     'failure_rate' => $attemptsTotal > 0
                         ? round($attemptsFailed / $attemptsTotal, 4)
                         : 0,
+                    'success_rate' => $attemptsTotal > 0
+                        ? round($attemptsSuccess / $attemptsTotal, 4)
+                        : 0,
+                    'unresolved_failures' => $unresolvedFailures,
+                    'fallback_next_model_count' => $fallbackNextModelCount,
+                    'retry_same_model_count' => $retrySameModelCount,
                     'last_attempt_at' => $row->last_attempt_at,
                     'last_error_message' => $latestFailure?->error_message,
                     'last_failure_at' => $latestFailure?->created_at,
+                    'last_success_at' => $latestSuccess?->created_at,
+                    'last_success_tokens_used' => $latestSuccess?->tokens_used,
+                    'latest_log' => $latestLog ? [
+                        'news_item_id' => $latestLog->news_item_id,
+                        'status' => $latestLog->status,
+                        'tokens_used' => $latestLog->tokens_used,
+                        'error_message' => $latestLog->error_message,
+                        'created_at' => $latestLog->created_at,
+                        'meta_json' => $latestLog->meta_json,
+                    ] : null,
+                    'latest_failure' => $latestFailure ? [
+                        'news_item_id' => $latestFailure->news_item_id,
+                        'status' => $latestFailure->status,
+                        'tokens_used' => $latestFailure->tokens_used,
+                        'error_message' => $latestFailure->error_message,
+                        'created_at' => $latestFailure->created_at,
+                        'meta_json' => $latestFailure->meta_json,
+                    ] : null,
+                    'latest_success' => $latestSuccess ? [
+                        'news_item_id' => $latestSuccess->news_item_id,
+                        'status' => $latestSuccess->status,
+                        'tokens_used' => $latestSuccess->tokens_used,
+                        'error_message' => $latestSuccess->error_message,
+                        'created_at' => $latestSuccess->created_at,
+                        'meta_json' => $latestSuccess->meta_json,
+                    ] : null,
+                    'recent_logs' => $logs
+                        ->take(5)
+                        ->map(fn (NewsItemAiLog $log): array => [
+                            'news_item_id' => $log->news_item_id,
+                            'status' => $log->status,
+                            'tokens_used' => $log->tokens_used,
+                            'error_message' => $log->error_message,
+                            'created_at' => $log->created_at,
+                            'meta_json' => $log->meta_json,
+                        ])
+                        ->values(),
+                    'category_breakdown' => $failedLogs
+                        ->map(fn (NewsItemAiLog $log): string => (string) (data_get($log->meta_json, 'category') ?: 'sem_categoria'))
+                        ->countBy()
+                        ->all(),
+                    'strategy_breakdown' => $logs
+                        ->map(fn (NewsItemAiLog $log): string => (string) (data_get($log->meta_json, 'strategy') ?: 'sem_estrategia'))
+                        ->countBy()
+                        ->all(),
+                    'next_action_breakdown' => $failedLogs
+                        ->map(fn (NewsItemAiLog $log): string => (string) (data_get($log->meta_json, 'next_action') ?: 'sem_proximo_passo'))
+                        ->countBy()
+                        ->all(),
+                    'provider_status_breakdown' => $failedLogs
+                        ->map(fn (NewsItemAiLog $log): string => (string) (data_get($log->meta_json, 'provider_status') ?: 'sem_status'))
+                        ->countBy()
+                        ->all(),
                 ];
             })
             ->values();

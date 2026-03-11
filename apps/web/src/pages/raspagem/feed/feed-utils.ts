@@ -171,6 +171,37 @@ export function formatAiCategory(category?: string | null): string {
     return category || "nao informado";
 }
 
+export function formatAiHealthStatus(status?: string | null): string {
+    if (status === "healthy") return "Saudavel";
+    if (status === "recovering") return "Recuperando";
+    if (status === "unstable") return "Instavel";
+    if (status === "critical") return "Critico";
+    return status || "nao informado";
+}
+
+export function formatAiNextAction(action?: string | null): string {
+    if (action === "fallback_next_model") return "Trocar para o proximo modelo";
+    if (action === "retry_same_model_prompt_json") return "Repetir no mesmo modelo via JSON por prompt";
+    if (action === "queue_retry") return "Tentar novamente na fila";
+    if (action === "fail_terminal") return "Falha terminal";
+    return action || "nao informado";
+}
+
+export function formatAiProviderStatus(status?: string | number | null): string {
+    if (status === null || status === undefined || status === "" || status === "sem_status") {
+        return "Sem status";
+    }
+
+    if (typeof status === "number") {
+        return `HTTP ${status}`;
+    }
+
+    const normalized = String(status).trim();
+    if (!normalized) return "Sem status";
+    if (/^\d+$/.test(normalized)) return `HTTP ${normalized}`;
+    return normalized;
+}
+
 export function getLatestFailedAiLog(item?: NewsItem | null) {
     return item?.ai_logs?.find((log) => log.status === "failed") ?? null;
 }

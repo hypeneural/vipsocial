@@ -44,6 +44,7 @@ import type {
     DiscoverNewsSourceResponse,
     NewsPreviewMode,
 } from "@/services/newsRadar.service";
+import { AiModelHealthPanel } from "./monitor/AiModelHealthPanel";
 
 function buildSuggestedConfig(
     requestedUrl: string,
@@ -522,6 +523,11 @@ const RaspagemFiltros = () => {
                 </TabsContent>
 
                 <TabsContent value="monitor" className="space-y-6">
+                    <AiModelHealthPanel
+                        dashboard={dashboard}
+                        isLoading={dashboardQuery.isLoading}
+                    />
+
                     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                         {dashboardQuery.isLoading ? (
                             <>

@@ -108,16 +108,40 @@ export interface NewsItemAiLog {
     updated_at?: string;
 }
 
+export interface NewsAiModelHealthLogSnapshot {
+    news_item_id?: number | null;
+    status: "success" | "failed";
+    tokens_used?: number | null;
+    error_message?: string | null;
+    meta_json?: Record<string, unknown> | null;
+    created_at?: string | null;
+}
+
 export interface NewsAiModelHealth {
     stage: string;
     model: string;
+    health_status: string;
     attempts_total: number;
     attempts_success: number;
     attempts_failed: number;
     failure_rate: number;
+    success_rate: number;
+    unresolved_failures: number;
+    fallback_next_model_count: number;
+    retry_same_model_count: number;
     last_attempt_at?: string | null;
     last_error_message?: string | null;
     last_failure_at?: string | null;
+    last_success_at?: string | null;
+    last_success_tokens_used?: number | null;
+    latest_log?: NewsAiModelHealthLogSnapshot | null;
+    latest_failure?: NewsAiModelHealthLogSnapshot | null;
+    latest_success?: NewsAiModelHealthLogSnapshot | null;
+    recent_logs?: NewsAiModelHealthLogSnapshot[];
+    category_breakdown?: Record<string, number>;
+    strategy_breakdown?: Record<string, number>;
+    next_action_breakdown?: Record<string, number>;
+    provider_status_breakdown?: Record<string, number>;
 }
 
 export interface NewsItemMedia {
