@@ -1,490 +1,747 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
-  Plus,
-  Tag,
-  AlertTriangle,
-  Trash2,
-  Edit,
-  Copy,
-  Zap,
-  Search,
-  Filter,
-  ChevronRight,
-  Globe,
-  Hash,
-  ArrowRight,
-  ToggleLeft,
-  Settings,
-  Activity,
+    Activity,
+    AlertTriangle,
+    Bot,
+    FileSearch,
+    Filter,
+    Globe,
+    RefreshCw,
+    Rss,
+    SearchCheck,
+    ShieldAlert,
+    Sparkles,
+    TestTube2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
+import { ShimmerKPI, ShimmerText } from "@/components/Shimmer";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    useDiscoverNewsSource,
+    useNewsDashboard,
+    useNewsItems,
+    useNewsSources,
+    usePreviewNewsSource,
+    useTestNewsSelector,
+} from "@/hooks/useNewsRadar";
+import showToast from "@/lib/toast";
+import type {
+    DiscoverNewsSourceResponse,
+    NewsPreviewMode,
+} from "@/services/newsRadar.service";
 
-interface Rule {
-  id: string;
-  name: string;
-  condition: {
-    type: "contains" | "domain" | "regex";
-    value: string;
-  };
-  action: {
-    type: "tag" | "priority" | "ignore" | "duplicate";
-    value?: string;
-  };
-  active: boolean;
-  matchCount: number;
+function buildSuggestedConfig(
+    requestedUrl: string,
+    result?: DiscoverNewsSourceResponse | null,
+): string {
+    return JSON.stringify(
+        {
+            homepage_url: requestedUrl,
+            feed_url: result?.result?.feed?.url ?? null,
+            sitemap_url: result?.result?.sitemap?.url ?? null,
+        },
+        null,
+        2,
+    );
 }
 
-const mockRules: Rule[] = [
-  {
-    id: "1",
-    name: "Notícias de Economia",
-    condition: { type: "contains", value: "economia, inflação, PIB" },
-    action: { type: "tag", value: "economia" },
-    active: true,
-    matchCount: 234,
-  },
-  {
-    id: "2",
-    name: "Política Nacional",
-    condition: { type: "contains", value: "governo, congresso, senado" },
-    action: { type: "priority", value: "alta" },
-    active: true,
-    matchCount: 156,
-  },
-  {
-    id: "3",
-    name: "Ignorar Horóscopo",
-    condition: { type: "contains", value: "horóscopo, signo, astrologia" },
-    action: { type: "ignore" },
-    active: true,
-    matchCount: 89,
-  },
-  {
-    id: "4",
-    name: "Esportes",
-    condition: { type: "domain", value: "espn.com.br, ge.globo.com" },
-    action: { type: "tag", value: "esportes" },
-    active: true,
-    matchCount: 445,
-  },
-  {
-    id: "5",
-    name: "Fontes Não Confiáveis",
-    condition: { type: "domain", value: "fake.news.com" },
-    action: { type: "ignore" },
-    active: false,
-    matchCount: 0,
-  },
-];
+function parseJsonObject(text: string, fieldName: string): Record<string, unknown> | undefined {
+    if (!text.trim()) return undefined;
 
-const actionIcons = {
-  tag: Tag,
-  priority: Zap,
-  ignore: AlertTriangle,
-  duplicate: Copy,
-};
+    try {
+        const parsed = JSON.parse(text);
+        if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+            throw new Error();
+        }
 
-const actionLabels = {
-  tag: "Aplicar Tag",
-  priority: "Prioridade",
-  ignore: "Ignorar",
-  duplicate: "Marcar Duplicado",
-};
-
-const actionColors = {
-  tag: "bg-info/10 text-info border-info/30",
-  priority: "bg-warning/10 text-warning border-warning/30",
-  ignore: "bg-destructive/10 text-destructive border-destructive/30",
-  duplicate: "bg-muted text-muted-foreground border-muted",
-};
+        return parsed as Record<string, unknown>;
+    } catch {
+        throw new Error(`${fieldName} precisa ser um JSON valido.`);
+    }
+}
 
 const RaspagemFiltros = () => {
-  const [rules, setRules] = useState<Rule[]>(mockRules);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [dedupeThreshold, setDedupeThreshold] = useState([75]);
+    const [discoveryUrl, setDiscoveryUrl] = useState("");
+    const [discoveryResult, setDiscoveryResult] =
+        useState<DiscoverNewsSourceResponse | null>(null);
 
-  const toggleRule = (id: string) => {
-    setRules((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, active: !r.active } : r))
+    const [previewMode, setPreviewMode] = useState<NewsPreviewMode>("feed");
+    const [previewUrl, setPreviewUrl] = useState("");
+    const [previewConfigText, setPreviewConfigText] = useState("");
+
+    const [selectorUrl, setSelectorUrl] = useState("");
+    const [selectorValue, setSelectorValue] = useState("");
+    const [selectorRunId, setSelectorRunId] = useState("");
+
+    const dashboardQuery = useNewsDashboard();
+    const failingSourcesQuery = useNewsSources({
+        failing: true,
+        per_page: 5,
+        sort: "consecutive_failures",
+        dir: "desc",
+    });
+    const extractionFailuresQuery = useNewsItems({
+        extraction_status: "extraction_failed",
+        per_page: 5,
+    });
+    const enrichmentFailuresQuery = useNewsItems({
+        enrichment_status: "enrichment_failed",
+        per_page: 5,
+    });
+
+    const discoverSourceMutation = useDiscoverNewsSource();
+    const previewSourceMutation = usePreviewNewsSource();
+    const testSelectorMutation = useTestNewsSelector();
+
+    const dashboard = dashboardQuery.data;
+
+    const extractionBreakdown = useMemo(
+        () => Object.entries(dashboard?.by_extraction_status ?? {}),
+        [dashboard?.by_extraction_status],
     );
-  };
 
-  const activeRules = rules.filter((r) => r.active).length;
-  const totalMatches = rules.reduce((acc, r) => acc + r.matchCount, 0);
+    const enrichmentBreakdown = useMemo(
+        () => Object.entries(dashboard?.by_enrichment_status ?? {}),
+        [dashboard?.by_enrichment_status],
+    );
 
-  return (
-    <AppShell>
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-6"
-      >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold">Filtros & Regras</h1>
-            <p className="text-sm text-muted-foreground">
-              Automatize a classificação de conteúdo
-            </p>
-          </div>
+    const handleDiscover = async () => {
+        if (!discoveryUrl.trim()) {
+            showToast.error("Informe a URL para iniciar a analise.");
+            return;
+        }
 
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary-dark rounded-xl">
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Regra
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Criar Nova Regra</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Nome da Regra</Label>
-                  <Input placeholder="Ex: Notícias de Economia" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tipo de Condição</Label>
-                  <Select defaultValue="contains">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="contains">Contém palavras</SelectItem>
-                      <SelectItem value="domain">Domínio específico</SelectItem>
-                      <SelectItem value="regex">Expressão Regular</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Valor</Label>
-                  <Input placeholder="economia, inflação, PIB" />
-                  <p className="text-xs text-muted-foreground">
-                    Separe múltiplos valores com vírgula
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Ação</Label>
-                  <Select defaultValue="tag">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tag">Aplicar Tag</SelectItem>
-                      <SelectItem value="priority">Definir Prioridade Alta</SelectItem>
-                      <SelectItem value="ignore">Ignorar</SelectItem>
-                      <SelectItem value="duplicate">Marcar como Duplicado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tag (se aplicável)</Label>
-                  <Input placeholder="economia" />
-                </div>
-                <Button className="w-full" onClick={() => setIsAddDialogOpen(false)}>
-                  Criar Regra
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </motion.div>
+        try {
+            const result = await discoverSourceMutation.mutateAsync({
+                url: discoveryUrl.trim(),
+            });
 
-      {/* Tabs */}
-      <Tabs defaultValue="rules" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/50 rounded-xl">
-          <TabsTrigger value="rules" className="rounded-lg py-2">
-            <Filter className="w-4 h-4 mr-2" />
-            Regras
-          </TabsTrigger>
-          <TabsTrigger value="dedupe" className="rounded-lg py-2">
-            <Copy className="w-4 h-4 mr-2" />
-            Dedupe
-          </TabsTrigger>
-          <TabsTrigger value="monitor" className="rounded-lg py-2">
-            <Activity className="w-4 h-4 mr-2" />
-            Monitor
-          </TabsTrigger>
-        </TabsList>
+            setDiscoveryResult(result);
+            setSelectorUrl(discoveryUrl.trim());
+            setSelectorRunId(result.run_id);
+            setPreviewUrl(result.result?.feed?.url ?? discoveryUrl.trim());
+            setPreviewMode(result.result?.feed?.url ? "feed" : "html_listing");
+            setPreviewConfigText(buildSuggestedConfig(discoveryUrl.trim(), result));
+        } catch (error) {
+            showToast.error(
+                error instanceof Error ? error.message : "Falha ao executar a analise.",
+            );
+        }
+    };
 
-        {/* Rules Tab */}
-        <TabsContent value="rules" className="space-y-4">
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-3">
+    const handlePreview = async () => {
+        if (!previewUrl.trim()) {
+            showToast.error("Informe a URL para gerar o preview.");
+            return;
+        }
+
+        try {
+            await previewSourceMutation.mutateAsync({
+                mode: previewMode,
+                url: previewUrl.trim(),
+                config: parseJsonObject(previewConfigText, "Config do preview"),
+            });
+        } catch (error) {
+            showToast.error(error instanceof Error ? error.message : "Falha no preview.");
+        }
+    };
+
+    const handleTestSelector = async () => {
+        if (!selectorUrl.trim() || !selectorValue.trim()) {
+            showToast.error("URL e seletor sao obrigatorios.");
+            return;
+        }
+
+        try {
+            await testSelectorMutation.mutateAsync({
+                url: selectorUrl.trim(),
+                selector: selectorValue.trim(),
+                run_id: selectorRunId.trim() || undefined,
+            });
+        } catch (error) {
+            showToast.error(
+                error instanceof Error ? error.message : "Falha ao testar o seletor.",
+            );
+        }
+    };
+
+    return (
+        <AppShell>
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-card rounded-xl p-4 border border-border/50"
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6"
             >
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <ToggleLeft className="w-4 h-4" />
-                Regras Ativas
-              </div>
-              <p className="text-2xl font-bold mt-1">
-                {activeRules}/{rules.length}
-              </p>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h1 className="text-xl font-bold md:text-2xl">
+                            Filtros, preview e monitor
+                        </h1>
+                        <p className="text-sm text-muted-foreground">
+                            Assistente para onboarding, testes de seletor e saude operacional do
+                            NewsRadar.
+                        </p>
+                    </div>
+
+                    <Button
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={() => {
+                            dashboardQuery.refetch();
+                            failingSourcesQuery.refetch();
+                            extractionFailuresQuery.refetch();
+                            enrichmentFailuresQuery.refetch();
+                        }}
+                    >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Atualizar
+                    </Button>
+                </div>
             </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-primary/10 rounded-xl p-4 border border-primary/30"
-            >
-              <div className="flex items-center gap-2 text-primary text-sm">
-                <Zap className="w-4 h-4" />
-                Matches Hoje
-              </div>
-              <p className="text-2xl font-bold mt-1 text-primary">
-                {totalMatches.toLocaleString()}
-              </p>
-            </motion.div>
-          </div>
 
-          {/* Rules List */}
-          <motion.div
-            initial="hidden"
-            animate="show"
-            variants={{ show: { transition: { staggerChildren: 0.05 } } }}
-            className="space-y-3"
-          >
-            {rules.map((rule, index) => {
-              const ActionIcon = actionIcons[rule.action.type];
+            <Tabs defaultValue="assistant" className="space-y-6">
+                <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl bg-muted/50 p-1">
+                    <TabsTrigger value="assistant" className="rounded-lg py-2">
+                        <Bot className="mr-2 h-4 w-4" />
+                        Assistente
+                    </TabsTrigger>
+                    <TabsTrigger value="preview" className="rounded-lg py-2">
+                        <TestTube2 className="mr-2 h-4 w-4" />
+                        Preview
+                    </TabsTrigger>
+                    <TabsTrigger value="monitor" className="rounded-lg py-2">
+                        <Activity className="mr-2 h-4 w-4" />
+                        Monitor
+                    </TabsTrigger>
+                </TabsList>
 
-              return (
-                <motion.div
-                  key={rule.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={cn(
-                    "bg-card rounded-2xl border p-4 transition-all",
-                    !rule.active && "opacity-60"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold">{rule.name}</h3>
-                        <Badge className="text-[10px] rounded-full bg-muted text-muted-foreground">
-                          {rule.matchCount} matches
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-2 mt-3 flex-wrap text-sm">
-                        <div className="flex items-center gap-1 px-2 py-1 bg-muted rounded-lg">
-                          {rule.condition.type === "contains" && <Hash className="w-3 h-3" />}
-                          {rule.condition.type === "domain" && <Globe className="w-3 h-3" />}
-                          <span className="text-xs">
-                            {rule.condition.type === "contains"
-                              ? "Contém"
-                              : rule.condition.type === "domain"
-                              ? "Domínio"
-                              : "Regex"}
-                          </span>
+                <TabsContent value="assistant" className="space-y-6">
+                    <div className="rounded-2xl border border-border/50 bg-card p-6">
+                        <div className="mb-4 flex items-center gap-2">
+                            <SearchCheck className="h-5 w-5 text-primary" />
+                            <h2 className="font-semibold">Descoberta automatica</h2>
                         </div>
-                        <span className="text-xs text-muted-foreground truncate max-w-[150px] md:max-w-[300px]">
-                          {rule.condition.value}
-                        </span>
-                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                        <Badge
-                          className={cn(
-                            "text-[10px] rounded-full",
-                            actionColors[rule.action.type]
-                          )}
-                        >
-                          <ActionIcon className="w-3 h-3 mr-1" />
-                          {actionLabels[rule.action.type]}
-                          {rule.action.value && `: ${rule.action.value}`}
-                        </Badge>
-                      </div>
+
+                        <div className="grid gap-3 md:grid-cols-[2fr,auto]">
+                            <Input
+                                value={discoveryUrl}
+                                onChange={(event) => setDiscoveryUrl(event.target.value)}
+                                placeholder="https://portal.com.br"
+                                className="rounded-xl"
+                            />
+                            <Button
+                                className="rounded-xl"
+                                onClick={handleDiscover}
+                                disabled={discoverSourceMutation.isPending}
+                            >
+                                <Bot className="mr-2 h-4 w-4" />
+                                Analisar
+                            </Button>
+                        </div>
+
+                        {discoverSourceMutation.isPending && (
+                            <div className="mt-4 space-y-2">
+                                <ShimmerText width="45%" />
+                                <ShimmerText width="75%" />
+                            </div>
+                        )}
+
+                        {discoveryResult?.result && (
+                            <div className="mt-6 space-y-4">
+                                <div className="grid gap-3 lg:grid-cols-3">
+                                    <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                                        <p className="text-xs text-muted-foreground">Pagina</p>
+                                        <p className="mt-1 font-medium">
+                                            {discoveryResult.result.page?.title ?? "Sem titulo"}
+                                        </p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            CMS:{" "}
+                                            {discoveryResult.result.page?.detected_cms ??
+                                                "nao identificado"}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                                        <p className="text-xs text-muted-foreground">Feed</p>
+                                        <p className="mt-1 text-sm font-medium">
+                                            {discoveryResult.result.feed?.url ?? "Nao detectado"}
+                                        </p>
+                                        {discoveryResult.result.feed && (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                Score {discoveryResult.result.feed.quality.score} •{" "}
+                                                {discoveryResult.result.feed.quality.profile}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                                        <p className="text-xs text-muted-foreground">Sitemap</p>
+                                        <p className="mt-1 text-sm font-medium">
+                                            {discoveryResult.result.sitemap?.url ?? "Nao detectado"}
+                                        </p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            Run ID: {discoveryResult.run_id}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {!!discoveryResult.result.feed?.quality.flags?.length && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {discoveryResult.result.feed.quality.flags.map((flag) => (
+                                            <Badge
+                                                key={flag}
+                                                variant="secondary"
+                                                className="rounded-full"
+                                            >
+                                                {flag}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="space-y-2">
+                                    <Label>Config sugerida</Label>
+                                    <Textarea
+                                        value={buildSuggestedConfig(discoveryUrl, discoveryResult)}
+                                        readOnly
+                                        className="min-h-[140px] rounded-xl font-mono text-xs"
+                                    />
+                                </div>
+
+                                {!!discoveryResult.result.feed?.preview_items?.length && (
+                                    <div className="space-y-3">
+                                        <p className="font-medium">Preview do feed detectado</p>
+                                        <div className="space-y-2">
+                                            {discoveryResult.result.feed.preview_items.map((item) => (
+                                                <div
+                                                    key={item.url}
+                                                    className="rounded-xl border border-border/50 p-3"
+                                                >
+                                                    <p className="font-medium">
+                                                        {item.title || item.url}
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-muted-foreground">
+                                                        {item.author || "Sem autor"} •{" "}
+                                                        {item.date || "Sem data"}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={rule.active}
-                        onCheckedChange={() => toggleRule(rule.id)}
-                      />
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div className="rounded-2xl border border-border/50 bg-card p-6">
+                        <div className="mb-4 flex items-center gap-2">
+                            <Filter className="h-5 w-5 text-primary" />
+                            <h2 className="font-semibold">Teste de seletor</h2>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label>URL</Label>
+                                <Input
+                                    value={selectorUrl}
+                                    onChange={(event) => setSelectorUrl(event.target.value)}
+                                    placeholder="https://portal.com.br/noticias"
+                                    className="rounded-xl"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Run ID (opcional)</Label>
+                                <Input
+                                    value={selectorRunId}
+                                    onChange={(event) => setSelectorRunId(event.target.value)}
+                                    placeholder="UUID da analise"
+                                    className="rounded-xl"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-[2fr,auto]">
+                            <Input
+                                value={selectorValue}
+                                onChange={(event) => setSelectorValue(event.target.value)}
+                                placeholder=".post-list article a"
+                                className="rounded-xl font-mono"
+                            />
+                            <Button
+                                className="rounded-xl"
+                                onClick={handleTestSelector}
+                                disabled={testSelectorMutation.isPending}
+                            >
+                                <TestTube2 className="mr-2 h-4 w-4" />
+                                Testar
+                            </Button>
+                        </div>
+
+                        {testSelectorMutation.data && (
+                            <div className="mt-6 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Badge className="rounded-full bg-primary/15 text-primary">
+                                        {testSelectorMutation.data.matches} matches
+                                    </Badge>
+                                    <span className="text-sm text-muted-foreground">
+                                        {testSelectorMutation.data.selector}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {testSelectorMutation.data.results.map((result, index) => (
+                                        <div
+                                            key={`${result.tag}-${index}`}
+                                            className="rounded-xl border border-border/50 bg-muted/20 p-3"
+                                        >
+                                            <p className="text-xs font-medium text-muted-foreground">
+                                                Tag: {result.tag || "-"}
+                                            </p>
+                                            <p className="mt-1 text-sm">
+                                                {result.text || "Sem texto"}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        </TabsContent>
+                </TabsContent>
 
-        {/* Dedupe Tab */}
-        <TabsContent value="dedupe" className="space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-card rounded-2xl border border-border/50 p-6"
-          >
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Copy className="w-5 h-5 text-primary" />
-              Detecção de Duplicados
-            </h3>
-            <p className="text-sm text-muted-foreground mb-6">
-              Configura o limiar de similaridade para detectar notícias duplicadas automaticamente.
-            </p>
+                <TabsContent value="preview" className="space-y-6">
+                    <div className="rounded-2xl border border-border/50 bg-card p-6">
+                        <div className="mb-4 flex items-center gap-2">
+                            <TestTube2 className="h-5 w-5 text-primary" />
+                            <h2 className="font-semibold">Preview controlado</h2>
+                        </div>
 
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Limiar de Similaridade</Label>
-                  <span className="text-2xl font-bold text-primary">{dedupeThreshold[0]}%</span>
-                </div>
-                <Slider
-                  value={dedupeThreshold}
-                  onValueChange={setDedupeThreshold}
-                  max={100}
-                  min={50}
-                  step={5}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                  <span>Menos restritivo</span>
-                  <span>Mais restritivo</span>
-                </div>
-              </div>
+                        <div className="grid gap-4 lg:grid-cols-[220px,1fr]">
+                            <div className="space-y-2">
+                                <Label>Modo</Label>
+                                <Select
+                                    value={previewMode}
+                                    onValueChange={(value: NewsPreviewMode) =>
+                                        setPreviewMode(value)
+                                    }
+                                >
+                                    <SelectTrigger className="rounded-xl">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="feed">Feed</SelectItem>
+                                        <SelectItem value="html_listing">HTML listing</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-muted/50 rounded-xl">
-                  <p className="text-sm text-muted-foreground">Duplicados detectados hoje</p>
-                  <p className="text-2xl font-bold mt-1">47</p>
-                </div>
-                <div className="p-4 bg-muted/50 rounded-xl">
-                  <p className="text-sm text-muted-foreground">Agrupamentos criados</p>
-                  <p className="text-2xl font-bold mt-1">12</p>
-                </div>
-              </div>
+                            <div className="space-y-2">
+                                <Label>URL</Label>
+                                <Input
+                                    value={previewUrl}
+                                    onChange={(event) => setPreviewUrl(event.target.value)}
+                                    placeholder="https://portal.com.br/feed"
+                                    className="rounded-xl"
+                                />
+                            </div>
+                        </div>
 
-              <div className="flex items-center justify-between p-4 bg-warning/10 border border-warning/30 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-warning" />
-                  <div>
-                    <p className="font-medium">Auto-agrupar duplicados</p>
-                    <p className="text-xs text-muted-foreground">
-                      Agrupa automaticamente notícias similares
-                    </p>
-                  </div>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </div>
-          </motion.div>
-        </TabsContent>
+                        <div className="mt-4 space-y-2">
+                            <Label>Config JSON</Label>
+                            <Textarea
+                                value={previewConfigText}
+                                onChange={(event) => setPreviewConfigText(event.target.value)}
+                                placeholder='{"listing_item_selectors":["article",".post"]}'
+                                className="min-h-[180px] rounded-xl font-mono text-xs"
+                            />
+                        </div>
 
-        {/* Monitor Tab */}
-        <TabsContent value="monitor" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-card rounded-2xl border border-border/50 p-6"
-            >
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-destructive" />
-                Erros Recentes
-              </h3>
-              <div className="space-y-3">
-                {[
-                  { source: "UOL Notícias", error: "Timeout após 30s", time: "1h atrás" },
-                  { source: "Portal Local", error: "Seletor não encontrado", time: "3h atrás" },
-                  { source: "Folha", error: "Rate limit excedido", time: "5h atrás" },
-                ].map((error, i) => (
-                  <div
-                    key={i}
-                    className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{error.source}</span>
-                      <span className="text-xs text-muted-foreground">{error.time}</span>
+                        <div className="mt-4">
+                            <Button
+                                className="rounded-xl"
+                                onClick={handlePreview}
+                                disabled={previewSourceMutation.isPending}
+                            >
+                                <TestTube2 className="mr-2 h-4 w-4" />
+                                Gerar preview
+                            </Button>
+                        </div>
+
+                        {previewSourceMutation.data?.preview?.length ? (
+                            <div className="mt-6 space-y-3">
+                                {previewSourceMutation.data.preview.map((item) => (
+                                    <div
+                                        key={item.url}
+                                        className="rounded-2xl border border-border/50 p-4"
+                                    >
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {item.has_body && (
+                                                <Badge className="rounded-full bg-success/15 text-success">
+                                                    corpo
+                                                </Badge>
+                                            )}
+                                            {item.has_image && (
+                                                <Badge className="rounded-full bg-info/15 text-info">
+                                                    imagem
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <p className="mt-2 font-medium">{item.title || item.url}</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            {item.excerpt || "Sem excerpt"}
+                                        </p>
+                                        <p className="mt-2 text-xs text-muted-foreground">
+                                            {item.author || "Sem autor"} • {item.date || "Sem data"}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : previewSourceMutation.data ? (
+                            <EmptyState
+                                icon={Rss}
+                                title="Preview sem itens"
+                                description="O endpoint respondeu, mas nenhum item foi extraido com essa configuracao."
+                                size="sm"
+                            />
+                        ) : null}
                     </div>
-                    <p className="text-xs text-destructive mt-1">{error.error}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
+                </TabsContent>
 
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-card rounded-2xl border border-border/50 p-6"
-            >
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-success" />
-                Performance
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Tempo médio de coleta</span>
-                    <span className="font-bold">1.2s</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
-                    <div className="h-full w-1/4 bg-success rounded-full" />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Itens processados/min</span>
-                    <span className="font-bold">12.5</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
-                    <div className="h-full w-3/4 bg-primary rounded-full" />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Taxa de sucesso</span>
-                    <span className="font-bold text-success">94.2%</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
-                    <div className="h-full w-[94%] bg-success rounded-full" />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </AppShell>
-  );
+                <TabsContent value="monitor" className="space-y-6">
+                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                        {dashboardQuery.isLoading ? (
+                            <>
+                                <ShimmerKPI />
+                                <ShimmerKPI />
+                                <ShimmerKPI />
+                                <ShimmerKPI />
+                            </>
+                        ) : (
+                            <>
+                                <div className="rounded-2xl border border-border/50 bg-card p-4">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Rss className="h-4 w-4 text-primary" />
+                                        Fontes ativas
+                                    </div>
+                                    <p className="mt-1 text-2xl font-bold">
+                                        {dashboard?.total_sources ?? 0}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-border/50 bg-card p-4">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Sparkles className="h-4 w-4 text-info" />
+                                        Itens hoje
+                                    </div>
+                                    <p className="mt-1 text-2xl font-bold">
+                                        {dashboard?.items_today ?? 0}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                                    <div className="flex items-center gap-2 text-sm text-warning">
+                                        <ShieldAlert className="h-4 w-4" />
+                                        Fontes com falha
+                                    </div>
+                                    <p className="mt-1 text-2xl font-bold text-warning">
+                                        {dashboard?.sources_with_failures ?? 0}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-border/50 bg-card p-4">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Activity className="h-4 w-4 text-success" />
+                                        Locks ativos
+                                    </div>
+                                    <p className="mt-1 text-2xl font-bold">
+                                        {dashboard?.sources_locked ?? 0}
+                                    </p>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-border/50 bg-card p-6">
+                            <div className="mb-4 flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-warning" />
+                                <h2 className="font-semibold">Fontes em alerta</h2>
+                            </div>
+
+                            {(failingSourcesQuery.data?.data?.length ?? 0) === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                    Nenhuma fonte em alerta no momento.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {failingSourcesQuery.data?.data.map((source) => (
+                                        <div
+                                            key={source.id}
+                                            className="rounded-xl border border-warning/30 bg-warning/5 p-3"
+                                        >
+                                            <p className="font-medium">{source.name}</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {source.consecutive_failures} falhas • ultimo sync{" "}
+                                                {source.last_sync_at || "sem historico"}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="rounded-2xl border border-border/50 bg-card p-6">
+                            <div className="mb-4 flex items-center gap-2">
+                                <Globe className="h-5 w-5 text-primary" />
+                                <h2 className="font-semibold">Top fontes por volume</h2>
+                            </div>
+
+                            <div className="space-y-3">
+                                {(dashboard?.by_source ?? []).map((entry) => (
+                                    <div key={entry.news_source_id}>
+                                        <div className="mb-1 flex items-center justify-between text-sm">
+                                            <span>{entry.source?.name ?? `Fonte ${entry.news_source_id}`}</span>
+                                            <span className="font-medium">{entry.count}</span>
+                                        </div>
+                                        <Progress
+                                            value={
+                                                dashboard?.total_items
+                                                    ? Math.max(
+                                                          4,
+                                                          (entry.count / dashboard.total_items) * 100,
+                                                      )
+                                                    : 0
+                                            }
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-border/50 bg-card p-6">
+                            <div className="mb-4 flex items-center gap-2">
+                                <Filter className="h-5 w-5 text-primary" />
+                                <h2 className="font-semibold">Extracao</h2>
+                            </div>
+                            <div className="space-y-4">
+                                {extractionBreakdown.map(([status, count]) => (
+                                    <div key={status}>
+                                        <div className="mb-1 flex items-center justify-between text-sm">
+                                            <span>{status}</span>
+                                            <span className="font-medium">{count}</span>
+                                        </div>
+                                        <Progress
+                                            value={
+                                                dashboard?.total_items
+                                                    ? (count / dashboard.total_items) * 100
+                                                    : 0
+                                            }
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-border/50 bg-card p-6">
+                            <div className="mb-4 flex items-center gap-2">
+                                <Sparkles className="h-5 w-5 text-primary" />
+                                <h2 className="font-semibold">Enriquecimento IA</h2>
+                            </div>
+                            <div className="space-y-4">
+                                {enrichmentBreakdown.map(([status, count]) => (
+                                    <div key={status}>
+                                        <div className="mb-1 flex items-center justify-between text-sm">
+                                            <span>{status}</span>
+                                            <span className="font-medium">{count}</span>
+                                        </div>
+                                        <Progress
+                                            value={
+                                                dashboard?.total_items
+                                                    ? (count / dashboard.total_items) * 100
+                                                    : 0
+                                            }
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-border/50 bg-card p-6">
+                            <div className="mb-4 flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-warning" />
+                                <h2 className="font-semibold">Falhas de extracao</h2>
+                            </div>
+
+                            {(extractionFailuresQuery.data?.data?.length ?? 0) === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                    Nenhuma falha de extracao na amostra atual.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {extractionFailuresQuery.data?.data.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="rounded-xl border border-warning/30 bg-warning/5 p-3"
+                                        >
+                                            <p className="font-medium">{item.title}</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {item.source?.name ?? "Fonte"} • {item.url}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="rounded-2xl border border-border/50 bg-card p-6">
+                            <div className="mb-4 flex items-center gap-2">
+                                <FileSearch className="h-5 w-5 text-warning" />
+                                <h2 className="font-semibold">Falhas de IA</h2>
+                            </div>
+
+                            {(enrichmentFailuresQuery.data?.data?.length ?? 0) === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                    Nenhuma falha de IA na amostra atual.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {enrichmentFailuresQuery.data?.data.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="rounded-xl border border-warning/30 bg-warning/5 p-3"
+                                        >
+                                            <p className="font-medium">{item.title}</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {item.source?.name ?? "Fonte"} • {item.url}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </TabsContent>
+            </Tabs>
+        </AppShell>
+    );
 };
 
 export default RaspagemFiltros;

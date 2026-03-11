@@ -59,6 +59,38 @@ export type {
     UpdateMessageDTO,
 } from "./distribution.service";
 
+// News Radar
+export { default as newsRadarService } from "./newsRadar.service";
+export type {
+    CreateNewsSourceDTO,
+    DiscoverNewsSourcePayload,
+    DiscoverNewsSourceResponse,
+    NewsDashboard,
+    NewsDiscoveryMode,
+    NewsDiscoveryRunStatus,
+    NewsEnrichmentStatus,
+    NewsExtractionStatus,
+    NewsFeedQualityProfile,
+    NewsFetchDetailMode,
+    NewsItem,
+    NewsItemAiMetadata,
+    NewsItemFilters,
+    NewsPreviewItem,
+    NewsPreviewMode,
+    NewsRadarPaginatedResponse,
+    NewsSource,
+    NewsSourceFilters,
+    NewsSourceRun,
+    NewsSourceRunStatus,
+    NewsSourceType,
+    NewsUrgency,
+    PreviewNewsSourcePayload,
+    PreviewNewsSourceResponse,
+    TestNewsSelectorPayload,
+    TestNewsSelectorResponse,
+    UpdateNewsSourceDTO,
+} from "./newsRadar.service";
+
 // Enquetes
 export { default as enqueteService } from "./enquete.service";
 export type {

@@ -670,44 +670,53 @@ O coração do extrator adaptável. Schema formalizado com base nos legados (Dia
 ## Fase 6 — Frontend (Painel Administrativo React)
 
 > **Objetivo:** Criar as telas no SPA React para gerenciamento de fontes e visualização de notícias.
+> **Nota de implementação:** As entregas abaixo foram acopladas às rotas existentes `/raspagem/feed`, `/raspagem/fontes` e `/raspagem/filtros`, reaproveitando o shell e os componentes atuais do painel.
 
 ### 6.1 Services & Types (TypeScript)
-- [ ] Criar `newsRadar.service.ts` com interfaces e chamadas API
-- [ ] Definir tipos: `NewsSource`, `NewsItem`, `NewsRawItem`, `AiMetadata`, `DiscoveryResult`, `PreviewCard`, `SourceRun`
+- [x] Criar `newsRadar.service.ts` com interfaces e chamadas API
+- [x] Definir tipos: `NewsSource`, `NewsItem`, `NewsRawItem`, `AiMetadata`, `DiscoveryResult`, `PreviewCard`, `SourceRun`
 
 ### 6.2 Página: Listagem de Fontes (`/radar/fontes`)
-- [ ] Tabela: Nome, Tipo, Perfil, Status, Último Sync, Falhas, Taxa Sucesso
+- [x] Listagem operacional: Nome, Tipo, Modo, Status, Último Sync, Falhas, Taxa Sucesso
 - [ ] Badges visuais por `feed_quality_profile` (Full ✅, Noisy ⚠️, Teaser 🔍)
-- [ ] Indicador de saúde (verde/amarelo/vermelho via `consecutive_failures`)
-- [ ] Ações: Editar, Sync Manual, Ver Histórico de Runs, Desativar
+- [x] Indicador de saúde (verde/amarelo/vermelho via `consecutive_failures`)
+- [x] Ações: Editar, Sync Manual, Ver Histórico de Runs, Desativar
 
 ### 6.3 Página: Wizard Nova Fonte (`/radar/fontes/nova`)
-- [ ] **Step 1:** Input da URL + botão "Analisar"
-- [ ] **Step 2:** Diagnóstico automático (Feed? Qualidade? Boilerplates? JS?)
-- [ ] **Step 3:** Preview de 3 cards de matérias reais
-- [ ] **Step 4:** Ajuste fino (seletores CSS, regras de limpeza, exclusões de URL)
+- [x] **Step 1:** Input da URL + botão "Analisar"
+- [x] **Step 2:** Diagnóstico automático (Feed? Qualidade? Boilerplates? JS?)
+- [x] **Step 3:** Preview de 3 cards de matérias reais
+- [x] **Step 4:** Ajuste fino (seletores CSS, regras de limpeza, exclusões de URL)
 - [ ] **Step 5:** Periodicidade sugerida (com override manual)
-- [ ] **Step 6:** Confirmação e salvamento
+- [x] **Step 6:** Confirmação e salvamento
 
 ### 6.4 Página: Edição da Fonte (`/radar/fontes/:id/editar`)
-- [ ] Formulário com todos os campos da fonte
-- [ ] Editor de `crawling_config` (seletores, boilerplate rules)
-- [ ] Botão "Testar Seletor" (chama API `/test-selector`)
-- [ ] Tabela de últimos 10 runs (com status, itens encontrados, erros)
+- [x] Formulário com todos os campos da fonte
+- [x] Editor de `crawling_config` (seletores, boilerplate rules)
+- [x] Teste de seletor integrado à operação (centralizado em `/raspagem/filtros`, chama API `/test-selector`)
+- [x] Tabela de últimos 10 runs (com status, itens encontrados, erros)
 
 ### 6.5 Página: Feed de Notícias (`/radar/noticias`)
-- [ ] Lista/Grid de notícias (cards com imagem, título, fonte, data, tema)
-- [ ] Filtros: Fonte, Tema, Cidade, Período, Status, Urgência
-- [ ] Busca por texto, Ordenação: mais recentes / mais relevantes
+- [x] Lista/Grid de notícias (cards com imagem, título, fonte, data e metadados operacionais)
+- [x] Filtros já integrados: Fonte, Cidade, Status de extração, Status de IA, Urgência
+- [ ] Filtros pendentes: Tema e Período
+- [x] Busca por texto
+- [ ] Ordenação explícita: mais recentes / mais relevantes
 
 ### 6.6 Página: Detalhe da Notícia (`/radar/noticias/:id`)
-- [ ] Corpo renderizado, AI Metadata (cidade, tema, urgência, 5W1H)
-- [ ] Galeria de imagens, "Notícias Relacionadas" (cluster), Link fonte original
+- [x] Corpo renderizado em modal de detalhe
+- [x] AI Metadata já exibido: cidade, urgência, relevância, 5W1H e summary bullets
+- [ ] Tema da IA exibido no detalhe
+- [ ] Galeria de imagens completa
+- [x] "Notícias Relacionadas" e links para matéria original / homepage da fonte
 
 ### 6.7 Página: Dashboard do Radar (`/radar`)
-- [ ] Totais: notícias hoje, esta semana, este mês
-- [ ] Gráficos por tema e por fonte
-- [ ] Alertas: fontes com falha, fontes inativas
+- [x] KPIs operacionais: fontes ativas, itens hoje, fontes com falha, locks ativos
+- [x] Visão por fonte (volume) e breakdowns por status de extração / enriquecimento
+- [ ] Totais editoriais completos: notícias hoje, esta semana, este mês
+- [ ] Gráfico por tema
+- [x] Alertas: fontes com falha
+- [ ] Alertas: fontes inativas
 - [ ] Últimas notícias de alta urgência/relevância
 
 ---
