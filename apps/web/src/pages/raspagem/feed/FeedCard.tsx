@@ -9,6 +9,7 @@ import {
     Globe,
     Image as ImageIcon,
     Sparkles,
+    Timer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,8 @@ import {
     extractionLabels,
     enrichmentLabels,
     urgencyLabels,
+    aiFactLabels,
     HIGH_RELEVANCE_SCORE,
-    listingAiFactKeys,
     formatRelativeTime,
     formatDateTime,
     getHostname,
@@ -28,12 +29,15 @@ import {
     getCaptureBadgeLabel,
     isRecentItem,
 } from "./feed-utils";
+import type { AiFactKey } from "./feed-utils";
 
 interface FeedCardProps {
     item: NewsItem;
     index: number;
     onSelect: (id: number) => void;
 }
+
+const allAiFactKeys = Object.keys(aiFactLabels) as AiFactKey[];
 
 function FeedCardImage({ item }: { item: NewsItem }) {
     const [hasError, setHasError] = useState(false);
@@ -70,7 +74,7 @@ function FeedCardImage({ item }: { item: NewsItem }) {
 export function FeedCard({ item, index, onSelect }: FeedCardProps) {
     const highRelevance =
         (item.ai_metadata?.relevance_score ?? 0) >= HIGH_RELEVANCE_SCORE;
-    const quickFacts = getAiFacts(item, listingAiFactKeys);
+    const allFacts = getAiFacts(item, allAiFactKeys);
 
     return (
         <motion.div
@@ -142,9 +146,14 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                             <span>•</span>
                             <span>{getHostname(item.url)}</span>
                             <span>•</span>
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1" title="Data da notícia (publicação)">
                                 <Clock className="h-3 w-3" />
-                                {formatRelativeTime(item.published_at_utc)}
+                                Notícia {formatRelativeTime(item.published_at_utc)}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1" title="Data da captura pelo radar">
+                                <Timer className="h-3 w-3" />
+                                Captura {formatRelativeTime(item.created_at)}
                             </span>
                         </div>
 
@@ -152,9 +161,9 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                             {getSummary(item)}
                         </p>
 
-                        {quickFacts.length > 0 && (
-                            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                                {quickFacts.map((fact) => (
+                        {allFacts.length > 0 && (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {allFacts.map((fact) => (
                                     <div
                                         key={`${item.id}-${fact.key}`}
                                         className="min-w-0 rounded-xl border border-border/50 bg-background/70 p-2.5"
@@ -165,6 +174,19 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                                         <p className="mt-1 line-clamp-2 text-sm font-medium text-foreground/90">
                                             {fact.value}
                                         </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {item.ai_metadata?.summary_bullets && item.ai_metadata.summary_bullets.length > 0 && (
+                            <div className="mt-3 space-y-1.5">
+                                {item.ai_metadata.summary_bullets.slice(0, 3).map((bullet) => (
+                                    <div
+                                        key={bullet}
+                                        className="rounded-lg bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground"
+                                    >
+                                        {bullet}
                                     </div>
                                 ))}
                             </div>
@@ -221,8 +243,9 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                         Abrir origem
                     </Button>
 
-                    <div className="ml-auto text-xs text-muted-foreground">
-                        {formatDateTime(item.published_at_utc)}
+                    <div className="ml-auto flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
+                        <span title="Data da notícia">📰 {formatDateTime(item.published_at_utc)}</span>
+                        <span title="Data da captura" className="text-[10px]">⚡ {formatDateTime(item.created_at)}</span>
                     </div>
                 </div>
             </div>

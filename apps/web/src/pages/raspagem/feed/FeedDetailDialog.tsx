@@ -30,6 +30,8 @@ import {
     getCaptureQualityLabel,
     getLatestFailedAiLog,
     formatAiStage,
+    formatAiStrategy,
+    formatAiCategory,
 } from "./feed-utils";
 
 interface FeedDetailDialogProps {
@@ -93,6 +95,13 @@ export function FeedDetailDialog({
     const selectedAllFacts = getAiFacts(selectedItem);
     const latestAiFailure = getLatestFailedAiLog(selectedItem);
     const recentAiLogs = selectedItem?.ai_logs?.slice(0, 5) ?? [];
+
+    const getLogMetaValue = (log: NonNullable<NewsItem["ai_logs"]>[number], key: string) => {
+        const value = log.meta_json?.[key];
+        return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+            ? String(value)
+            : null;
+    };
 
     return (
         <Dialog
@@ -300,6 +309,25 @@ export function FeedDetailDialog({
                                                     <p className="whitespace-pre-wrap text-sm text-muted-foreground">
                                                         {latestAiFailure.error_message || "Falha sem mensagem."}
                                                     </p>
+                                                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                                        <span>
+                                                            Estrategia:{" "}
+                                                            {formatAiStrategy(
+                                                                getLogMetaValue(latestAiFailure, "strategy"),
+                                                            )}
+                                                        </span>
+                                                        <span>
+                                                            Categoria:{" "}
+                                                            {formatAiCategory(
+                                                                getLogMetaValue(latestAiFailure, "category"),
+                                                            )}
+                                                        </span>
+                                                        {getLogMetaValue(latestAiFailure, "provider_status") && (
+                                                            <span>
+                                                                HTTP {getLogMetaValue(latestAiFailure, "provider_status")}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -360,6 +388,23 @@ export function FeedDetailDialog({
                                                             <span className="text-muted-foreground">
                                                                 {formatDateTime(log.created_at)}
                                                             </span>
+                                                        </div>
+                                                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                                            <span>
+                                                                Estrategia: {formatAiStrategy(getLogMetaValue(log, "strategy"))}
+                                                            </span>
+                                                            <span>
+                                                                Categoria: {formatAiCategory(getLogMetaValue(log, "category"))}
+                                                            </span>
+                                                            {getLogMetaValue(log, "attempt") && (
+                                                                <span>Tentativa {getLogMetaValue(log, "attempt")}</span>
+                                                            )}
+                                                            {getLogMetaValue(log, "provider_status") && (
+                                                                <span>HTTP {getLogMetaValue(log, "provider_status")}</span>
+                                                            )}
+                                                            {getLogMetaValue(log, "next_action") && (
+                                                                <span>Proximo passo: {getLogMetaValue(log, "next_action")}</span>
+                                                            )}
                                                         </div>
                                                         {log.error_message && (
                                                             <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">

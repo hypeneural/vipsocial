@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { newsRadarService } from "@/services/newsRadar.service";
 import type { NewsItem } from "@/services/newsRadar.service";
 
-const MAX_ITEMS = 200;
+const MAX_ITEMS = 500;
 const POLL_INTERVAL = 60000;
+const OLDER_PAGE_SIZE = 30;
 
 export interface StreamingState {
     items: NewsItem[];
@@ -12,6 +13,8 @@ export interface StreamingState {
     newCount: number;
     lastUpdatedAt: Date | null;
     consecutiveErrors: number;
+    hasOlderItems: boolean;
+    isFetchingOlder: boolean;
 }
 
 export function useStreamingFeed() {
@@ -22,13 +25,17 @@ export function useStreamingFeed() {
         newCount: 0,
         lastUpdatedAt: null,
         consecutiveErrors: 0,
+        hasOlderItems: true,
+        isFetchingOlder: false,
     });
 
     const seenIdsRef = useRef(new Set<number>());
     const maxIdRef = useRef(0);
+    const oldestPageRef = useRef(1);
     const intervalRef = useRef<ReturnType<typeof setInterval>>();
     const newCountTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
+    // Fetch new items (initial load + polling for new)
     const fetchItems = useCallback(async (isInitial: boolean) => {
         try {
             const params: Record<string, unknown> = {
@@ -41,6 +48,10 @@ export function useStreamingFeed() {
 
             const response = await newsRadarService.getItems(params);
             const fetchedItems = response.data;
+
+            if (isInitial) {
+                oldestPageRef.current = 1;
+            }
 
             if (fetchedItems.length === 0 && !isInitial) {
                 setState((prev) => ({
@@ -68,7 +79,7 @@ export function useStreamingFeed() {
                     ? newItems
                     : [...newItems, ...prev.items];
 
-                const trimmed = merged
+                const sorted = merged
                     .sort((a, b) => {
                         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
                         const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -77,12 +88,14 @@ export function useStreamingFeed() {
                     .slice(0, MAX_ITEMS);
 
                 return {
-                    items: trimmed,
+                    ...prev,
+                    items: sorted,
                     isLoading: false,
                     isError: false,
                     newCount: isInitial ? 0 : newItems.length,
                     lastUpdatedAt: new Date(),
                     consecutiveErrors: 0,
+                    hasOlderItems: isInitial ? (response.last_page > 1) : prev.hasOlderItems,
                 };
             });
 
@@ -104,6 +117,56 @@ export function useStreamingFeed() {
         }
     }, []);
 
+    // Fetch older items when scrolling down
+    const fetchOlderItems = useCallback(async () => {
+        setState((prev) => {
+            if (prev.isFetchingOlder || !prev.hasOlderItems) return prev;
+            return { ...prev, isFetchingOlder: true };
+        });
+
+        try {
+            const nextPage = oldestPageRef.current + 1;
+            const response = await newsRadarService.getItems({
+                per_page: OLDER_PAGE_SIZE,
+                page: nextPage,
+            });
+
+            const fetchedItems = response.data;
+            oldestPageRef.current = nextPage;
+
+            const newItems = fetchedItems.filter(
+                (item) => !seenIdsRef.current.has(item.id),
+            );
+
+            for (const item of newItems) {
+                seenIdsRef.current.add(item.id);
+            }
+
+            setState((prev) => {
+                const merged = [...prev.items, ...newItems];
+                const sorted = merged
+                    .sort((a, b) => {
+                        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                        return dateB - dateA;
+                    })
+                    .slice(0, MAX_ITEMS);
+
+                return {
+                    ...prev,
+                    items: sorted,
+                    isFetchingOlder: false,
+                    hasOlderItems: response.current_page < response.last_page,
+                };
+            });
+        } catch {
+            setState((prev) => ({
+                ...prev,
+                isFetchingOlder: false,
+            }));
+        }
+    }, []);
+
     useEffect(() => {
         fetchItems(true);
 
@@ -117,5 +180,8 @@ export function useStreamingFeed() {
         };
     }, [fetchItems]);
 
-    return state;
+    return {
+        ...state,
+        fetchOlderItems,
+    };
 }

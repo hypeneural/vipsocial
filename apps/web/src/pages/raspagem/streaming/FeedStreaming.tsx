@@ -42,6 +42,9 @@ export default function FeedStreaming() {
                     items={stream.items}
                     isLoading={stream.isLoading}
                     isError={stream.isError}
+                    hasOlderItems={stream.hasOlderItems}
+                    isFetchingOlder={stream.isFetchingOlder}
+                    onLoadOlder={stream.fetchOlderItems}
                 />
             </main>
         </div>

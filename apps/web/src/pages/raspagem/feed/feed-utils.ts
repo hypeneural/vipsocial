@@ -150,6 +150,27 @@ export function formatAiStage(stage?: string | null): string {
     return stage || "IA";
 }
 
+export function formatAiStrategy(strategy?: string | null): string {
+    if (strategy === "structured_outputs") return "Schema";
+    if (strategy === "prompt_json") return "JSON por prompt";
+    return strategy || "nao informado";
+}
+
+export function formatAiCategory(category?: string | null): string {
+    if (category === "unsupported_parameters") return "Parametros nao suportados";
+    if (category === "model_unavailable") return "Modelo indisponivel";
+    if (category === "provider_unavailable") return "Provider indisponivel";
+    if (category === "rate_limited") return "Rate limit";
+    if (category === "transport") return "Transporte";
+    if (category === "timeout") return "Timeout";
+    if (category === "invalid_json") return "JSON invalido";
+    if (category === "invalid_response_shape") return "Schema invalido";
+    if (category === "empty_response") return "Resposta vazia";
+    if (category === "request_invalid") return "Payload invalido";
+    if (category === "auth") return "Autenticacao";
+    return category || "nao informado";
+}
+
 export function getLatestFailedAiLog(item?: NewsItem | null) {
     return item?.ai_logs?.find((log) => log.status === "failed") ?? null;
 }
