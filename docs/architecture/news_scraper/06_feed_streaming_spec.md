@@ -24,9 +24,23 @@
 
 ---
 
-## 2. Estado Atual do Backend (`/api/v1/news-radar/items`)
+## 2. Estado Atual do Backend (`/api/v1/news-radar/`)
 
-### Controller: `NewsItemController.php` (125 linhas) — **100% funcional**
+### Roteamento: **Ativo em produção ✅**
+
+O `ModuleServiceProvider` carrega automaticamente `app/Modules/*/routes.php` sob o prefixo `api/v1`.
+O módulo `NewsRadar` tem `routes.php` registrado → endpoints estão acessíveis.
+
+> **Não existe sistema legado de raspagem.** As páginas `Feed.tsx`, `Fontes.tsx`, `Filtros.tsx` são placeholders 100% mock criados como protótipos de UI. Nunca estiveram conectados a nenhum backend. O módulo NewsRadar que criamos **é** o backend.
+
+### Endpoints disponíveis (13 módulos ativos)
+
+| Módulo | Rotas |
+|---|---|
+| **NewsRadar** | 12 endpoints sob `/api/v1/news-radar/` |
+| Alertas, Analytics, Auth, Config, Enquetes, Externas, Pessoas, Roteiros, Social, Users, VipGallery, WhatsApp | Módulos existentes do sistema |
+
+### Controller: `NewsItemController.php` (125 linhas) — **Funcional**
 
 **`GET /api/v1/news-radar/items`** — Listagem com filtros:
 
@@ -54,9 +68,14 @@
 - `GET /items/{id}/related` — 5 notícias relacionadas (mesma fonte, últimos 7 dias)
 - `GET /dashboard` — Totais por status, por fonte, fontes com falha
 
-### Service Layer (TypeScript) — **Não existe ainda**
+### Tabelas no banco — **Migradas ✅**
 
-Precisa criar `newsRadar.service.ts` seguindo o padrão de `alerta.service.ts`.
+10 tabelas criadas via migration: `news_themes`, `news_sources`, `news_source_runs`, `source_discovery_runs`, `news_raw_items`, `news_items`, `news_item_media`, `news_item_ai_metadata`, `news_clusters`, `news_cluster_items`.
+
+### Service Layer (TypeScript) — **Não existe**
+
+Precisa criar `newsRadar.service.ts` seguindo o padrão de `alerta.service.ts` (usa `import api from "./api"`, Axios, baseURL `/api/v1`).
+
 
 ---
 
