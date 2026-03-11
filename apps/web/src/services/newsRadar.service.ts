@@ -108,6 +108,18 @@ export interface NewsItemAiLog {
     updated_at?: string;
 }
 
+export interface NewsAiModelHealth {
+    stage: string;
+    model: string;
+    attempts_total: number;
+    attempts_success: number;
+    attempts_failed: number;
+    failure_rate: number;
+    last_attempt_at?: string | null;
+    last_error_message?: string | null;
+    last_failure_at?: string | null;
+}
+
 export interface NewsItemMedia {
     id: number;
     news_item_id?: number;
@@ -180,6 +192,7 @@ export interface NewsDashboard {
         source?: NewsSourceSummary | null;
     }>;
     failing_sources: Array<Pick<NewsSource, "id" | "name" | "consecutive_failures" | "last_sync_at">>;
+    ai_model_health?: NewsAiModelHealth[];
 }
 
 export interface NewsSourceFilters {

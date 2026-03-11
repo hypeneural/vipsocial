@@ -10,6 +10,7 @@ use App\Modules\NewsRadar\Jobs\FetchNewsSourceJob;
 use App\Modules\NewsRadar\Jobs\ClassifyNewsItemJob;
 use App\Modules\NewsRadar\Jobs\ProcessNewsItemJob;
 use App\Modules\NewsRadar\Models\NewsItem;
+use App\Modules\NewsRadar\Models\NewsItemAiLog;
 use App\Modules\NewsRadar\Models\NewsItemAiMetadata;
 use App\Modules\NewsRadar\Models\NewsItemMedia;
 use App\Modules\NewsRadar\Models\NewsRawItem;
@@ -369,6 +370,28 @@ test('dashboard endpoint aggregates source and item metrics', function () {
         'published_at_utc' => now()->subDays(10),
     ])->save();
 
+    NewsItemAiLog::create([
+        'news_item_id' => $todayItem->id,
+        'stage' => 'classification',
+        'status' => 'failed',
+        'model' => 'z-ai/glm-4.5-air:free',
+        'error_message' => 'No endpoints found that can handle the requested parameters.',
+        'meta_json' => ['category' => 'unsupported_parameters'],
+        'created_at' => now()->subHour(),
+        'updated_at' => now()->subHour(),
+    ]);
+
+    NewsItemAiLog::create([
+        'news_item_id' => $todayItem->id,
+        'stage' => 'classification',
+        'status' => 'success',
+        'model' => 'arcee-ai/trinity-large-preview:free',
+        'tokens_used' => 80,
+        'meta_json' => ['strategy' => 'structured_outputs'],
+        'created_at' => now()->subMinutes(30),
+        'updated_at' => now()->subMinutes(30),
+    ]);
+
     $this->actingAs($this->user, 'sanctum')
         ->getJson('/api/v1/news-radar/dashboard')
         ->assertOk()
@@ -385,12 +408,15 @@ test('dashboard endpoint aggregates source and item metrics', function () {
         ->assertJsonPath('by_enrichment_status.enrichment_failed', 1)
         ->assertJsonPath('by_source.0.news_source_id', $activeSource->id)
         ->assertJsonPath('by_source.0.count', 2)
-        ->assertJsonPath('failing_sources.0.id', $failingSource->id);
+        ->assertJsonPath('failing_sources.0.id', $failingSource->id)
+        ->assertJsonPath('ai_model_health.0.model', 'z-ai/glm-4.5-air:free')
+        ->assertJsonPath('ai_model_health.0.attempts_failed', 1)
+        ->assertJsonPath('ai_model_health.0.failure_rate', 1);
 
     Carbon::setTestNow();
 });
 
-test('classification failures are logged and exposed on item detail', function () {
+test('classification failures that are not queue-retryable mark the item and keep the log visible on detail', function () {
     $source = makeNewsRadarSource(['name' => 'Fonte com IA']);
     $item = makeNewsRadarItem($source, [
         'title' => 'Item com falha de IA',
@@ -409,30 +435,30 @@ test('classification failures are logged and exposed on item detail', function (
             context: [
                 'provider_status' => 404,
             ],
+            category: 'model_unavailable',
+            fallbackable: true,
+            queueRetryable: false,
         ));
-    $aiService->shouldReceive('classificationModel')
-        ->once()
-        ->andReturn('openai/gpt-oss-20b:free');
 
     $job = new ClassifyNewsItemJob($item->id);
-
-    try {
-        $job->handle($aiService);
-        $this->fail('Era esperado que a classificacao lancasse excecao.');
-    } catch (AiRequestException) {
-        // expected
-    }
-
-    $item->refresh();
-
-    expect($item->enrichment_status)->toBe(EnrichmentStatus::EnrichmentFailed);
-
-    $this->assertDatabaseHas('news_item_ai_logs', [
+    NewsItemAiLog::create([
         'news_item_id' => $item->id,
         'stage' => 'classification',
         'status' => 'failed',
         'model' => 'openai/gpt-oss-20b:free',
+        'error_message' => 'No endpoints available matching your guardrail restrictions and data policy.',
+        'meta_json' => [
+            'provider_status' => 404,
+            'strategy' => 'structured_outputs',
+            'category' => 'model_unavailable',
+        ],
     ]);
+
+    $job->handle($aiService);
+
+    $item->refresh();
+
+    expect($item->enrichment_status)->toBe(EnrichmentStatus::EnrichmentFailed);
 
     $this->actingAs($this->user, 'sanctum')
         ->getJson("/api/v1/news-radar/items/{$item->id}")

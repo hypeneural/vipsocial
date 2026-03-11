@@ -3,6 +3,7 @@
 namespace App\Modules\NewsRadar\Http\Controllers;
 
 use App\Modules\NewsRadar\Models\NewsItem;
+use App\Modules\NewsRadar\Models\NewsItemAiLog;
 use App\Modules\NewsRadar\Models\NewsSource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -95,6 +96,46 @@ class NewsItemController extends Controller
 
     public function dashboard(Request $request): JsonResponse
     {
+        $aiModelHealth = NewsItemAiLog::query()
+            ->selectRaw('stage, model, count(*) as attempts_total')
+            ->selectRaw("sum(case when status = 'success' then 1 else 0 end) as attempts_success")
+            ->selectRaw("sum(case when status = 'failed' then 1 else 0 end) as attempts_failed")
+            ->selectRaw('max(created_at) as last_attempt_at')
+            ->whereNotNull('model')
+            ->where('created_at', '>=', now()->subDays(7))
+            ->groupBy('stage', 'model')
+            ->orderByDesc('attempts_failed')
+            ->orderByDesc('last_attempt_at')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                $latestFailure = NewsItemAiLog::query()
+                    ->where('stage', $row->stage)
+                    ->where('model', $row->model)
+                    ->where('status', 'failed')
+                    ->latest('created_at')
+                    ->first(['error_message', 'created_at']);
+
+                $attemptsTotal = (int) $row->attempts_total;
+                $attemptsFailed = (int) $row->attempts_failed;
+                $attemptsSuccess = (int) $row->attempts_success;
+
+                return [
+                    'stage' => $row->stage,
+                    'model' => $row->model,
+                    'attempts_total' => $attemptsTotal,
+                    'attempts_success' => $attemptsSuccess,
+                    'attempts_failed' => $attemptsFailed,
+                    'failure_rate' => $attemptsTotal > 0
+                        ? round($attemptsFailed / $attemptsTotal, 4)
+                        : 0,
+                    'last_attempt_at' => $row->last_attempt_at,
+                    'last_error_message' => $latestFailure?->error_message,
+                    'last_failure_at' => $latestFailure?->created_at,
+                ];
+            })
+            ->values();
+
         $data = [
             'total_sources' => NewsSource::active()->count(),
             'total_items' => NewsItem::count(),
@@ -123,6 +164,8 @@ class NewsItemController extends Controller
                 ->orderByDesc('consecutive_failures')
                 ->limit(5)
                 ->get(['id', 'name', 'consecutive_failures', 'last_sync_at']),
+
+            'ai_model_health' => $aiModelHealth,
         ];
 
         return response()->json($data);
