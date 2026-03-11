@@ -1,135 +1,99 @@
 # Documentação — Feed de Notícias + Modo Streaming
 
-## 1. Estado Atual do Frontend (`/raspagem/feed`)
+## 1. Estado Atual — Visão Geral
 
-### Arquivo: `apps/web/src/pages/raspagem/Feed.tsx` (382 linhas)
+> **Todas as 3 páginas estão 100% integradas com o backend e em produção.**
+> Build é servido via `apps/api/public`. Não há mock data em nenhuma página.
 
-**Status: 100% mock data — sem integração com API.**
-
-| Componente | Estado | Detalhes |
-|---|---|---|
-| Interface visual | ✅ Pronto | Cards com imagem, badges (Novo, Duplicado, Alta Relevância), tags, ações |
-| Dados | ❌ Mock | Array `mockItems[]` hardcoded com 6 itens |
-| Filtros | ⚠️ Parcial | Filtro por status (todos/novos/duplicados/alta relevância) + busca por texto — local only |
-| Stats cards | ❌ Mock | "Itens/min", "Tempo médio", "Na fila" — valores fixos |
-| Ações dos cards | ❌ Stub | "Criar Rascunho", "Tags", "Duplicado", "Ignorar", "Abrir" — sem lógica real |
-| Paginação | ❌ Não existe | Mostra array completo, sem paginação |
-| Auto-refresh | ❌ Não existe | Botão "Atualizar" faz fake refresh (setTimeout 1s) |
-
-### Stack de UI usada
-- `AppShell` (layout com sidebar)
-- `framer-motion` (AnimatePresence, stagger animations)
-- shadcn/ui: `Button`, `Badge`, `Input`, `Select`
-- Ícones: `lucide-react`
+| Camada | Arquivo | Linhas | Status |
+|---|---|---|---|
+| Service TS | `services/newsRadar.service.ts` | 452 | ✅ 14 métodos, tipagem completa |
+| Hooks | `hooks/useNewsRadar.ts` | 179 | ✅ react-query, refetch 60s, mutations |
+| Feed | `pages/raspagem/Feed.tsx` | 1079 | ✅ Listagem real com filtros, detalhe, AI |
+| Fontes | `pages/raspagem/Fontes.tsx` | 1112 | ✅ CRUD, sync, autodetect, edição |
+| Filtros | `pages/raspagem/Filtros.tsx` | 748 | ✅ Diagnóstico, preview, test-selector |
+| Backend | `NewsItemController.php` | 125 | ✅ 12 endpoints, 9 filtros |
 
 ---
 
-## 2. Estado Atual do Backend (`/api/v1/news-radar/`)
+## 2. Frontend — Detalhamento por Página
 
-### Roteamento: **Ativo em produção ✅**
+### 2.1 Feed (`/raspagem/feed`) — 1079 linhas
 
-O `ModuleServiceProvider` carrega automaticamente `app/Modules/*/routes.php` sob o prefixo `api/v1`.
-O módulo `NewsRadar` tem `routes.php` registrado → endpoints estão acessíveis.
+**Funcionalidades operacionais:**
+- KPI cards reais: fontes ativas, itens hoje, fontes com falha, itens na semana (via `useNewsDashboard`)
+- 7 filtros server-side: busca texto, fonte, visão (duplicados/alta relevância/últimas 6h), status extração, status IA, urgência, cidade
+- Listagem paginada: 12 itens/página, paginação real com `page` e `per_page`
+- Cards com: imagem hero (lazy load + fallback), badges (Novo, Duplicado, Alta Relevância, status extração/IA), fonte+hostname+tempo relativo, resumo, 5W1H quick facts (Quem/O quê/Onde), categorias, % captura, cidade, urgência
+- Dialog de detalhe: carrega `getItemById()` com body_text, imagem ampliada, contexto (fonte, data, cidade, relevância %, qualidade captura), leitura IA completa (5W1H + summary bullets), notícias relacionadas (via `getRelatedItems()`)
+- Auto-refresh: `refetchInterval: 60000` no react-query (dashboard + items + sources)
 
-> **Não existe sistema legado de raspagem.** As páginas `Feed.tsx`, `Fontes.tsx`, `Filtros.tsx` são placeholders 100% mock criados como protótipos de UI. Nunca estiveram conectados a nenhum backend. O módulo NewsRadar que criamos **é** o backend.
+### 2.2 Fontes (`/raspagem/fontes`) — 1112 linhas
 
-### Endpoints disponíveis (13 módulos ativos)
+**Funcionalidades operacionais:**
+- KPI cards: total filtrado, ativas, com falha, itens hoje
+- 3 filtros: busca por nome/domínio, status (ativas/pausadas/com falha), tipo (portal/prefeitura/blog/agência/WhatsApp)
+- Listagem paginada com 12 fontes/página
+- Cards com: badge status dinâmico (Saudável/Em alerta/Sincronizando/Pausada), tipo, URL, discovery_mode, métricas operacionais (última sync, taxa sucesso, tempo médio, itens encontrados, falhas seguidas)
+- Ações: toggle ativa/pausada (Switch), Sync (dispara job), Editar, Abrir site, Remover (com confirm)
+- Dialog create/edit completo: nome, URL + botão Detectar (autodetect via `discoverSource`), tipo, discovery mode, fetch detail mode, feed quality profile, preset, timezone, JS required, notas, crawling config (JSON), throttle config (JSON), date formats
+- Autodetect infere preset, feed quality, discovery mode, crawling config automaticamente
 
-| Módulo | Rotas |
-|---|---|
-| **NewsRadar** | 12 endpoints sob `/api/v1/news-radar/` |
-| Alertas, Analytics, Auth, Config, Enquetes, Externas, Pessoas, Roteiros, Social, Users, VipGallery, WhatsApp | Módulos existentes do sistema |
+### 2.3 Filtros (`/raspagem/filtros`) — 748 linhas
 
-### Controller: `NewsItemController.php` (125 linhas) — **Funcional**
-
-**`GET /api/v1/news-radar/items`** — Listagem com filtros:
-
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| `source_id` | int | Filtrar por fonte |
-| `extraction_status` | string | `pending`, `extracted`, `extraction_failed` |
-| `enrichment_status` | string | `none`, `enriched_l1`, `enriched_l2`, `enrichment_failed` |
-| `search` | string | Busca em `title` e `excerpt` |
-| `date_from` | datetime | Data início |
-| `date_to` | datetime | Data fim |
-| `city` | string | Cidade (via AI metadata) |
-| `theme_id` | int | Tema editorial (via AI metadata) |
-| `urgency` | string | `baixa`, `media`, `alta` (via AI metadata) |
-| `per_page` | int | Itens por página (default: 20) |
-
-**Ordenação:** `published_at_utc DESC` (fixo)
-
-**Includes automáticos:**
-- `source:id,name,source_type`
-- `aiMetadata:id,news_item_id,city,urgency,relevance_score,news_theme_id`
-
-**Outros endpoints:**
-- `GET /items/{id}` — Detalhe com source, aiMetadata, media, rawItem
-- `GET /items/{id}/related` — 5 notícias relacionadas (mesma fonte, últimos 7 dias)
-- `GET /dashboard` — Totais por status, por fonte, fontes com falha
-
-### Tabelas no banco — **Migradas ✅**
-
-10 tabelas criadas via migration: `news_themes`, `news_sources`, `news_source_runs`, `source_discovery_runs`, `news_raw_items`, `news_items`, `news_item_media`, `news_item_ai_metadata`, `news_clusters`, `news_cluster_items`.
-
-### Service Layer (TypeScript) — **Não existe**
-
-Precisa criar `newsRadar.service.ts` seguindo o padrão de `alerta.service.ts` (usa `import api from "./api"`, Axios, baseURL `/api/v1`).
-
+**Funcionalidades operacionais (diagnóstico + ferramentas):**
+- Tab "Saúde": KPIs do dashboard, fontes com mais falhas, itens com falha de extração, itens com falha de IA
+- Tab "Diagnostico": ferramenta de autodetect (descobre feed/sitemap de qualquer URL), raw JSON do resultado, sugestão de configuração
+- Tab "Preview": testa captura em modo feed ou html_listing, mostra preview dos itens encontrados
+- Tab "Seletores": testa CSS selectors contra uma URL, mostra matches + HTML/text extraído
 
 ---
 
-## 3. O que precisa ser feito para integrar a página Feed
+## 3. Backend — Endpoints Ativos
 
-### 3.1 Criar `apps/web/src/services/newsRadar.service.ts`
+**Registrados via `ModuleServiceProvider` → `api/v1/news-radar/`**
 
-Padrão a seguir: `alerta.service.ts` — usa `import api from "./api"` (Axios, baseURL `/api/v1`).
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/sources` | Listar fontes (paginado, filtrado) |
+| POST | `/sources` | Criar fonte |
+| GET | `/sources/{id}` | Detalhe da fonte |
+| PUT | `/sources/{id}` | Atualizar fonte |
+| DELETE | `/sources/{id}` | Remover fonte |
+| POST | `/sources/{id}/sync` | Disparar sincronização |
+| GET | `/sources/{id}/runs` | Histórico de execuções |
+| POST | `/sources/discover` | Autodetect de feed/sitemap |
+| GET | `/sources/discover/{runId}/status` | Status do discovery |
+| POST | `/sources/preview` | Preview de captura |
+| POST | `/sources/test-selector` | Testar CSS selector |
+| GET | `/items` | Listar notícias (9 filtros) |
+| GET | `/items/{id}` | Detalhe com AI metadata |
+| GET | `/items/{id}/related` | Notícias relacionadas |
+| GET | `/dashboard` | KPIs e totais |
 
-```typescript
-// Endpoints a mapear:
-newsItemService.getAll(params)       → GET /news-radar/items
-newsItemService.getById(id)          → GET /news-radar/items/{id}
-newsItemService.getRelated(id)       → GET /news-radar/items/{id}/related
-newsRadarDashboard.getStats()        → GET /news-radar/dashboard
-newsSourceService.getAll(params)     → GET /news-radar/sources
-newsSourceService.sync(id)           → POST /news-radar/sources/{id}/sync
-```
+### Service Layer TypeScript (`newsRadar.service.ts`)
 
-### 3.2 Criar `apps/web/src/types/newsRadar.ts`
+14 métodos mapeando todos os endpoints. Tipagem completa com interfaces para: `NewsItem`, `NewsSource`, `NewsSourceRun`, `NewsItemAiMetadata`, `NewsDashboard`, DTOs de criação/edição, payloads de discovery/preview/selector.
 
-```typescript
-interface NewsItem {
-  id: number;
-  title: string;
-  subtitle?: string;
-  excerpt?: string;
-  hero_image_url?: string;
-  url: string;
-  raw_url: string;
-  author_raw?: string;
-  author_normalized?: string;
-  published_at_utc?: string;
-  extraction_status: string;
-  enrichment_status: string;
-  extraction_completeness: number;
-  content_source: string;
-  categories_raw?: string[];
-  source: { id: number; name: string; source_type: string };
-  ai_metadata?: {
-    city?: string;
-    urgency?: string;
-    relevance_score?: number;
-    news_theme_id?: number;
-  };
-}
-```
+### Hooks React Query (`useNewsRadar.ts`)
 
-### 3.3 Reescrever `Feed.tsx`
-
-Remover `mockItems` e `statsData`. Usar:
-- `useEffect` + `newsItemService.getAll()` para carregar dados
-- `newsRadarDashboard.getStats()` para stats cards
-- Paginação real (scroll infinito ou botão "Carregar mais")
+| Hook | Tipo | RefetchInterval |
+|---|---|---|
+| `useNewsDashboard` | query | 60s |
+| `useNewsItems` | query | 60s |
+| `useNewsItem` | query | on-demand |
+| `useRelatedNewsItems` | query | on-demand |
+| `useNewsSources` | query | 60s |
+| `useNewsSource` | query | on-demand |
+| `useNewsSourceRuns` | query | on-demand |
+| `useNewsDiscoveryStatus` | query | 2s (polling) |
+| `useCreateNewsSource` | mutation | - |
+| `useUpdateNewsSource` | mutation | - |
+| `useDeleteNewsSource` | mutation | - |
+| `useSyncNewsSource` | mutation | - |
+| `useDiscoverNewsSource` | mutation | - |
+| `usePreviewNewsSource` | mutation | - |
+| `useTestNewsSelector` | mutation | - |
 
 ---
 
@@ -137,7 +101,7 @@ Remover `mockItems` e `statsData`. Usar:
 
 ### 4.1 Conceito
 
-Um botão **"Ver em Streaming"** com ícone de TV (📺 `Monitor` do lucide-react) na página do Feed abre uma **tela fullscreen sem sidebar/topbar**, exibindo notícias em **Masonry Layout** que se auto-atualiza a cada 60 segundos, inserindo novas notícias no topo com animação suave.
+Um botão **"Ver em Streaming"** com ícone de TV (`Monitor` do lucide-react) na página do Feed abre uma **tela fullscreen sem sidebar/topbar**, exibindo notícias em **Masonry Layout** que se auto-atualiza a cada 60 segundos, inserindo novas notícias no topo com animação suave.
 
 ### 4.2 UX Flow
 
@@ -160,21 +124,19 @@ Um botão **"Ver em Streaming"** com ícone de TV (📺 `Monitor` do lucide-reac
 - **Cards compactos** — imagem hero (aspect-ratio), título, fonte+data, badge de urgência
 
 #### Auto-refresh (Polling)
-- `setInterval` a cada **60 segundos**
-- Request: `GET /news-radar/items?per_page=50&date_from={lastFetchTimestamp}`
-- Manter `lastFetchTimestamp` = data da última chamada
-- Novos itens → prepend ao array (manter no máximo ~200 itens em memória, remover os mais antigos)
-- Animação de entrada: `framer-motion` `AnimatePresence` com `initial={{ opacity: 0, y: -30 }}`
 
-#### Deduplicação no frontend
-- Manter `Set<number>` de IDs já exibidos
-- Ao receber novos, filtrar itens com ID já no Set
-- Só animar entrada de itens genuinamente novos
+Já temos o padrão no hook `useNewsItems` com `refetchInterval: 60000`. Para o streaming:
+
+- Reutilizar `useNewsItems` com `per_page: 50`
+- Manter `Set<number>` de IDs exibidos para dedup no frontend
+- Novos itens → prepend ao array com animação
+- Manter ~200 itens em memória (remover os mais antigos)
+- `framer-motion AnimatePresence` com `initial={{ opacity: 0, y: -30 }}`
 
 #### Indicador visual de atualização
-- Ao buscar: mostrar barra de progresso sutil no topo (shimmer/pulse)
-- Ao inserir novos: badge temporário "N novas" que desaparece após 3s
-- Erro de conexão: badge discreto "Offline — tentando reconectar"
+- Shimmer sutil no topo ao buscar
+- Badge temporário "N novas" que desaparece após 3s
+- Erro de conexão: badge discreto "Offline"
 
 ### 4.4 Componente: `StreamingCard`
 
@@ -198,10 +160,10 @@ Um botão **"Ver em Streaming"** com ícone de TV (📺 `Monitor` do lucide-reac
 
 | Breakpoint | Colunas | Card width aprox |
 |---|---|---|
-| < 640px (mobile) | 1 | 100% |
-| 640-1024px (tablet) | 2 | ~50% |
-| 1024-1440px (desktop) | 3 | ~33% |
-| > 1440px (wide) | 4 | ~25% |
+| < 640px | 1 | 100% |
+| 640-1024px | 2 | ~50% |
+| 1024-1440px | 3 | ~33% |
+| > 1440px | 4 | ~25% |
 
 ### 4.6 Arquivo e Rota
 
@@ -211,42 +173,13 @@ Um botão **"Ver em Streaming"** com ícone de TV (📺 `Monitor` do lucide-reac
 | Rota | `/raspagem/feed/streaming` |
 | Registro | `App.tsx` — lazy import, **sem** `AppShell` wrapper |
 
-### 4.7 Alterações necessárias em `Feed.tsx`
+### 4.7 O que criar/modificar
 
-Adicionar no header (ao lado do botão "Atualizar"):
+| Ação | Arquivo | Descrição |
+|---|---|---|
+| **[CRIAR]** | `pages/raspagem/FeedStreaming.tsx` | Página fullscreen com masonry |
+| **[MODIFICAR]** | `pages/raspagem/Feed.tsx` | Adicionar botão "Ver em Streaming" no header |
+| **[MODIFICAR]** | `App.tsx` | Registrar rota `/raspagem/feed/streaming` |
+| **[MODIFICAR]** | `constants/index.ts` | Adicionar `RASPAGEM_STREAMING` |
 
-```tsx
-<Button onClick={() => navigate('/raspagem/feed/streaming')} variant="outline" className="rounded-xl">
-  <Monitor className="w-4 h-4 mr-2" />
-  Ver em Streaming
-</Button>
-```
-
----
-
-## 5. Endpoint backend para polling eficiente
-
-O endpoint atual `GET /items` já suporta `date_from`, mas para polling eficiente seria ideal adicionar:
-
-### 5.1 Parâmetro `after_id` (opcional, v2)
-
-```
-GET /news-radar/items?after_id=1234&per_page=50
-```
-
-Retorna apenas itens com `id > after_id`. Mais eficiente que `date_from` porque evita itens com timestamp igual.
-
-> **Para a v1:** usar `date_from` com o timestamp da última chamada é suficiente.
-
----
-
-## 6. Resumo de arquivos a criar/modificar
-
-| Ação | Arquivo |
-|---|---|
-| **[CRIAR]** | `apps/web/src/services/newsRadar.service.ts` |
-| **[CRIAR]** | `apps/web/src/types/newsRadar.ts` |
-| **[CRIAR]** | `apps/web/src/pages/raspagem/FeedStreaming.tsx` |
-| **[MODIFICAR]** | `apps/web/src/pages/raspagem/Feed.tsx` — integrar API + botão Streaming |
-| **[MODIFICAR]** | `apps/web/src/App.tsx` — registrar rota `/raspagem/feed/streaming` |
-| **[MODIFICAR]** | `apps/web/src/constants/index.ts` — adicionar `RASPAGEM_STREAMING` |
+> **Não precisa** criar service/hooks — já existe `newsRadar.service.ts` e `useNewsRadar.ts` com tudo necessário.
