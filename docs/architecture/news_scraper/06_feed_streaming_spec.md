@@ -3,7 +3,7 @@
 ## 1. Estado Atual — Visão Geral
 
 > 3 páginas operacionais ativas + 1 página nova proposta (Streaming).
-> Build servido via `apps/api/public`. Sem mock data em nenhuma página.
+> Build servido via `apps/api/public`. Sem mock data.
 
 | Camada | Arquivo | Linhas | Status |
 |---|---|---|---|
@@ -20,30 +20,21 @@
 
 ### 2.1 Feed (`/raspagem/feed`) — 1079 linhas
 
-**Funcionalidades operacionais:**
-- KPIs reais via `useNewsDashboard`: fontes ativas, itens hoje, fontes com falha, itens na semana
-- 7 filtros server-side: busca texto, fonte, visão (duplicados/alta relevância/últimas 6h), status extração, status IA, urgência, cidade
-- Listagem paginada: 12 itens/página, paginação real
-- Cards com: imagem hero (lazy + fallback), badges, fonte+hostname+tempo relativo, resumo, 5W1H quick facts, categorias, % captura
-- Dialog de detalhe: body_text, imagem ampliada, contexto, leitura IA completa (5W1H + summary bullets), notícias relacionadas
-- Auto-refresh: `refetchInterval: 60000` (dashboard + items + sources)
-
-**Ordenação padrão:** `published_at_utc DESC` (o que a fonte publicou mais recente aparece primeiro).
+- KPIs reais via `useNewsDashboard`
+- 7 filtros server-side: busca, fonte, visão, extração, IA, urgência, cidade
+- Paginação tradicional (12/página) → **será substituída por infinite scroll**
+- Cards com imagem hero, badges, 5W1H, categorias, % captura
+- Dialog de detalhe com body_text, AI facts, relacionadas
+- Auto-refresh: `refetchInterval: 60000`
+- **Ordenação:** `published_at_utc DESC`
 
 ### 2.2 Fontes (`/raspagem/fontes`) — 1112 linhas
 
-- KPIs: total filtrado, ativas, com falha, itens hoje
-- Filtros: busca por nome/domínio, status, tipo (portal/prefeitura/blog/agência/WhatsApp)
-- CRUD completo: criar, editar, remover (com confirm), toggle ativa/pausada
-- Sync (dispara job), Autodetect (descobre feed/sitemap, sugere preset/config)
-- Dialog de edição com crawling config JSON, throttle config, date formats
+- CRUD completo com autodetect, sync, toggle, edição avançada (crawling config JSON)
 
 ### 2.3 Filtros (`/raspagem/filtros`) — 748 linhas
 
-- Tab Saúde: KPIs, fontes com mais falhas, itens com falha de extração/IA
-- Tab Diagnóstico: autodetect de qualquer URL, raw JSON, config sugerida
-- Tab Preview: testa captura em modo feed ou html_listing
-- Tab Seletores: testa CSS selectors contra URL, mostra matches
+- Tabs: Saúde, Diagnóstico, Preview, Seletores
 
 ---
 
@@ -55,115 +46,161 @@
 |---|---|---|
 | GET | `/sources` | Listar fontes (paginado, filtrado) |
 | POST | `/sources` | Criar fonte |
-| GET | `/sources/{id}` | Detalhe da fonte |
-| PUT | `/sources/{id}` | Atualizar fonte |
-| DELETE | `/sources/{id}` | Remover fonte |
-| POST | `/sources/{id}/sync` | Disparar sincronização |
-| GET | `/sources/{id}/runs` | Histórico de execuções |
-| POST | `/sources/discover` | Autodetect de feed/sitemap |
-| GET | `/sources/discover/{runId}/status` | Status do discovery |
-| POST | `/sources/preview` | Preview de captura |
-| POST | `/sources/test-selector` | Testar CSS selector |
+| GET | `/sources/{id}` | Detalhe |
+| PUT | `/sources/{id}` | Atualizar |
+| DELETE | `/sources/{id}` | Remover |
+| POST | `/sources/{id}/sync` | Disparar sync |
+| GET | `/sources/{id}/runs` | Histórico |
+| POST | `/sources/discover` | Autodetect |
+| GET | `/sources/discover/{runId}/status` | Status discovery |
+| POST | `/sources/preview` | Preview captura |
+| POST | `/sources/test-selector` | Testar selector |
 | GET | `/items` | Listar notícias (9 filtros) |
-| GET | `/items/{id}` | Detalhe com AI metadata |
-| GET | `/items/{id}/related` | Notícias relacionadas |
+| GET | `/items/{id}` | Detalhe com AI |
+| GET | `/items/{id}/related` | Relacionadas |
 | GET | `/dashboard` | KPIs e totais |
 
-### Hooks React Query (`useNewsRadar.ts`)
+### Hooks React Query
 
-| Hook | Tipo | RefetchInterval |
+| Hook | Tipo | Intervalo |
 |---|---|---|
 | `useNewsDashboard` | query | 60s |
 | `useNewsItems` | query | 60s |
-| `useNewsItem` | query | on-demand |
-| `useRelatedNewsItems` | query | on-demand |
-| `useNewsSources` | query | 60s |
-| `useNewsSource` | query | on-demand |
-| `useNewsSourceRuns` | query | on-demand |
+| `useNewsItem` / `useRelatedNewsItems` | query | on-demand |
+| `useNewsSources` / `useNewsSource` / `useNewsSourceRuns` | query | 60s / on-demand |
 | `useNewsDiscoveryStatus` | query | 2s (polling) |
-| `useCreateNewsSource` | mutation | invalidate |
-| `useUpdateNewsSource` | mutation | invalidate |
-| `useDeleteNewsSource` | mutation | invalidate |
-| `useSyncNewsSource` | mutation | invalidate |
-| `useDiscoverNewsSource` | mutation | - |
-| `usePreviewNewsSource` | mutation | - |
-| `useTestNewsSelector` | mutation | - |
+| `useCreate/Update/Delete/SyncNewsSource` | mutation | invalidate |
+| `useDiscover/Preview/TestSelector` | mutation | - |
 
 ---
 
-## 4. Pré-requisito: Decomposição do Feed.tsx
+## 4. Decomposição do Feed.tsx + Infinite Scroll
 
-> As páginas já estão grandes (1079, 1112, 748 linhas). Antes de adicionar mais complexidade com streaming, decompor o Feed.
-
-### Componentes a extrair do `Feed.tsx`
+### Estrutura nova de componentes
 
 ```
 pages/raspagem/
-├── Feed.tsx                    ← orquestra tudo
+├── Feed.tsx                         ← orquestra tudo
 ├── feed/
-│   ├── FeedHeader.tsx          ← título + botão atualizar + botão streaming
-│   ├── FeedStats.tsx           ← 4 KPI cards do dashboard
-│   ├── FeedFilters.tsx         ← painel de 7 filtros
-│   ├── FeedList.tsx            ← loop de cards + paginação
-│   ├── FeedCard.tsx            ← card individual com badges, imagem, facts
-│   ├── FeedCardImage.tsx       ← componente de imagem com fallback (já existe inline)
-│   └── FeedDetailDialog.tsx    ← dialog de detalhe com AI, relacionadas
+│   ├── FeedHeader.tsx               ← título + atualizar + botão streaming
+│   ├── FeedStats.tsx                ← 4 KPI cards
+│   ├── FeedFilters.tsx              ← painel de 7 filtros
+│   ├── FeedInfiniteList.tsx         ← infinite scroll + sentinel
+│   ├── FeedCard.tsx                 ← card individual
+│   ├── FeedCardSkeleton.tsx         ← skeleton do card (loading)
+│   ├── FeedImage.tsx                ← imagem com skeleton + fallback + fade
+│   ├── FeedLoadMoreTrigger.tsx      ← sentinel com IntersectionObserver
+│   └── FeedDetailDialog.tsx         ← dialog de detalhe com AI
 ├── hooks/
-│   └── useFeedFiltersState.ts  ← gerencia estado dos 7 filtros + paginação
+│   ├── useFeedFiltersState.ts       ← estado dos filtros + reset
+│   └── useInfiniteNewsItems.ts      ← useInfiniteQuery
 └── streaming/
-    ├── FeedStreaming.tsx        ← página fullscreen
-    ├── StreamingHeader.tsx      ← header mínimo
-    ├── StreamingGrid.tsx        ← grid responsivo
-    ├── StreamingCard.tsx        ← card compacto
-    └── useStreamingFeed.ts     ← polling incremental com delta
+    ├── FeedStreaming.tsx             ← página fullscreen
+    ├── StreamingHeader.tsx           ← logo + ao vivo + timestamp + ✕
+    ├── StreamingGrid.tsx             ← grid responsivo
+    ├── StreamingCard.tsx             ← card compacto
+    └── useStreamingFeed.ts           ← polling incremental com delta
 ```
+
+### Feed normal vs Streaming — separação clara
+
+| Aspecto | Feed Normal | Streaming |
+|---|---|---|
+| **Estratégia** | Infinite scroll por páginas | Polling incremental por delta |
+| **Hook** | `useInfiniteQuery` | `useStreamingFeed` (custom) |
+| **Paginação** | `page` + `getNextPageParam` | `after_id` |
+| **Ordenação** | `published_at_utc DESC` | `created_at DESC` |
+| **Interação** | Scroll para baixo, detalhes | Tela viva, sem navegação longa |
+| **Layout** | Lista vertical com AppShell | Grid fullscreen sem AppShell |
 
 ---
 
-## 5. Feature: Modo Streaming (`/raspagem/feed/streaming`)
+## 5. Infinite Scroll — Feed Normal
 
-### 5.1 Conceito
+### 5.1 Hook `useInfiniteNewsItems.ts`
 
-Botão **"Ver em Streaming"** com ícone de TV (`Monitor` do lucide-react) no header do Feed abre uma **tela fullscreen sem sidebar/topbar**, exibindo notícias em grid responsivo que se auto-atualiza a cada 60 segundos, inserindo novas notícias no topo com animação suave.
-
-### 5.2 UX Flow
-
-```
-/raspagem/feed
-  └─ Botão "Ver em Streaming" (ícone Monitor)
-       └─ Abre /raspagem/feed/streaming (fullscreen, sem AppShell)
-            ├─ Header: logo, status "Ao vivo", "Atualizado às HH:mm", "N novas", botão ✕
-            ├─ Grid responsivo de cards compactos
-            ├─ Polling de 60s com merge incremental
-            └─ Esc ou botão ✕ → volta para /raspagem/feed
+```typescript
+// Usa useInfiniteQuery do TanStack
+// - queryKey inclui todos os filtros ativos
+// - initialPageParam: 1
+// - getNextPageParam: (lastPage) => lastPage.next_page_url ? lastPage.current_page + 1 : undefined
+// - Lista final: data.pages.flatMap(page => page.data)
+// - Reset automático da lista ao mudar filtros (queryKey muda → refetch)
 ```
 
-### 5.3 Header do Streaming
+**Limite de páginas em memória:** manter no máximo **5 a 8 páginas**. O TanStack alerta que páginas acumuladas são refetchadas sequencialmente — quanto mais, mais lento.
+
+### 5.2 Sentinel (`FeedLoadMoreTrigger.tsx`)
+
+- `IntersectionObserver` no fim da lista
+- Quando entra no viewport e `hasNextPage === true` → `fetchNextPage()`
+- **Fallback manual:** botão "Carregar mais" abaixo do sentinel
+- Casos do fallback: observer falha, navegador lento, usuário prefere controle
+
+### 5.3 Reset de filtros
+
+Ao mudar qualquer filtro no `useFeedFiltersState`:
+- `queryKey` muda → TanStack descarta páginas antigas
+- Lista volta para página 1 automaticamente
+- Scroll volta ao topo
+
+---
+
+## 6. Skeletons em Dois Níveis
+
+### 6.1 Skeleton da lista (primeira carga)
+
+Quando `status === 'loading'`:
+- Renderizar 8–12 `FeedCardSkeleton`
+- Cada skeleton: bloco imagem (aspect-video) + 2–3 linhas título + meta + badges falsas
+- Tamanho idêntico ao card real → sem layout shift
+
+### 6.2 Skeleton da imagem (`FeedImage.tsx`)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  🔴 Logo    "Ao vivo"    "Atualizado às 14:32"    "3 novas"    ✕  │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────┐
+│ ██████████████████ │  ← shimmer bg (aspect-video)
+│ ██████████████████ │  ← <img> com opacity-0
+│ ██████████████████ │  ← onLoad → opacity-100 com transition
+└────────────────────┘
+```
+
+- Container com `aspect-video` fixo
+- Fundo skeleton (shimmer)
+- `<img>` com `opacity-0` → `onLoad` → `opacity-100` com `transition-opacity duration-300`
+- Evita pulos visuais, card já ocupa espaço final
+
+### 6.3 Skeleton de próxima página
+
+Quando `isFetchingNextPage`:
+- Mostrar 3–4 `FeedCardSkeleton` no fim da lista
+- Não bloqueia interação com cards existentes
+
+---
+
+## 7. Feature: Modo Streaming (`/raspagem/feed/streaming`)
+
+### 7.1 Conceito
+
+Botão **"Ver em Streaming"** (`Monitor` do lucide) no header do Feed abre tela **fullscreen sem sidebar**, com grid responsivo que se auto-atualiza a cada 60s, inserindo novas notícias no topo com animação.
+
+### 7.2 Header do Streaming
+
+```
+┌───────────────────────────────────────────────────────────┐
+│  🔴 Logo    "Ao vivo"    "Atualizado às 14:32"   "3 novas"   ✕  │
+└───────────────────────────────────────────────────────────┘
 ```
 
 | Elemento | Descrição |
 |---|---|
-| 🔴 Indicador | Círculo pulsante `bg-success` (mesmo do Feed atual) |
-| "Ao vivo" | Texto fixo em badge |
-| Timestamp | `Atualizado às HH:mm` — atualiza a cada refresh |
-| Contador novas | Badge `"N novas"` que aparece por 3s após receber itens novos |
-| ✕ | Botão fechar → `navigate('/raspagem/feed')` |
+| 🔴 | Círculo pulsante `bg-success` |
+| "Ao vivo" | Badge fixo |
+| Timestamp | Atualiza a cada refresh |
+| "N novas" | Badge success, desaparece após 3s |
+| ✕ | Fechar → `/raspagem/feed` |
 
-### 5.4 Estratégia de Polling Incremental (Delta)
-
-> **Problema:** `per_page=50` pode perder itens se entrarem mais de 50 entre dois polls.
-
-**Solução — campo marcador `after_id`:**
-
-1. **Primeira carga:** `GET /items?per_page=50` (sem marcador)
-2. **Próximos polls:** `GET /items?after_id={maiorIdExibido}&per_page=50`
-3. Backend filtra: `WHERE id > after_id ORDER BY id DESC LIMIT 50`
-4. Retorna somente o **delta** desde a última chamada
+### 7.3 Polling Incremental (Delta)
 
 **Backend — adicionar ao `NewsItemController::index()`:**
 
@@ -173,43 +210,28 @@ if ($request->filled('after_id')) {
 }
 ```
 
-**Frontend — `useStreamingFeed.ts`:**
+**`useStreamingFeed.ts`:**
 
-```typescript
-// Manter estado:
-// - allItems: NewsItem[] (max 200, ordenados por created_at DESC)
-// - seenIds: Set<number>
-// - maxId: number (maior id exibido)
-// - newCount: number (contagem de novidades recentes)
+1. Primeira carga: `GET /items?per_page=50`
+2. Próximos polls (60s): `GET /items?after_id={maxId}&per_page=50`
+3. Dedupe por `Set<number>` de IDs
+4. Prepend novos ao array com animação
+5. Trim se > 200 itens
 
-// A cada 60s:
-// 1. GET /items?after_id={maxId}&per_page=50
-// 2. Filtrar itens com id já no seenIds
-// 3. Prepend novos ao allItems
-// 4. Atualizar maxId, seenIds, newCount
-// 5. Trim allItems se > 200
-```
+### 7.4 Ordenação e Deduplicação
 
-### 5.5 Ordenação
+| Campo | Uso |
+|---|---|
+| `id` | Dedupe (Set) + marcador delta |
+| `created_at DESC` | Ordenação visual (novidade no radar, não data de publicação) |
 
-| Contexto | Campo de ordenação | Motivo |
-|---|---|---|
-| **Feed normal** | `published_at_utc DESC` | O que a fonte publicou mais recente primeiro |
-| **Streaming** | `created_at DESC` | O que o radar **descobriu** mais recente primeiro |
+> Notícia antiga descoberta agora entra no topo do streaming.
 
-> Notícia antiga descoberta agora deve entrar no topo do streaming — o objetivo é "novidade no radar", não "data de publicação da fonte".
+### 7.5 Layout: Grid Responsivo
 
-### 5.6 Deduplicação
-
-- **Campo de dedupe:** `id` (primary key, único e sequencial)
-- **Implementação:** `Set<number>` em memória no hook `useStreamingFeed`
-- **Ordenação visual:** Por `created_at DESC` no array local
-
-### 5.7 Layout: Grid Responsivo (não Masonry)
-
-> **Decisão:** começar com **grid responsivo tradicional**, não masonry.
->
-> CSS columns tem desvantagens para streaming: ordem visual estranha, cards pulam, animação de entrada no topo imprevisível. Para notícia ao vivo, **clareza visual > efeito Pinterest**.
+> **Decisão:** grid responsivo tradicional. Não masonry.
+> CSS columns → ordem visual estranha, cards pulam, animação imprevisível.
+> Para streaming ao vivo: clareza > efeito Pinterest.
 
 | Breakpoint | Colunas |
 |---|---|
@@ -218,34 +240,16 @@ if ($request->filled('after_id')) {
 | 1024-1440px | 3 |
 | > 1440px | 4 |
 
-**Implementação:** `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4`
+`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4`
 
-**Evolução futura:** se houver demanda por masonry, migrar para `react-masonry-css` (nunca CSS columns puro).
+**Evolução futura:** masonry com `react-masonry-css` só sob demanda explícita.
 
-### 5.8 Card de Streaming — Contrato Mínimo de Campos
-
-```
-┌──────────────────────┐
-│ ┌──────────────────┐ │
-│ │   Hero Image     │ │   ← aspect-ratio: 16/9, object-cover
-│ └──────────────────┘ │
-│                      │
-│ 🔴 Alta              │   ← urgency (só media/alta)
-│ Título da notícia... │   ← title (line-clamp-3)
-│                      │
-│ 📰 Fonte • 2 min     │   ← source.name + created_at relativo
-│ 🏙️ Itapema           │   ← city
-│                      │
-│ #economia #política  │   ← categories_raw (max 3)
-└──────────────────────┘
-```
-
-**Campos necessários do endpoint (contrato mínimo):**
+### 7.6 Card de Streaming — Contrato Mínimo
 
 | Campo | Obrigatório | Uso |
 |---|---|---|
 | `id` | ✅ | dedupe + key |
-| `title` | ✅ | texto principal |
+| `title` | ✅ | texto principal (line-clamp-3) |
 | `hero_image_url` | ❌ | imagem com fallback |
 | `source.name` | ✅ | identificação |
 | `created_at` | ✅ | ordenação + tempo relativo |
@@ -253,96 +257,113 @@ if ($request->filled('after_id')) {
 | `ai_metadata.city` | ❌ | badge condicional |
 | `categories_raw` | ❌ | tags (max 3) |
 
-> **Melhoria futura (v2):** criar `GET /items?view=stream` ou `GET /items/stream` com payload enxuto (sem body_text, body_html, excerpt, raw_item). Não é obrigatório para v1.
+> **Melhoria v2:** `GET /items?view=stream` ou `/items/stream` com payload enxuto (sem body_text/body_html).
 
-### 5.9 Ação ao clicar em um card
+### 7.7 Ação ao clicar
 
 | Contexto | Comportamento |
 |---|---|
-| **Desktop normal** | Abre modal simples (título, imagem, resumo, link "Abrir matéria") |
-| **Modo telão** | Opção futura: desativar interação via query param `?readonly=true` |
+| Desktop | Modal simples (título, imagem, resumo, link "Abrir matéria") |
+| Modo telão | Futuro: `?readonly=true` desativa interação |
 
-O modal do streaming é mais leve que o `FeedDetailDialog` do feed normal — não carrega body_text, AI facts, relacionadas.
-
-### 5.10 Estados de UI
+### 7.8 Estados de UI
 
 | Estado | Componente | Comportamento |
 |---|---|---|
-| **Carregando** | ShimmerGrid | Grid de placeholders com shimmer |
-| **Sem itens** | EmptyState | "Nenhuma notícia encontrada. Aguardando novas matérias..." |
-| **Erro na primeira carga** | EmptyState | "Sem conexão com o radar. Tentando reconectar..." + retry automático |
-| **Sem novidades** | Badge no header | "Atualizado às HH:mm" (sem ação, mantém itens existentes) |
-| **Reconexão** | Badge warning | "Offline — tentando reconectar" (aparece após 2 falhas seguidas) |
-| **Novas recebidas** | Badge success no header | "N novas" → desaparece após 3s |
+| Carregando | ShimmerGrid | Grid de placeholders |
+| Sem itens | EmptyState | "Nenhuma notícia. Aguardando novas matérias..." |
+| Erro na carga | EmptyState | "Sem conexão com o radar. Tentando reconectar..." + retry |
+| Sem novidades | Badge no header | "Atualizado às HH:mm" |
+| Reconexão | Badge warning | "Offline" (após 2 falhas seguidas) |
+| Novas recebidas | Badge success | "N novas" → some após 3s |
 
-### 5.11 Comportamento com aba oculta
+### 7.9 Aba Oculta
 
 | Modo | Aba visível | Aba oculta |
 |---|---|---|
-| **Feed normal** | Polling 60s | Pausa polling (react-query padrão) |
-| **Streaming** | Polling 60s | Continua polling (para uso em telão) |
-| **Futuro:** | — | Query param `?pause_hidden=true` para reduzir chamadas |
+| Feed normal | Polling 60s | Pausa (react-query padrão) |
+| Streaming | Polling 60s | Continua (`refetchIntervalInBackground: true`) |
 
-**Implementação:** no `useStreamingFeed`, usar `refetchIntervalInBackground: true`.
+> Streaming mantém polling em background para uso em telão.
 
-### 5.12 Acessibilidade
+### 7.10 Acessibilidade
 
 | Requisito | Implementação |
 |---|---|
-| Fechar com Esc | `useEffect` com `keydown` listener |
-| `aria-label` no botão fechar | `aria-label="Fechar modo streaming"` |
-| `prefers-reduced-motion` | Desativar animações via media query |
-| Contraste | Badge/tempo/fonte com ratio ≥ 4.5:1 |
-| Foco visível | `focus-visible:ring-2` nos cards e botão fechar |
+| Fechar com Esc | `useEffect` com `keydown` |
+| `aria-label` no ✕ | `"Fechar modo streaming"` |
+| `prefers-reduced-motion` | Desativa animações |
+| Contraste | Ratio ≥ 4.5:1 em badges/tempo/fonte |
+| Foco visível | `focus-visible:ring-2` nos cards e ✕ |
 
 ---
 
-## 6. Arquivo e Rota
+## 8. Performance
 
-| Item | Caminho |
+### Regras
+
+| Regra | Detalhe |
 |---|---|
-| Componente | `apps/web/src/pages/raspagem/streaming/FeedStreaming.tsx` |
-| Hook | `apps/web/src/pages/raspagem/streaming/useStreamingFeed.ts` |
-| Header | `apps/web/src/pages/raspagem/streaming/StreamingHeader.tsx` |
-| Card | `apps/web/src/pages/raspagem/streaming/StreamingCard.tsx` |
-| Grid | `apps/web/src/pages/raspagem/streaming/StreamingGrid.tsx` |
-| Rota | `/raspagem/feed/streaming` |
-| Registro | `App.tsx` — lazy import, **sem** AppShell |
-
-### O que criar/modificar
-
-| Ação | Arquivo | Descrição |
-|---|---|---|
-| **[CRIAR]** | `streaming/FeedStreaming.tsx` | Página fullscreen |
-| **[CRIAR]** | `streaming/StreamingHeader.tsx` | Logo + ao vivo + timestamp + novas + fechar |
-| **[CRIAR]** | `streaming/StreamingGrid.tsx` | Grid responsivo |
-| **[CRIAR]** | `streaming/StreamingCard.tsx` | Card compacto |
-| **[CRIAR]** | `streaming/useStreamingFeed.ts` | Hook com polling incremental |
-| **[MODIFICAR]** | `Feed.tsx` (header) | Adicionar botão "Ver em Streaming" |
-| **[MODIFICAR]** | `App.tsx` | Registrar rota sem AppShell |
-| **[MODIFICAR]** | `constants/index.ts` | Adicionar `RASPAGEM_STREAMING` |
-| **[MODIFICAR]** | `NewsItemController.php` | Adicionar filtro `after_id` |
+| Páginas em memória | Max 5–8 no infinite scroll |
+| Imagens | `loading="lazy"`, tamanho fixo por breakpoint, skeleton até `onLoad` |
+| Virtualização | Não necessária até ~100 cards. Avaliar se crescer além disso |
+| Estado duplicado | Não duplicar dados que já vêm da query |
+| Streaming | Max 200 itens em memória, trim os mais antigos |
+| Badge "Atualizando" | Discreta no header durante refetch |
 
 ---
 
-## 7. Ordem de implementação recomendada
+## 9. Ordem de Implementação
 
-1. **Refatorar Feed.tsx** — extrair componentes (FeedHeader, FeedFilters, FeedStats, FeedList, FeedCard, FeedDetailDialog, useFeedFiltersState)
-2. **Backend:** adicionar `after_id` ao `NewsItemController::index()`
-3. **Criar `useStreamingFeed.ts`** — polling incremental com delta, dedupe, trim
-4. **Criar `FeedStreaming.tsx`** + componentes (Header, Grid, Card)
-5. **Wiring:** botão no Feed, rota no App.tsx, constant
-6. **Polir:** estados vazios/erro, acessibilidade, Esc, prefers-reduced-motion
+### Etapa 1 — Refatorar Feed.tsx
+
+1. Extrair `FeedHeader.tsx`
+2. Extrair `FeedStats.tsx`
+3. Extrair `FeedFilters.tsx` + `useFeedFiltersState.ts`
+4. Extrair `FeedCard.tsx`
+5. Extrair `FeedDetailDialog.tsx`
+
+### Etapa 2 — Skeletons e Imagem
+
+6. Criar `FeedCardSkeleton.tsx`
+7. Criar `FeedImage.tsx` com skeleton + fade
+
+### Etapa 3 — Infinite Scroll
+
+8. Criar `useInfiniteNewsItems.ts`
+9. Criar `FeedInfiniteList.tsx`
+10. Criar `FeedLoadMoreTrigger.tsx` (IntersectionObserver + fallback)
+11. Substituir paginação tradicional no `Feed.tsx`
+
+### Etapa 4 — Backend delta
+
+12. Adicionar `after_id` ao `NewsItemController::index()`
+
+### Etapa 5 — Streaming
+
+13. Criar `useStreamingFeed.ts`
+14. Criar `StreamingCard.tsx`
+15. Criar `StreamingGrid.tsx`
+16. Criar `StreamingHeader.tsx`
+17. Criar `FeedStreaming.tsx`
+18. Botão no `FeedHeader.tsx` + rota no `App.tsx` + constant
+
+### Etapa 6 — Polir
+
+19. Estados vazios/erro em streaming
+20. Acessibilidade (Esc, aria, prefers-reduced-motion)
+21. Medir se precisa virtualização
 
 ---
 
-## 8. Riscos Conhecidos
+## 10. Riscos Conhecidos
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| Polling pode perder itens se volume > `per_page` entre polls | Itens não exibidos | Usar `after_id` em vez de `per_page` puro |
-| Feed.tsx já está com 1079 linhas | Manutenibilidade | Decompor em 7+ componentes antes de crescer |
-| Endpoint `/items` retorna payload mais pesado que necessário para streaming | Performance/bandwidth | v1: aceitar overhead. v2: criar `view=stream` |
-| Grid vs Masonry | UX inconsistente se mudar depois | Começar com grid, migrar para masonry só sob demanda |
-| Streaming em telão consome chamadas em background | Custo de API | `refetchIntervalInBackground: true` consciente. Futuramente: WebSocket ou SSE |
-| Notícia antiga descoberta agora aparece no topo | Pode confundir operador | Documentar: streaming = data de ingestão, não de publicação |
+| Polling perde itens se volume > `per_page` | Itens não exibidos | `after_id` para delta |
+| Feed.tsx já com 1079 linhas | Manutenibilidade | Decompor antes de crescer |
+| Endpoint `/items` payload pesado para streaming | Bandwidth | v2: `view=stream` |
+| Páginas acumuladas no infinite scroll | Performance | Limitar 5–8 páginas em memória |
+| Lista longa sem virtualização | DOM pesado | Avaliar virtualização acima de ~100 cards |
+| Streaming em telão consome chamadas em background | Custo API | `refetchIntervalInBackground` consciente |
+| Notícia antiga no topo do streaming | Pode confundir | Streaming = data ingestão, não publicação |
