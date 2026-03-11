@@ -10,6 +10,7 @@ use App\Modules\NewsRadar\Models\NewsItem;
 use App\Modules\NewsRadar\Models\NewsItemMedia;
 use App\Modules\NewsRadar\Models\NewsRawItem;
 use App\Modules\NewsRadar\Services\ArticleExtractorService;
+use App\Modules\NewsRadar\Services\BoilerplateCleanerService;
 use App\Modules\NewsRadar\Services\FeedItemDto;
 use App\Modules\NewsRadar\Services\FieldResolverService;
 use App\Modules\NewsRadar\Services\HttpFetchService;
@@ -25,6 +26,8 @@ class ProcessNewsItemJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    private const MIN_FEED_BODY_TEXT_LENGTH = 300;
+
     public int $tries = 3;
     public int $timeout = 120;
     public array $backoff = [10, 60, 300];
@@ -39,6 +42,7 @@ class ProcessNewsItemJob implements ShouldQueue
         ArticleExtractorService $articleExtractor,
         FieldResolverService $fieldResolver,
         HttpFetchService $httpFetch,
+        BoilerplateCleanerService $boilerplateCleaner,
     ): void {
         $rawItem = NewsRawItem::with('source')->findOrFail($this->newsRawItemId);
         $source = $rawItem->source;
@@ -51,7 +55,7 @@ class ProcessNewsItemJob implements ShouldQueue
             $fetchDetailMode = $source->fetch_detail_mode;
 
             // 2. Build feed/listing data from raw_payload
-            $feedData = $this->buildFeedData($rawItem);
+            $feedData = $this->buildFeedData($rawItem, $config, $boilerplateCleaner);
             $listingData = $this->buildListingData($rawItem);
             $articleData = null;
             $contentSource = ContentSource::FeedOnly;
@@ -114,11 +118,24 @@ class ProcessNewsItemJob implements ShouldQueue
         }
     }
 
-    private function buildFeedData(NewsRawItem $rawItem): ?FeedItemDto
+    private function buildFeedData(
+        NewsRawItem $rawItem,
+        array $config,
+        BoilerplateCleanerService $boilerplateCleaner,
+    ): ?FeedItemDto
     {
         $payload = $rawItem->raw_payload;
         if (empty($payload) || !isset($payload['title'])) {
             return null;
+        }
+
+        $bodyHtml = $payload['content'] ?? null;
+        if (!empty($bodyHtml)) {
+            $bodyHtml = $boilerplateCleaner->clean(
+                $bodyHtml,
+                $config['boilerplate_rules'] ?? [],
+                $config['body_stop_text_patterns'] ?? [],
+            );
         }
 
         return new FeedItemDto(
@@ -129,10 +146,10 @@ class ProcessNewsItemJob implements ShouldQueue
             guid: $rawItem->guid,
             authorRaw: $payload['author'] ?? null,
             publishedAtRaw: $payload['pubDate'] ?? null,
-            bodyHtml: $payload['content'] ?? null,
+            bodyHtml: $bodyHtml,
             excerpt: $payload['description'] ?? null,
             categoriesRaw: $payload['categories'] ?? [],
-            heroImageUrl: null,
+            heroImageUrl: $payload['hero_image_url'] ?? null,
             rawPayload: $payload,
         );
     }
@@ -158,11 +175,23 @@ class ProcessNewsItemJob implements ShouldQueue
     {
         if (!$feedData) return true;
 
-        $hasBody = !empty($feedData->bodyHtml) && mb_strlen($feedData->bodyHtml) > 200;
+        $hasBody = $this->hasSufficientFeedBody($feedData->bodyHtml);
         $hasImage = !empty($feedData->heroImageUrl) || !empty($listingData?->imageUrl);
         $hasAuthor = !empty($feedData->authorRaw);
 
         return !$hasBody || !$hasImage || !$hasAuthor;
+    }
+
+    private function hasSufficientFeedBody(?string $bodyHtml): bool
+    {
+        if (empty($bodyHtml)) {
+            return false;
+        }
+
+        $bodyText = html_entity_decode(strip_tags($bodyHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $bodyText = preg_replace('/\s+/u', ' ', trim($bodyText));
+
+        return mb_strlen($bodyText) >= self::MIN_FEED_BODY_TEXT_LENGTH;
     }
 
     private function createNewsItem(NewsRawItem $rawItem, int $sourceId, ResolvedFields $resolved, ContentSource $contentSource): NewsItem

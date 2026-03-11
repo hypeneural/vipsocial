@@ -26,7 +26,7 @@ class ArticleExtractorService
         $og = $this->extractOpenGraph($crawler);
 
         // Layer C: HTML semantic with CSS selectors from config
-        $css = $this->extractByCssSelectors($crawler, $articleExtractors);
+        $css = $this->extractByCssSelectors($crawler, $articleExtractors, $html);
 
         // Layer D: Clean body with BoilerplateCleanerService
         $bodyHtml = $css['body'] ?? $jsonLd['articleBody'] ?? null;
@@ -44,7 +44,7 @@ class ArticleExtractorService
             heroImage: $css['image'] ?? $og['og:image'] ?? $jsonLd['image'] ?? null,
             bodyHtml: $bodyHtml,
             bodyText: $bodyText,
-            categories: $css['categories'] ?? $jsonLd['keywords'] ?? [],
+            categories: $this->normalizeCategories($css['categories'] ?? $jsonLd['keywords'] ?? []),
             jsonLdRaw: $jsonLd,
             ogRaw: $og,
         );
@@ -143,7 +143,7 @@ class ArticleExtractorService
     /**
      * Extract fields using configured CSS selectors.
      */
-    private function extractByCssSelectors(Crawler $crawler, array $extractors): array
+    private function extractByCssSelectors(Crawler $crawler, array $extractors, string $html): array
     {
         $data = [];
 
@@ -161,9 +161,7 @@ class ArticleExtractorService
                             'published_at' => $found->first()->attr('datetime')
                                 ?? $found->first()->attr('content')
                                 ?? trim($found->first()->text('')),
-                            'image' => $found->first()->attr('content')
-                                ?? $found->first()->attr('src')
-                                ?? $found->first()->attr('href'),
+                            'image' => $this->extractImageValue($found->first(), $html),
                             'body' => $found->first()->html(),
                             default => trim($found->first()->text('')),
                         };
@@ -181,6 +179,57 @@ class ArticleExtractorService
         }
 
         return $data;
+    }
+
+    private function extractImageValue(Crawler $node, string $html): ?string
+    {
+        $directValue = $node->attr('content')
+            ?? $node->attr('src')
+            ?? $node->attr('href');
+
+        if (!empty($directValue)) {
+            return $directValue;
+        }
+
+        $inlineStyle = $node->attr('style') ?? '';
+        if (preg_match('#url\((["\']?)([^)"\']+)\1\)#i', $inlineStyle, $matches)) {
+            return $matches[2];
+        }
+
+        $selectors = [];
+        $id = $node->attr('id');
+        if (!empty($id)) {
+            $selectors[] = '#' . preg_quote($id, '#');
+        }
+
+        $classAttr = $node->attr('class') ?? '';
+        foreach (preg_split('/\s+/', trim($classAttr)) as $className) {
+            if ($className !== '') {
+                $selectors[] = '\.' . preg_quote($className, '#');
+            }
+        }
+
+        foreach ($selectors as $selector) {
+            $pattern = '#' . $selector . '[^{]*\{[^}]*background(?:-image)?:[^;]*url\((["\']?)([^)"\']+)\1\)#is';
+            if (preg_match($pattern, $html, $matches)) {
+                return $matches[2];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeCategories(array|string|null $categories): array
+    {
+        if (is_array($categories)) {
+            return array_values(array_filter(array_map('trim', $categories)));
+        }
+
+        if (is_string($categories) && trim($categories) !== '') {
+            return array_values(array_filter(array_map('trim', explode(',', $categories))));
+        }
+
+        return [];
     }
 }
 

@@ -6,6 +6,7 @@ use App\Modules\NewsRadar\Enums\EnrichmentStatus;
 use App\Modules\NewsRadar\Enums\ExtractionStatus;
 use App\Modules\NewsRadar\Enums\PublishedAtSource;
 use App\Modules\NewsRadar\Jobs\FetchNewsSourceJob;
+use App\Modules\NewsRadar\Jobs\ProcessNewsItemJob;
 use App\Modules\NewsRadar\Models\NewsItem;
 use App\Modules\NewsRadar\Models\NewsItemAiMetadata;
 use App\Modules\NewsRadar\Models\NewsItemMedia;
@@ -14,13 +15,19 @@ use App\Modules\NewsRadar\Models\NewsSource;
 use App\Modules\NewsRadar\Models\NewsSourceRun;
 use App\Modules\NewsRadar\Models\NewsTheme;
 use App\Modules\NewsRadar\Models\SourceDiscoveryRun;
+use App\Modules\NewsRadar\Services\ArticleExtractedData;
+use App\Modules\NewsRadar\Services\ArticleExtractorService;
+use App\Modules\NewsRadar\Services\BoilerplateCleanerService;
 use App\Modules\NewsRadar\Services\FeedItemDto;
 use App\Modules\NewsRadar\Services\FeedParseResult;
 use App\Modules\NewsRadar\Services\FeedParserService;
+use App\Modules\NewsRadar\Services\FieldResolverService;
 use App\Modules\NewsRadar\Services\HttpFetchResult;
 use App\Modules\NewsRadar\Services\HttpFetchService;
 use App\Modules\NewsRadar\Services\ListingDiscoveryService;
 use App\Modules\NewsRadar\Services\ListingItem;
+use App\Modules\NewsRadar\Services\SitemapParserService;
+use App\Modules\NewsRadar\Services\UrlNormalizerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
@@ -551,4 +558,204 @@ HTML;
 
     expect($run->selector_test_snapshots)->toHaveCount(1);
     expect($run->selector_test_snapshots[0]['selector'])->toBe('article');
+});
+
+test('process job keeps feed hero image and cleans noisy feed bodies when detail fetch is skipped', function () {
+    Bus::fake();
+
+    $source = makeNewsRadarSource([
+        'name' => 'Feed Limpo',
+        'fetch_detail_mode' => 'never',
+        'crawling_config' => [
+            'boilerplate_rules' => [],
+            'body_stop_text_patterns' => [],
+        ],
+    ]);
+
+    $rawItem = NewsRawItem::create([
+        'news_source_id' => $source->id,
+        'raw_url' => 'https://feed-limpo.test/noticia',
+        'normalized_url' => 'https://feed-limpo.test/noticia',
+        'url_hash' => hash('sha256', 'https://feed-limpo.test/noticia'),
+        'guid' => 'feed-limpo-1',
+        'title_raw' => 'Titulo vindo do feed',
+        'raw_payload' => [
+            'title' => 'Titulo vindo do feed',
+            'author' => 'Redação Portal',
+            'pubDate' => '2026-03-11T12:00:00Z',
+            'content' => '<p>Primeiro paragrafo.</p><p><img src="https://s.w.org/images/core/emoji/16.0.1/72x72/1f4f2.png" alt="📲"></p><p>Clique aqui e faça parte do nosso grupo no WhatsApp</p><p>Segundo paragrafo útil.</p><p>O post Titulo vindo do feed apareceu primeiro em Portal.</p>',
+            'description' => 'Resumo curto',
+            'categories' => ['Radar', 'Cidade'],
+            'hero_image_url' => 'https://feed-limpo.test/hero.jpg',
+        ],
+        'first_seen_at' => now(),
+        'last_seen_at' => now(),
+    ]);
+
+    $job = new ProcessNewsItemJob($rawItem->id);
+    $job->handle(
+        Mockery::mock(ArticleExtractorService::class),
+        app(FieldResolverService::class),
+        Mockery::mock(HttpFetchService::class),
+        app(BoilerplateCleanerService::class),
+    );
+
+    $newsItem = NewsItem::where('news_raw_item_id', $rawItem->id)->firstOrFail();
+
+    expect($newsItem->hero_image_url)->toBe('https://feed-limpo.test/hero.jpg');
+    expect($newsItem->body_text)->toContain('Primeiro paragrafo.');
+    expect($newsItem->body_text)->toContain('Segundo paragrafo útil.');
+    expect($newsItem->body_text)->not->toContain('WhatsApp');
+    expect($newsItem->body_text)->not->toContain('apareceu primeiro em');
+});
+
+test('when incomplete mode fetches article html when the feed body is only a short summary', function () {
+    Bus::fake();
+
+    $source = makeNewsRadarSource([
+        'name' => 'Feed Resumido',
+        'fetch_detail_mode' => 'when_incomplete',
+    ]);
+
+    $rawItem = NewsRawItem::create([
+        'news_source_id' => $source->id,
+        'raw_url' => 'https://feed-resumido.test/noticia',
+        'normalized_url' => 'https://feed-resumido.test/noticia',
+        'url_hash' => hash('sha256', 'https://feed-resumido.test/noticia'),
+        'guid' => 'feed-resumido-1',
+        'title_raw' => 'Titulo resumido',
+        'raw_payload' => [
+            'title' => 'Titulo resumido',
+            'author' => 'Equipe Feed',
+            'pubDate' => '2026-03-11T14:00:00Z',
+            'content' => '<p><strong>Resumo</strong> ' . str_repeat('curto ', 20) . '</p>',
+            'description' => 'Resumo curto',
+            'categories' => ['Radar'],
+            'hero_image_url' => 'https://feed-resumido.test/hero.jpg',
+        ],
+        'first_seen_at' => now(),
+        'last_seen_at' => now(),
+    ]);
+
+    $articleExtractor = Mockery::mock(ArticleExtractorService::class);
+    $articleExtractor->shouldReceive('extract')
+        ->once()
+        ->andReturn(new ArticleExtractedData(
+            title: 'Titulo enriquecido',
+            subtitle: 'Subtitulo enriquecido',
+            author: 'Equipe Feed',
+            publishedAt: '2026-03-11T14:00:00Z',
+            modifiedAt: null,
+            heroImage: 'https://feed-resumido.test/hero.jpg',
+            bodyHtml: '<p>' . str_repeat('conteudo completo ', 60) . '</p>',
+            bodyText: trim(str_repeat('conteudo completo ', 60)),
+            categories: ['Radar'],
+            jsonLdRaw: [],
+            ogRaw: [],
+        ));
+
+    $httpFetch = Mockery::mock(HttpFetchService::class);
+    $httpFetch->shouldReceive('fetch')
+        ->once()
+        ->with('https://feed-resumido.test/noticia')
+        ->andReturn(new HttpFetchResult(
+            success: true,
+            statusCode: 200,
+            body: '<article><p>' . str_repeat('conteudo completo ', 60) . '</p></article>',
+            headers: [],
+            responseTimeMs: 120,
+        ));
+
+    $job = new ProcessNewsItemJob($rawItem->id);
+    $job->handle(
+        $articleExtractor,
+        app(FieldResolverService::class),
+        $httpFetch,
+        app(BoilerplateCleanerService::class),
+    );
+
+    $newsItem = NewsItem::where('news_raw_item_id', $rawItem->id)->firstOrFail();
+
+    expect($newsItem->content_source->value)->toBe(ContentSource::FeedPlusHtml->value);
+    expect($newsItem->body_text)->toContain('conteudo completo');
+    expect($newsItem->extraction_completeness)->toBe(100);
+});
+
+test('feed ingestion persists long tracked urls and long subtitles without truncation errors', function () {
+    Bus::fake();
+
+    $source = makeNewsRadarSource([
+        'name' => 'Fonte Longa',
+        'discovery_mode' => 'feed',
+        'fetch_detail_mode' => 'never',
+        'crawling_config' => [
+            'feed_url' => 'https://fonte-longa.test/feed',
+        ],
+    ]);
+
+    $longUrl = 'https://fonte-longa.test/noticia?utm_source=rss&utm_medium=feed&utm_campaign='
+        . str_repeat('campanha-muito-longa-', 10)
+        . '&utm_content=' . str_repeat('bloco-', 18);
+    $normalizedUrl = 'https://fonte-longa.test/noticia';
+    $longExcerpt = trim(str_repeat('Resumo muito longo para validar a coluna subtitle no pipeline do news radar. ', 6));
+
+    expect(mb_strlen($longUrl))->toBeGreaterThan(255);
+    expect(mb_strlen($longExcerpt))->toBeGreaterThan(255);
+
+    $feedParser = Mockery::mock(FeedParserService::class);
+    $feedParser->shouldReceive('parseFromUrl')
+        ->once()
+        ->with('https://fonte-longa.test/feed')
+        ->andReturn(new FeedParseResult(
+            success: true,
+            items: [
+                makeFeedItemDto([
+                    'title' => 'Noticia com tracking longo',
+                    'rawUrl' => $longUrl,
+                    'normalizedUrl' => $normalizedUrl,
+                    'excerpt' => $longExcerpt,
+                    'bodyHtml' => '<p>' . str_repeat('conteudo validado ', 40) . '</p>',
+                    'heroImageUrl' => 'https://fonte-longa.test/imagens/capa-principal.jpg',
+                    'rawPayload' => [
+                        'title' => 'Noticia com tracking longo',
+                        'author' => 'Equipe Fonte Longa',
+                        'pubDate' => '2026-03-11T15:00:00Z',
+                        'content' => '<p>' . str_repeat('conteudo validado ', 40) . '</p>',
+                        'description' => $longExcerpt,
+                        'categories' => ['Radar', 'Teste'],
+                        'hero_image_url' => 'https://fonte-longa.test/imagens/capa-principal.jpg',
+                    ],
+                ]),
+            ],
+            feedTitle: 'Feed Longo',
+            feedUrl: 'https://fonte-longa.test/feed',
+            error: null,
+        ));
+
+    $fetchJob = new FetchNewsSourceJob($source->id);
+    $fetchJob->handle(
+        $feedParser,
+        Mockery::mock(SitemapParserService::class),
+        Mockery::mock(ListingDiscoveryService::class),
+        app(UrlNormalizerService::class),
+    );
+
+    $rawItem = NewsRawItem::where('news_source_id', $source->id)->firstOrFail();
+
+    expect($rawItem->raw_url)->toBe($longUrl);
+    expect($rawItem->normalized_url)->toBe($normalizedUrl);
+
+    $processJob = new ProcessNewsItemJob($rawItem->id);
+    $processJob->handle(
+        Mockery::mock(ArticleExtractorService::class),
+        app(FieldResolverService::class),
+        Mockery::mock(HttpFetchService::class),
+        app(BoilerplateCleanerService::class),
+    );
+
+    $newsItem = NewsItem::where('news_raw_item_id', $rawItem->id)->firstOrFail();
+
+    expect($newsItem->raw_url)->toBe($longUrl);
+    expect($newsItem->subtitle)->toBe($longExcerpt);
+    expect($newsItem->body_text)->toContain('conteudo validado');
 });

@@ -53,7 +53,11 @@ class SourceDiscoveryController extends Controller
                         'title' => $feedResult->feedTitle,
                         'items_count' => $feedResult->count(),
                         'quality' => $qualityScore->toArray(),
-                        'suggested_fetch_detail_mode' => $feedScorer->suggestFetchDetailMode($qualityScore->profile),
+                        'suggested_fetch_detail_mode' => $feedScorer->suggestFetchDetailMode(
+                            $qualityScore->profile,
+                            $qualityScore->flags,
+                            $qualityScore->fieldCoverage,
+                        ),
                         'preview_items' => array_map(fn ($item) => [
                             'title' => $item->title,
                             'url' => $item->normalizedUrl,

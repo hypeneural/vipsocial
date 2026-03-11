@@ -27,6 +27,17 @@ class UrlNormalizerServiceTest extends TestCase
         $this->assertSame('https://portal.test/radar/cidade', $normalized);
     }
 
+    public function test_normalize_decodes_html_entities_before_cleaning_query_params(): void
+    {
+        $service = new UrlNormalizerService();
+
+        $normalized = $service->normalize(
+            'https://portal.test/materia/?utm_source=rss&amp;utm_medium=rss&amp;foo=1'
+        );
+
+        $this->assertSame('https://portal.test/materia?foo=1', $normalized);
+    }
+
     public function test_filter_urls_applies_article_and_ignore_patterns(): void
     {
         $service = new UrlNormalizerService();

@@ -14,11 +14,12 @@ class BoilerplateCleanerService
 
     /** Global text patterns always removed (regex). */
     private const GLOBAL_REMOVE_PATTERNS = [
-        '#O post .{0,200} apareceu primeiro em .{0,200}\.#iu',
-        '#Clique aqui e fa[çc]a parte do nosso grupo#iu',
+        '#O post[\s\S]{0,400}?apareceu primeiro em[\s\S]{0,200}#iu',
+        '#Clique aqui e fa\S*a parte do nosso grupo(?: no WhatsApp)?#iu',
+        '#Clique aqui e siga tamb\S*m[\s\S]{0,120}?(Instagram|Facebook|WhatsApp)#iu',
         '#Comente e compartilhe#iu',
         '#Siga o .{0,100} nas redes sociais#iu',
-        '#Receba as not[íi]cias#iu',
+        '#Receba as not\S*cias#iu',
     ];
 
     /** Emoji image domains to strip. */
@@ -40,38 +41,30 @@ class BoilerplateCleanerService
             return $html;
         }
 
-        // 1. Remove global selectors
         $this->removeSelectors($root, self::GLOBAL_REMOVE_SELECTORS);
 
-        // 2. Remove per-source selectors
         $sourceSelectors = $boilerplateRules['remove_selectors'] ?? [];
         if (!empty($sourceSelectors)) {
             $this->removeSelectors($root, $sourceSelectors);
         }
 
-        // 3. Remove WordPress emoji images
         $this->removeEmojiImages($root);
 
-        // Get the cleaned HTML
         $cleaned = $root->html();
 
-        // 4. Apply body stop patterns (cut content after markers)
         if (!empty($bodyStopPatterns)) {
             $cleaned = $this->applyBodyStopPatterns($cleaned, $bodyStopPatterns);
         }
 
-        // 5. Remove global text patterns
         foreach (self::GLOBAL_REMOVE_PATTERNS as $pattern) {
             $cleaned = preg_replace($pattern, '', $cleaned);
         }
 
-        // 6. Remove per-source text patterns
         $sourcePatterns = $boilerplateRules['remove_text_patterns'] ?? [];
         foreach ($sourcePatterns as $pattern) {
             $cleaned = preg_replace('#' . $pattern . '#iu', '', $cleaned);
         }
 
-        // 7. Normalize whitespace
         $cleaned = $this->normalizeWhitespace($cleaned);
 
         return trim($cleaned);
@@ -86,6 +79,7 @@ class BoilerplateCleanerService
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = str_replace("\xc2\xa0", ' ', $text);
         $text = preg_replace('/\s+/', ' ', $text);
+
         return trim($text);
     }
 
@@ -100,7 +94,7 @@ class BoilerplateCleanerService
                     }
                 });
             } catch (\Throwable) {
-                // Invalid selector, skip
+                // Invalid selector, skip.
             }
         }
     }
@@ -115,6 +109,7 @@ class BoilerplateCleanerService
                     if ($domNode && $domNode->parentNode) {
                         $domNode->parentNode->removeChild($domNode);
                     }
+
                     return;
                 }
             }
@@ -125,21 +120,21 @@ class BoilerplateCleanerService
     {
         foreach ($patterns as $stopText) {
             $pos = mb_stripos($html, $stopText);
-            if ($pos !== false) {
-                // Find the start of the paragraph/tag containing the stop text
-                $before = substr($html, 0, $pos);
-                $lastTagOpen = strrpos($before, '<p');
-                if ($lastTagOpen === false) {
-                    $lastTagOpen = strrpos($before, '<div');
-                }
-
-                if ($lastTagOpen !== false) {
-                    $html = substr($html, 0, $lastTagOpen);
-                } else {
-                    $html = $before;
-                }
-                break;
+            if ($pos === false) {
+                continue;
             }
+
+            $before = substr($html, 0, $pos);
+            $lastTagOpen = strrpos($before, '<p');
+            if ($lastTagOpen === false) {
+                $lastTagOpen = strrpos($before, '<div');
+            }
+
+            $html = $lastTagOpen !== false
+                ? substr($html, 0, $lastTagOpen)
+                : $before;
+
+            break;
         }
 
         return $html;
@@ -147,9 +142,7 @@ class BoilerplateCleanerService
 
     private function normalizeWhitespace(string $html): string
     {
-        // Remove empty paragraphs
         $html = preg_replace('#<p[^>]*>\s*(&nbsp;|\xC2\xA0)?\s*</p>#i', '', $html);
-        // Remove multiple <br> in sequence
         $html = preg_replace('#(<br\s*/?>[\s\n]*){3,}#i', '<br><br>', $html);
 
         return $html;

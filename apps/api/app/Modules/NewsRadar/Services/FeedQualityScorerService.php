@@ -6,6 +6,8 @@ use App\Modules\NewsRadar\Enums\FeedQualityProfile;
 
 class FeedQualityScorerService
 {
+    private const MIN_RICH_BODY_TEXT_LENGTH = 600;
+
     /**
      * Score a set of parsed feed items for completeness.
      *
@@ -41,7 +43,7 @@ class FeedQualityScorerService
             if (!empty($item->title)) $fields['title']++;
             if (!empty($item->rawUrl)) $fields['link']++;
             if (!empty($item->publishedAtRaw)) $fields['date']++;
-            if (!empty($item->bodyHtml) && mb_strlen($item->bodyHtml) > 600) $fields['body_rich']++;
+            if ($this->hasRichBodyContent($item->bodyHtml)) $fields['body_rich']++;
             if (!empty($item->heroImageUrl)) $fields['image']++;
             if (!empty($item->authorRaw)) $fields['author']++;
             if (!empty($item->categoriesRaw)) $fields['categories']++;
@@ -103,12 +105,37 @@ class FeedQualityScorerService
     /**
      * Suggest fetch_detail_mode based on quality profile.
      */
-    public function suggestFetchDetailMode(FeedQualityProfile $profile): string
+    public function suggestFetchDetailMode(
+        FeedQualityProfile $profile,
+        array $flags = [],
+        array $fieldCoverage = [],
+    ): string
     {
+        if ($profile === FeedQualityProfile::Full) {
+            $hasBoilerplate = in_array('has_boilerplate', $flags, true);
+            $hasWeakImageCoverage = ($fieldCoverage['image'] ?? 0) < 50;
+            $hasWeakBodyCoverage = ($fieldCoverage['body_rich'] ?? 0) < 50;
+
+            return ($hasBoilerplate || $hasWeakImageCoverage || $hasWeakBodyCoverage)
+                ? 'when_incomplete'
+                : 'never';
+        }
+
         return match ($profile) {
-            FeedQualityProfile::Full => 'never',
             FeedQualityProfile::Partial => 'when_incomplete',
             FeedQualityProfile::TeaserOnly => 'always',
         };
+    }
+
+    private function hasRichBodyContent(?string $bodyHtml): bool
+    {
+        if (empty($bodyHtml)) {
+            return false;
+        }
+
+        $bodyText = html_entity_decode(strip_tags($bodyHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $bodyText = preg_replace('/\s+/u', ' ', trim($bodyText));
+
+        return mb_strlen($bodyText) >= self::MIN_RICH_BODY_TEXT_LENGTH;
     }
 }

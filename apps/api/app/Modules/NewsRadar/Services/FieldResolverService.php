@@ -150,10 +150,10 @@ class FieldResolverService
     private function resolveDate(array &$audit, ?FeedItemDto $feed, ?ArticleExtractedData $article, array $config): array
     {
         $candidates = [
-            ['source' => 'article_jsonld', 'value' => $article?->jsonLdRaw['datePublished'] ?? null],
-            ['source' => 'article_time_tag', 'value' => $article?->publishedAt],
-            ['source' => 'article_og', 'value' => $article?->ogRaw['article:published_time'] ?? null],
-            ['source' => 'feed_iso_date', 'value' => $feed?->publishedAtRaw],
+            ['source' => 'article_jsonld', 'enum_source' => 'jsonld', 'value' => $article?->jsonLdRaw['datePublished'] ?? null],
+            ['source' => 'article_time_tag', 'enum_source' => 'time_tag', 'value' => $article?->publishedAt],
+            ['source' => 'article_og', 'enum_source' => 'og_tag', 'value' => $article?->ogRaw['article:published_time'] ?? null],
+            ['source' => 'feed_iso_date', 'enum_source' => 'rss', 'value' => $feed?->publishedAtRaw],
         ];
 
         $timezone = $config['timezone_default'] ?? 'America/Sao_Paulo';
@@ -172,7 +172,7 @@ class FieldResolverService
                     'parsed' => $result->parsed?->toIso8601String(),
                     'utc' => $result->utc?->toIso8601String(),
                     'timezone' => $result->timezone,
-                    'source' => $candidate['source'],
+                    'source' => $candidate['enum_source'],
                 ];
             }
         }

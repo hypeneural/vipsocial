@@ -16,7 +16,7 @@ class UrlNormalizerService
      */
     public function normalize(string $rawUrl, ?string $relativeBase = null): string
     {
-        $rawUrl = trim($rawUrl);
+        $rawUrl = html_entity_decode(trim($rawUrl), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
         if ($relativeBase && !preg_match('#^https?://#i', $rawUrl)) {
             $rawUrl = rtrim($relativeBase, '/') . '/' . ltrim($rawUrl, '/');

@@ -70,6 +70,8 @@ class FeedParserService
             $author = $this->resolveAuthor($feedItem);
             $bodyHtml = $this->resolveBody($feedItem);
             $heroImage = $this->extractHeroImage($bodyHtml);
+            $excerpt = $this->resolveExcerpt($feedItem);
+            $categories = $this->resolveCategories($feedItem);
 
             $items[] = new FeedItemDto(
                 title: html_entity_decode($feedItem->get_title() ?? '', ENT_QUOTES, 'UTF-8'),
@@ -80,10 +82,10 @@ class FeedParserService
                 authorRaw: $author,
                 publishedAtRaw: $feedItem->get_date('c'),
                 bodyHtml: $bodyHtml,
-                excerpt: $this->resolveExcerpt($feedItem),
-                categoriesRaw: $this->resolveCategories($feedItem),
+                excerpt: $excerpt,
+                categoriesRaw: $categories,
                 heroImageUrl: $heroImage,
-                rawPayload: $this->buildRawPayload($feedItem),
+                rawPayload: $this->buildRawPayload($feedItem, $author, $bodyHtml, $excerpt, $categories, $heroImage),
             );
         }
 
@@ -190,17 +192,25 @@ class FeedParserService
         }
     }
 
-    private function buildRawPayload(\SimplePie\Item $item): array
+    private function buildRawPayload(
+        \SimplePie\Item $item,
+        ?string $author,
+        ?string $bodyHtml,
+        ?string $excerpt,
+        array $categories,
+        ?string $heroImage,
+    ): array
     {
         return [
             'title' => $item->get_title(),
             'link' => $item->get_link(),
             'guid' => $item->get_id(false),
             'pubDate' => $item->get_date('c'),
-            'author' => $item->get_author()?->get_name(),
-            'content' => $item->get_content(),
-            'description' => $item->get_description(),
-            'categories' => $this->resolveCategories($item),
+            'author' => $author,
+            'content' => $bodyHtml,
+            'description' => $excerpt,
+            'categories' => $categories,
+            'hero_image_url' => $heroImage,
         ];
     }
 }

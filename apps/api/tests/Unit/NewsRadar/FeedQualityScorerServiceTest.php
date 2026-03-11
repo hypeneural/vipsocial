@@ -35,7 +35,7 @@ class FeedQualityScorerServiceTest extends TestCase
         $this->assertContains('has_inline_images', $score->flags);
         $this->assertContains('has_categories', $score->flags);
         $this->assertContains('has_authors', $score->flags);
-        $this->assertSame('never', $service->suggestFetchDetailMode($score->profile));
+        $this->assertSame('never', $service->suggestFetchDetailMode($score->profile, $score->flags, $score->fieldCoverage));
     }
 
     public function test_score_detects_partial_profile(): void
@@ -64,7 +64,7 @@ class FeedQualityScorerServiceTest extends TestCase
 
         $this->assertSame(60, $score->score);
         $this->assertSame(FeedQualityProfile::Partial, $score->profile);
-        $this->assertSame('when_incomplete', $service->suggestFetchDetailMode($score->profile));
+        $this->assertSame('when_incomplete', $service->suggestFetchDetailMode($score->profile, $score->flags, $score->fieldCoverage));
     }
 
     public function test_score_detects_teaser_only_profile(): void
@@ -86,7 +86,61 @@ class FeedQualityScorerServiceTest extends TestCase
 
         $this->assertSame(40, $score->score);
         $this->assertSame(FeedQualityProfile::TeaserOnly, $score->profile);
-        $this->assertSame('always', $service->suggestFetchDetailMode($score->profile));
+        $this->assertSame('always', $service->suggestFetchDetailMode($score->profile, $score->flags, $score->fieldCoverage));
+    }
+
+    public function test_full_profile_with_boilerplate_or_missing_images_stays_when_incomplete(): void
+    {
+        $service = new FeedQualityScorerService();
+
+        $items = [
+            $this->makeFeedItem([
+                'bodyHtml' => '<p>' . str_repeat('conteudo ', 120) . '</p><p>O post teste apareceu primeiro em Portal.</p>',
+                'heroImageUrl' => null,
+            ]),
+            $this->makeFeedItem([
+                'title' => 'Materia 2',
+                'rawUrl' => 'https://portal.test/materia-2',
+                'normalizedUrl' => 'https://portal.test/materia-2',
+                'bodyHtml' => '<p>' . str_repeat('conteudo ', 120) . '</p>',
+                'heroImageUrl' => null,
+            ]),
+        ];
+
+        $score = $service->score($items);
+
+        $this->assertSame(FeedQualityProfile::Full, $score->profile);
+        $this->assertContains('has_boilerplate', $score->flags);
+        $this->assertSame('when_incomplete', $service->suggestFetchDetailMode($score->profile, $score->flags, $score->fieldCoverage));
+    }
+
+    public function test_html_heavy_but_text_short_feed_does_not_score_as_full_content(): void
+    {
+        $service = new FeedQualityScorerService();
+
+        $htmlHeavySummary = '<div>' . str_repeat('<span>curto</span>', 80) . '</div>';
+
+        $items = [
+            $this->makeFeedItem([
+                'bodyHtml' => $htmlHeavySummary,
+                'heroImageUrl' => 'https://portal.test/hero.jpg',
+            ]),
+            $this->makeFeedItem([
+                'title' => 'Materia 2',
+                'rawUrl' => 'https://portal.test/materia-2',
+                'normalizedUrl' => 'https://portal.test/materia-2',
+                'bodyHtml' => $htmlHeavySummary,
+                'heroImageUrl' => 'https://portal.test/hero-2.jpg',
+            ]),
+        ];
+
+        $score = $service->score($items);
+
+        $this->assertSame(80, $score->score);
+        $this->assertSame(FeedQualityProfile::Full, $score->profile);
+        $this->assertSame(0.0, $score->fieldCoverage['body_rich']);
+        $this->assertNotContains('has_full_content', $score->flags);
+        $this->assertSame('when_incomplete', $service->suggestFetchDetailMode($score->profile, $score->flags, $score->fieldCoverage));
     }
 
     private function makeFeedItem(array $overrides = []): FeedItemDto
