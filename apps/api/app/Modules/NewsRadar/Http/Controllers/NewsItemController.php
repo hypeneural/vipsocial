@@ -8,6 +8,7 @@ use App\Modules\NewsRadar\Models\NewsSource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Carbon;
 
 class NewsItemController extends Controller
 {
@@ -111,6 +112,13 @@ class NewsItemController extends Controller
 
     public function dashboard(Request $request): JsonResponse
     {
+        $dashboardTimezone = (string) config('news_radar.timezone', 'America/Sao_Paulo');
+        $dashboardWeekStartsAt = $this->resolveWeekStartsAt();
+        $dashboardNow = now($dashboardTimezone);
+        $todayWindowStartLocal = $dashboardNow->copy()->startOfDay();
+        $weekWindowStartLocal = $dashboardNow->copy()->startOfWeek($dashboardWeekStartsAt);
+        $todayWindowStartUtc = $todayWindowStartLocal->copy()->utc();
+        $weekWindowStartUtc = $weekWindowStartLocal->copy()->utc();
         $aiMonitorWindowStart = now()->subDays(7);
 
         $aiModelHealthSummary = NewsItemAiLog::query()
@@ -265,10 +273,17 @@ class NewsItemController extends Controller
             ->values();
 
         $data = [
+            'dashboard_timezone' => $dashboardTimezone,
+            'dashboard_week_starts_at' => Carbon::getDays()[$dashboardWeekStartsAt] ?? 'sunday',
+            'dashboard_generated_at' => $dashboardNow->toIso8601String(),
+            'today_window_start_local' => $todayWindowStartLocal->toIso8601String(),
+            'today_window_start_utc' => $todayWindowStartUtc->toIso8601String(),
+            'week_window_start_local' => $weekWindowStartLocal->toIso8601String(),
+            'week_window_start_utc' => $weekWindowStartUtc->toIso8601String(),
             'total_sources' => NewsSource::active()->count(),
             'total_items' => NewsItem::count(),
-            'items_today' => NewsItem::where('created_at', '>=', now()->startOfDay())->count(),
-            'items_this_week' => NewsItem::where('created_at', '>=', now()->startOfWeek())->count(),
+            'items_today' => NewsItem::where('created_at', '>=', $todayWindowStartUtc)->count(),
+            'items_this_week' => NewsItem::where('created_at', '>=', $weekWindowStartUtc)->count(),
             'sources_with_failures' => NewsSource::active()->where('consecutive_failures', '>', 0)->count(),
             'sources_locked' => NewsSource::where('sync_locked_until', '>', now())->count(),
 
@@ -297,5 +312,18 @@ class NewsItemController extends Controller
         ];
 
         return response()->json($data);
+    }
+
+    private function resolveWeekStartsAt(): int
+    {
+        return match (strtolower((string) config('news_radar.week_starts_at', 'sunday'))) {
+            'monday' => Carbon::MONDAY,
+            'tuesday' => Carbon::TUESDAY,
+            'wednesday' => Carbon::WEDNESDAY,
+            'thursday' => Carbon::THURSDAY,
+            'friday' => Carbon::FRIDAY,
+            'saturday' => Carbon::SATURDAY,
+            default => Carbon::SUNDAY,
+        };
     }
 }

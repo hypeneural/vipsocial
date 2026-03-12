@@ -204,6 +204,13 @@ export interface NewsItem {
 }
 
 export interface NewsDashboard {
+    dashboard_timezone?: string;
+    dashboard_week_starts_at?: string;
+    dashboard_generated_at?: string;
+    today_window_start_local?: string;
+    today_window_start_utc?: string;
+    week_window_start_local?: string;
+    week_window_start_utc?: string;
     total_sources: number;
     total_items: number;
     items_today: number;

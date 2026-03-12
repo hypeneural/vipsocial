@@ -15,6 +15,8 @@ $classificationPrimary = env('NEWS_RADAR_AI_CLASSIFICATION_MODEL', 'arcee-ai/tri
 $editorialPrimary = env('NEWS_RADAR_AI_EDITORIAL_MODEL') ?: 'arcee-ai/trinity-large-preview:free';
 
 return [
+    'timezone' => env('NEWS_RADAR_TIMEZONE', 'America/Sao_Paulo'),
+    'week_starts_at' => env('NEWS_RADAR_WEEK_STARTS_AT', 'sunday'),
     'ai' => [
         'classification_model' => $classificationPrimary,
         'editorial_model' => $editorialPrimary,

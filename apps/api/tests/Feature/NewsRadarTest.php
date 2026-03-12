@@ -498,6 +498,71 @@ test('dashboard endpoint aggregates source and item metrics', function () {
     Carbon::setTestNow();
 });
 
+test('dashboard counts today and week using sao paulo boundaries instead of utc midnight', function () {
+    config()->set('news_radar.timezone', 'America/Sao_Paulo');
+    config()->set('news_radar.week_starts_at', 'sunday');
+    Carbon::setTestNow(Carbon::parse('2026-03-12 01:26:00', 'UTC'));
+
+    $source = makeNewsRadarSource(['name' => 'Fonte Timezone']);
+
+    $todayEarly = makeNewsRadarItem($source, [
+        'title' => 'Hoje cedo em SP',
+        'url' => 'https://timezone.test/hoje-cedo',
+    ]);
+    $todayEarly->forceFill([
+        'created_at' => Carbon::parse('2026-03-11 03:30:00', 'UTC'),
+        'updated_at' => Carbon::parse('2026-03-11 03:30:00', 'UTC'),
+    ])->save();
+
+    $todayLate = makeNewsRadarItem($source, [
+        'title' => 'Hoje tarde em SP',
+        'url' => 'https://timezone.test/hoje-tarde',
+    ]);
+    $todayLate->forceFill([
+        'created_at' => Carbon::parse('2026-03-12 00:30:00', 'UTC'),
+        'updated_at' => Carbon::parse('2026-03-12 00:30:00', 'UTC'),
+    ])->save();
+
+    $beforeTodayBoundary = makeNewsRadarItem($source, [
+        'title' => 'Ontem em SP',
+        'url' => 'https://timezone.test/ontem',
+    ]);
+    $beforeTodayBoundary->forceFill([
+        'created_at' => Carbon::parse('2026-03-11 02:30:00', 'UTC'),
+        'updated_at' => Carbon::parse('2026-03-11 02:30:00', 'UTC'),
+    ])->save();
+
+    $weekBoundaryItem = makeNewsRadarItem($source, [
+        'title' => 'Inicio da semana em SP',
+        'url' => 'https://timezone.test/semana',
+    ]);
+    $weekBoundaryItem->forceFill([
+        'created_at' => Carbon::parse('2026-03-09 03:30:00', 'UTC'),
+        'updated_at' => Carbon::parse('2026-03-09 03:30:00', 'UTC'),
+    ])->save();
+
+    $beforeWeekBoundary = makeNewsRadarItem($source, [
+        'title' => 'Antes da semana em SP',
+        'url' => 'https://timezone.test/antes-semana',
+    ]);
+    $beforeWeekBoundary->forceFill([
+        'created_at' => Carbon::parse('2026-03-09 02:30:00', 'UTC'),
+        'updated_at' => Carbon::parse('2026-03-09 02:30:00', 'UTC'),
+    ])->save();
+
+    $this->actingAs($this->user, 'sanctum')
+        ->getJson('/api/v1/news-radar/dashboard')
+        ->assertOk()
+        ->assertJsonPath('dashboard_timezone', 'America/Sao_Paulo')
+        ->assertJsonPath('dashboard_week_starts_at', 'Sunday')
+        ->assertJsonPath('items_today', 2)
+        ->assertJsonPath('items_this_week', 5)
+        ->assertJsonPath('today_window_start_utc', '2026-03-11T03:00:00+00:00')
+        ->assertJsonPath('week_window_start_utc', '2026-03-08T03:00:00+00:00');
+
+    Carbon::setTestNow();
+});
+
 test('classification failures that are not queue-retryable mark the item and keep the log visible on detail', function () {
     $source = makeNewsRadarSource(['name' => 'Fonte com IA']);
     $item = makeNewsRadarItem($source, [

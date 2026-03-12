@@ -8,6 +8,9 @@ interface FeedStatsProps {
 }
 
 export function FeedStats({ dashboard, isLoading }: FeedStatsProps) {
+    const dashboardTimezone = dashboard?.dashboard_timezone ?? "America/Sao_Paulo";
+    const dashboardWeekStartsAt = dashboard?.dashboard_week_starts_at ?? "Sunday";
+
     if (isLoading) {
         return (
             <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -37,6 +40,7 @@ export function FeedStats({ dashboard, isLoading }: FeedStatsProps) {
                 <p className="mt-1 text-2xl font-bold text-success">
                     {dashboard?.items_today ?? 0}
                 </p>
+                <p className="mt-1 text-xs text-success/80">Corte em {dashboardTimezone}</p>
             </div>
 
             <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
@@ -55,6 +59,9 @@ export function FeedStats({ dashboard, isLoading }: FeedStatsProps) {
                     Itens na semana
                 </div>
                 <p className="mt-1 text-2xl font-bold">{dashboard?.items_this_week ?? 0}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                    Semana atual em {dashboardTimezone}, iniciando em {dashboardWeekStartsAt}
+                </p>
             </div>
         </div>
     );
