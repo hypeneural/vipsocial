@@ -10,6 +10,10 @@ class BoilerplateCleanerService
     private const GLOBAL_REMOVE_SELECTORS = [
         'style', 'script', 'noscript', 'iframe[src*="facebook"]',
         '.sharedaddy', '.jp-relatedposts', '.yarpp-related',
+        '.code-block', '.ads', '[id^="gam_"]',
+        '.line-news', '.line-news-detailed', '#related-news',
+        '.ocp-post-inline-placeholder',
+        '.mpsc-ultimas-noticias-container',
     ];
 
     /** Global text patterns always removed (regex). */

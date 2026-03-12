@@ -49,17 +49,21 @@ class FieldResolverService
             $config['image_extraction_strategy'] ?? 'og_first_then_body'
         );
 
-        $bodyHtml = $this->resolveWithAudit($audit, 'body_html', [
-            ['source' => 'article_html', 'value' => $articleData?->bodyHtml],
-            ['source' => 'feed_content_encoded', 'value' => $feedData?->bodyHtml],
+        $resolvedBody = $this->resolveBodyWithAudit($audit, [
+            [
+                'source' => 'article_html',
+                'html' => $articleData?->bodyHtml,
+                'text' => $articleData?->bodyText,
+            ],
+            [
+                'source' => 'feed_content_encoded',
+                'html' => $feedData?->bodyHtml,
+                'text' => null,
+            ],
         ]);
 
-        $bodyText = $articleData?->bodyText;
-        if (!$bodyText && $bodyHtml) {
-            $bodyText = strip_tags($bodyHtml);
-            $bodyText = html_entity_decode($bodyText, ENT_QUOTES, 'UTF-8');
-            $bodyText = preg_replace('/\s+/', ' ', trim($bodyText));
-        }
+        $bodyHtml = $resolvedBody['html'];
+        $bodyText = $resolvedBody['text'];
 
         $excerpt = $this->resolveWithAudit($audit, 'excerpt', [
             ['source' => 'article_subtitle', 'value' => $subtitle],
@@ -211,5 +215,100 @@ class FieldResolverService
         if (!empty($dateResult['parsed'] ?? null)) $score += 15;
         if (!empty($body) && mb_strlen($body) > 1000) $score += 10;
         return min($score, 100);
+    }
+
+    private function resolveBodyWithAudit(array &$audit, array $candidates): array
+    {
+        $ranked = [];
+
+        foreach ($candidates as $candidate) {
+            $html = trim((string) ($candidate['html'] ?? ''));
+            if ($html === '') {
+                continue;
+            }
+
+            $text = $this->normalizeBodyText($candidate['text'] ?? null, $html);
+
+            $ranked[] = [
+                'source' => $candidate['source'] ?? 'unknown',
+                'html' => $html,
+                'text' => $text,
+                'score' => $this->scoreBodyCandidate($html, $text),
+            ];
+        }
+
+        if ($ranked === []) {
+            $audit['body_html'] = 'unresolved';
+
+            return [
+                'html' => null,
+                'text' => null,
+            ];
+        }
+
+        usort($ranked, static fn (array $left, array $right): int => $right['score'] <=> $left['score']);
+        $best = $ranked[0];
+
+        $audit['body_html'] = $best['source'];
+        $audit['body_html_score'] = $best['score'];
+
+        return [
+            'html' => $best['html'],
+            'text' => $best['text'],
+        ];
+    }
+
+    private function normalizeBodyText(?string $bodyText, string $bodyHtml): string
+    {
+        if (is_string($bodyText) && trim($bodyText) !== '') {
+            $normalized = html_entity_decode($bodyText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $normalized = preg_replace('/\s+/u', ' ', trim($normalized));
+
+            return $normalized ?: '';
+        }
+
+        $normalized = strip_tags($bodyHtml);
+        $normalized = html_entity_decode($normalized, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $normalized = preg_replace('/\s+/u', ' ', trim($normalized));
+
+        return $normalized ?: '';
+    }
+
+    private function scoreBodyCandidate(string $bodyHtml, string $bodyText): int
+    {
+        $htmlLower = mb_strtolower($bodyHtml, 'UTF-8');
+        $textLength = mb_strlen($bodyText);
+        $paragraphCount = preg_match_all('/<p\b/i', $bodyHtml) ?: 0;
+        $anchorCount = preg_match_all('/<a\b/i', $bodyHtml) ?: 0;
+
+        $score = 0;
+        $score += min(90, (int) floor($textLength / 20));
+        $score += min(18, $paragraphCount * 3);
+
+        if ($textLength < 120) {
+            $score -= 30;
+        }
+
+        if ($anchorCount > 0 && $paragraphCount === 0 && $textLength < 240) {
+            $score -= 60;
+        }
+
+        if (str_contains($htmlLower, 'line-news')) {
+            $score -= 45;
+        }
+
+        if (str_contains($htmlLower, 'code-block') || str_contains($htmlLower, 'ocp-post-inline-placeholder')) {
+            $score -= 20;
+        }
+
+        if (str_contains($htmlLower, 'mpsc-ultimas-noticias') || str_contains($htmlLower, 'últimas notícias')) {
+            $score -= 25;
+        }
+
+        if (str_contains($htmlLower, 'the post') || str_contains($htmlLower, 'first appeared on')) {
+            $score -= 20;
+        }
+
+        return $score;
     }
 }

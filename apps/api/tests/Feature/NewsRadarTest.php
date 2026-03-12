@@ -219,6 +219,48 @@ test('source detail and runs endpoint expose counters and recent history', funct
     expect($runsResponse->json('data.11.status'))->toBe('success');
 });
 
+test('explicit feed source run fails instead of being marked successful with zero items when feed is blocked', function () {
+    $source = makeNewsRadarSource([
+        'name' => 'Fonte bloqueada',
+        'discovery_mode' => 'feed',
+        'crawling_config' => [
+            'feed_url' => 'https://fonte-bloqueada.test/feed',
+        ],
+    ]);
+
+    $feedParser = Mockery::mock(FeedParserService::class);
+    $feedParser->shouldReceive('parseFromUrl')
+        ->once()
+        ->with('https://fonte-bloqueada.test/feed')
+        ->andReturn(new FeedParseResult(
+            success: false,
+            items: [],
+            feedTitle: null,
+            feedUrl: 'https://fonte-bloqueada.test/feed',
+            error: 'HTTP 403 | origem retornou HTML/redirect em vez de XML do feed',
+        ));
+
+    $job = new FetchNewsSourceJob($source->id);
+
+    try {
+        $job->handle(
+            $feedParser,
+            Mockery::mock(SitemapParserService::class),
+            Mockery::mock(ListingDiscoveryService::class),
+            app(UrlNormalizerService::class),
+        );
+        $this->fail('O job deveria falhar quando a fonte feed retorna bloqueio.');
+    } catch (\RuntimeException $exception) {
+        expect($exception->getMessage())->toContain('HTTP 403');
+    }
+
+    $run = NewsSourceRun::where('news_source_id', $source->id)->latest('id')->firstOrFail();
+
+    expect($run->status->value)->toBe('failed');
+    expect($run->error_message)->toContain('HTTP 403');
+    expect($run->meta_json['feed_url'] ?? null)->toBe('https://fonte-bloqueada.test/feed');
+});
+
 test('items listing, detail and related endpoints support filters and payload expansion', function () {
     Carbon::setTestNow(Carbon::parse('2026-03-11 12:00:00'));
 

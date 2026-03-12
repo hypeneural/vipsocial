@@ -155,6 +155,10 @@ class ListingDiscoveryService
         $image = $this->extractField($card, $config['listing_image_selectors'] ?? ['img'], 'src');
         $excerpt = $this->extractField($card, $config['listing_excerpt_selectors'] ?? [], 'text');
 
+        if ($this->looksLikeNavigationArtifact($title, $urlData['normalized_url'])) {
+            return null;
+        }
+
         // Resolve relative image URL
         if ($image && $relativeBase && !preg_match('#^https?://#i', $image)) {
             $image = rtrim($relativeBase, '/') . '/' . ltrim($image, '/');
@@ -190,6 +194,33 @@ class ListingDiscoveryService
             }
         }
         return null;
+    }
+
+    private function looksLikeNavigationArtifact(?string $title, string $url): bool
+    {
+        $normalizedTitle = html_entity_decode(trim((string) $title), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $normalizedTitle = preg_replace('/\s+/u', ' ', $normalizedTitle) ?? $normalizedTitle;
+
+        if ($normalizedTitle !== '') {
+            if (preg_match('/^\d+$/u', $normalizedTitle)) {
+                return true;
+            }
+
+            if (preg_match('/^\d+\s+entradas por p[aá]gina$/iu', $normalizedTitle)) {
+                return true;
+            }
+
+            if (preg_match('/^p[aá]gina\s+\d+$/iu', $normalizedTitle)) {
+                return true;
+            }
+
+            if (preg_match('/^(anterior|pr[oó]xima p[aá]gina|pr[oó]ximo)$/iu', $normalizedTitle)) {
+                return true;
+            }
+        }
+
+        return preg_match('/[?&](?:start|delta)=\d+/i', $url) === 1
+            && ($normalizedTitle === '' || preg_match('/^(?:\d+|p[aá]gina\s+\d+)$/iu', $normalizedTitle) === 1);
     }
 
     private function findNextPageUrl(string $html, array $config, ?string $relativeBase): ?string

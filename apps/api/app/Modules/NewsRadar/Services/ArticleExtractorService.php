@@ -24,6 +24,7 @@ class ArticleExtractorService
             '.subtitle',
         ],
         'author' => [
+            'meta[name="author"]',
             'a[rel="author"]',
             '.author-name',
             '.entry-author-name',
@@ -54,8 +55,11 @@ class ArticleExtractorService
             '.article-content',
             '.story-body',
             '.texto',
-            'article .content',
+            'section#single article',
+            '#single article',
             'main article',
+            'article',
+            'article .content',
         ],
     ];
 
@@ -211,7 +215,9 @@ class ArticleExtractorService
                     if ($found->count() > 0) {
                         // Different extraction strategy per field
                         $value = match ($field) {
-                            'title', 'subtitle', 'author' => trim($found->first()->text('')),
+                            'title', 'subtitle' => trim($found->first()->text('')),
+                            'author' => $found->first()->attr('content')
+                                ?? trim($found->first()->text('')),
                             'published_at' => $found->first()->attr('datetime')
                                 ?? $found->first()->attr('content')
                                 ?? trim($found->first()->text('')),

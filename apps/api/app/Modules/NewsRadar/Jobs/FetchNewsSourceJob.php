@@ -62,10 +62,13 @@ class FetchNewsSourceJob implements ShouldQueue
         $startTime = microtime(true);
         $itemsFound = 0;
         $itemsNew = 0;
+        $discoveryMeta = [
+            'mode' => $source->discovery_mode->value,
+        ];
 
         try {
             // 4. Discover URLs based on discovery_mode
-            $discoveredItems = $this->discover($source, $feedParser, $sitemapParser, $listingDiscovery);
+            $discoveredItems = $this->discover($source, $feedParser, $sitemapParser, $listingDiscovery, $discoveryMeta);
             $itemsFound = count($discoveredItems);
 
             // 5. Persist new raw items and dispatch processing jobs
@@ -88,6 +91,7 @@ class FetchNewsSourceJob implements ShouldQueue
                 'items_found' => $itemsFound,
                 'items_new' => $itemsNew,
                 'response_time_avg_ms' => $responseTimeMs,
+                'meta_json' => $discoveryMeta,
             ]);
 
             // 7. Update source metrics
@@ -101,6 +105,9 @@ class FetchNewsSourceJob implements ShouldQueue
                 'items_found' => $itemsFound,
                 'items_new' => $itemsNew,
                 'error_message' => mb_substr($e->getMessage(), 0, 2000),
+                'meta_json' => array_merge($discoveryMeta, [
+                    'error_class' => $e::class,
+                ]),
             ]);
 
             $source->update([
@@ -121,13 +128,15 @@ class FetchNewsSourceJob implements ShouldQueue
         FeedParserService $feedParser,
         SitemapParserService $sitemapParser,
         ListingDiscoveryService $listingDiscovery,
+        array &$meta = [],
     ): array {
         $config = $source->crawling_config ?? [];
         $mode = $source->discovery_mode->value;
+        $meta['mode'] = $mode;
 
         if ($mode === 'auto') {
             // Try feed → sitemap → listing (stop at first success)
-            $items = $this->discoverViaFeed($config, $feedParser);
+            $items = $this->discoverViaFeed($config, $feedParser, $meta, false);
             if (!empty($items)) return $items;
 
             $items = $this->discoverViaSitemap($config, $sitemapParser);
@@ -137,20 +146,30 @@ class FetchNewsSourceJob implements ShouldQueue
         }
 
         return match ($mode) {
-            'feed' => $this->discoverViaFeed($config, $feedParser),
+            'feed' => $this->discoverViaFeed($config, $feedParser, $meta, true),
             'sitemap' => $this->discoverViaSitemap($config, $sitemapParser),
             'html_listing' => $this->discoverViaListing($config, $listingDiscovery, $source->id),
             default => [],
         };
     }
 
-    private function discoverViaFeed(array $config, FeedParserService $feedParser): array
+    private function discoverViaFeed(array $config, FeedParserService $feedParser, array &$meta = [], bool $throwOnFailure = false): array
     {
         $feedUrl = $config['feed_url'] ?? null;
         if (!$feedUrl) return [];
 
+        $meta['feed_url'] = $feedUrl;
         $result = $feedParser->parseFromUrl($feedUrl);
-        if (!$result->success) return [];
+        $meta['feed_items_count'] = $result->count();
+        $meta['feed_error'] = $result->error;
+
+        if (!$result->success) {
+            if ($throwOnFailure) {
+                throw new \RuntimeException($result->error ?: 'Falha ao processar o feed da fonte.');
+            }
+
+            return [];
+        }
 
         return array_map(fn ($item) => [
             'raw_url' => $item->rawUrl,

@@ -22,6 +22,16 @@ class FeedParserService
     public function parseFromUrl(string $feedUrl): FeedParseResult
     {
         $prefetched = $this->httpFetch->fetchXml($feedUrl);
+        if ($this->looksLikeBlockedFeedResponse($prefetched)) {
+            return new FeedParseResult(
+                success: false,
+                items: [],
+                feedTitle: null,
+                feedUrl: $feedUrl,
+                error: $this->buildBlockedFeedError($prefetched),
+            );
+        }
+
         if ($prefetched->success && trim($prefetched->body) !== '') {
             $prefetchedResult = $this->parseFromString($prefetched->body, $feedUrl);
             if ($prefetchedResult->success) {
@@ -48,7 +58,21 @@ class FeedParserService
             );
         }
 
-        return $this->buildResult($feed, $feedUrl);
+        $result = $this->buildResult($feed, $feedUrl);
+        if (
+            $result->count() === 0
+            && (!$prefetched->success || $this->looksLikeBlockedFeedBody($prefetched->body))
+        ) {
+            return new FeedParseResult(
+                success: false,
+                items: [],
+                feedTitle: $result->feedTitle,
+                feedUrl: $feedUrl,
+                error: $this->buildBlockedFeedError($prefetched),
+            );
+        }
+
+        return $result;
     }
 
     /**
@@ -273,5 +297,63 @@ class FeedParserService
         }
 
         return trim($sanitized);
+    }
+
+    private function looksLikeBlockedFeedResponse(HttpFetchResult $response): bool
+    {
+        if (trim($response->body) === '') {
+            return false;
+        }
+
+        if ($response->success && !$this->looksLikeBlockedFeedBody($response->body)) {
+            return false;
+        }
+
+        if ($response->statusCode >= 400) {
+            return true;
+        }
+
+        return $this->looksLikeBlockedFeedBody($response->body);
+    }
+
+    private function looksLikeBlockedFeedBody(string $body): bool
+    {
+        $trimmed = ltrim($body);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        $lower = mb_strtolower($trimmed, 'UTF-8');
+        $looksLikeXml = str_starts_with($lower, '<?xml')
+            || str_contains($lower, '<rss')
+            || str_contains($lower, '<feed')
+            || str_contains($lower, '<rdf:rdf');
+
+        if ($looksLikeXml) {
+            return false;
+        }
+
+        return str_contains($lower, '<html')
+            || str_contains($lower, 'window.location.href')
+            || str_contains($lower, '<script');
+    }
+
+    private function buildBlockedFeedError(HttpFetchResult $response): string
+    {
+        $parts = [];
+
+        if ($response->statusCode > 0) {
+            $parts[] = "HTTP {$response->statusCode}";
+        }
+
+        if (!empty($response->error)) {
+            $parts[] = $response->error;
+        }
+
+        if ($this->looksLikeBlockedFeedBody($response->body)) {
+            $parts[] = 'origem retornou HTML/redirect em vez de XML do feed';
+        }
+
+        return implode(' | ', array_unique(array_filter($parts)));
     }
 }

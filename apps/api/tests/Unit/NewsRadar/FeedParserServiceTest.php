@@ -2,6 +2,7 @@
 
 use App\Modules\NewsRadar\Services\FeedParserService;
 use App\Modules\NewsRadar\Services\BoilerplateCleanerService;
+use App\Modules\NewsRadar\Services\HttpFetchResult;
 use App\Modules\NewsRadar\Services\HttpFetchService;
 use App\Modules\NewsRadar\Services\UrlNormalizerService;
 
@@ -68,4 +69,32 @@ XML;
     expect($result->success)->toBeTrue();
     expect($result->items[0]->heroImageUrl)->toBeNull();
     expect($result->items[0]->excerpt)->toBe('Resumo limpo.');
+});
+
+test('parse from url fails when endpoint returns blocked html instead of xml', function () {
+    $httpFetch = Mockery::mock(HttpFetchService::class);
+    $httpFetch->shouldReceive('fetchXml')
+        ->once()
+        ->with('https://portal-bloqueado.test/feed')
+        ->andReturn(new HttpFetchResult(
+            success: false,
+            statusCode: 403,
+            body: '<html><meta charset="utf-8"><script> window.location.href ="/feed/"; </script></html>',
+            headers: ['content-type' => ['text/html']],
+            responseTimeMs: 120,
+            error: 'HTTP 403'
+        ));
+
+    $service = new FeedParserService(
+        new UrlNormalizerService(),
+        $httpFetch,
+        new BoilerplateCleanerService(),
+    );
+
+    $result = $service->parseFromUrl('https://portal-bloqueado.test/feed');
+
+    expect($result->success)->toBeFalse();
+    expect($result->count())->toBe(0);
+    expect($result->error)->toContain('HTTP 403');
+    expect($result->error)->toContain('HTML/redirect');
 });
