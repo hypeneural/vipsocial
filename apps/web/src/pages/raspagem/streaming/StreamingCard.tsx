@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { FeedImage } from "../feed/FeedImage";
 import type { NewsItem } from "@/services/newsRadar.service";
 import { formatRelativeTime, urgencyLabels } from "../feed/feed-utils";
+import { AiGenerateMenu } from "../feed/AiGenerateMenu";
 
 interface StreamingCardProps {
     item: NewsItem;
@@ -110,12 +111,16 @@ export function StreamingCard({ item, isNew }: StreamingCardProps) {
                         )}
                     </div>
 
-                    <Button
-                        className="rounded-xl"
-                        onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
-                    >
-                        Abrir matéria
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            className="rounded-xl"
+                            onClick={() => window.open(item.url, "_blank", "noopener,noreferrer")}
+                        >
+                            Abrir matéria
+                        </Button>
+
+                        <AiGenerateMenu publicToken={item.public_token} />
+                    </div>
                 </DialogContent>
             </Dialog>
         </>

@@ -33,6 +33,7 @@ import {
     formatAiStrategy,
     formatAiCategory,
 } from "./feed-utils";
+import { AiGenerateMenu } from "./AiGenerateMenu";
 
 interface FeedDetailDialogProps {
     selectedItemId: number | null;
@@ -267,6 +268,8 @@ export function FeedDetailDialog({
                                             <ExternalLink className="mr-1 h-3 w-3" />
                                             Abrir materia
                                         </Button>
+
+                                        <AiGenerateMenu publicToken={selectedItem.public_token} />
 
                                         {selectedItem.source?.homepage_url && (
                                             <Button
