@@ -3,6 +3,7 @@
 namespace App\Modules\VipGallery\Http\Controllers;
 
 use App\Modules\WhatsAppInbound\Actions\CreateWhatsAppWebhookReceiptAction;
+use App\Modules\WhatsAppInbound\Jobs\ProcessWhatsAppInboundReceiptJob;
 use App\Modules\WhatsAppInbound\Support\InboundWebhookRequestNormalizer;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryWebhookJob;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
@@ -36,6 +37,8 @@ class ZApiGalleryWebhookController extends BaseController
             'payload_json' => $payload,
         ]);
 
+        ProcessWhatsAppInboundReceiptJob::dispatchAfterResponse($receipt->id)
+            ->onQueue((string) config('whatsapp.inbound.queue', 'whatsapp-inbound'));
         ProcessVipGalleryWebhookJob::dispatchAfterResponse($log->id);
 
         return response()->json([

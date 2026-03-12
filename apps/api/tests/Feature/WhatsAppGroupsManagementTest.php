@@ -11,8 +11,11 @@ beforeEach(function () {
 
     Schema::create('whatsapp_groups', function ($table) {
         $table->ulid('id')->primary();
+        $table->string('provider', 32)->default('zapi');
         $table->string('group_id')->unique();
+        $table->string('provider_group_id')->nullable();
         $table->string('name')->nullable();
+        $table->string('default_label')->nullable();
         $table->string('subject')->nullable();
         $table->text('description')->nullable();
         $table->string('owner_phone')->nullable();
@@ -84,6 +87,9 @@ test('store monitored group validates and creates group', function () {
 
     $this->assertDatabaseHas('whatsapp_groups', [
         'group_id' => '120363027392048120-group',
+        'provider' => 'zapi',
+        'provider_group_id' => '120363027392048120-group',
+        'default_label' => 'Grupo Novo',
         'is_active' => 1,
     ]);
 });

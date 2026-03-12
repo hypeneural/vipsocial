@@ -73,9 +73,12 @@ class WhatsAppGroupsController extends BaseController
 
         try {
             $group = WhatsAppGroup::query()->create([
+                'provider' => 'zapi',
                 'group_id' => $validated['group_id'],
+                'provider_group_id' => $validated['group_id'],
                 'is_active' => (bool) ($validated['is_active'] ?? true),
                 'name' => $validated['name'] ?? null,
+                'default_label' => $validated['name'] ?? null,
                 'subject' => $validated['subject'] ?? null,
                 'description' => $validated['description'] ?? null,
             ]);

@@ -13,6 +13,7 @@ use App\Modules\VipGallery\Jobs\IngestVipGalleryImageJob;
 use App\Modules\VipGallery\Jobs\PauseVipGalleryEventJob;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryWebhookJob;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryPhotoJob;
+use App\Modules\WhatsAppInbound\Jobs\ProcessWhatsAppInboundReceiptJob;
 use App\Modules\VipGallery\Models\VipGalleryBanner;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Modules\VipGallery\Models\VipGallerySlideshow;
@@ -390,6 +391,7 @@ test('webhook gallery logs payload and queues processing job', function () {
         'routing_status' => 'received',
     ]);
 
+    Queue::assertPushed(ProcessWhatsAppInboundReceiptJob::class, 1);
     Queue::assertPushed(ProcessVipGalleryWebhookJob::class, 1);
 });
 
