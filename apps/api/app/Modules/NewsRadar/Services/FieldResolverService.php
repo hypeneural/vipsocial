@@ -22,17 +22,17 @@ class FieldResolverService
 
         $title = $this->resolveWithAudit($audit, 'title', [
             ['source' => 'article_jsonld', 'value' => $articleData?->jsonLdRaw['headline'] ?? null],
-            ['source' => 'article_og', 'value' => $articleData?->ogRaw['og:title'] ?? null],
             ['source' => 'article_html', 'value' => $articleData?->title],
             ['source' => 'feed', 'value' => $feedData?->title],
             ['source' => 'listing', 'value' => $listingData?->title],
+            ['source' => 'article_og', 'value' => $articleData?->ogRaw['og:title'] ?? null],
         ]);
 
         $subtitle = $this->resolveWithAudit($audit, 'subtitle', [
-            ['source' => 'article_meta', 'value' => $articleData?->ogRaw['og:description'] ?? null],
             ['source' => 'article_jsonld', 'value' => $articleData?->jsonLdRaw['description'] ?? null],
             ['source' => 'article_html', 'value' => $articleData?->subtitle],
             ['source' => 'feed', 'value' => $feedData?->excerpt],
+            ['source' => 'article_meta', 'value' => $articleData?->ogRaw['og:description'] ?? null],
         ]);
 
         $author = $this->resolveWithAudit($audit, 'author', [
