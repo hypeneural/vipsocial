@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\NewsRadar\Http\Controllers\NewsItemMarkdownController;
 use App\Modules\Enquetes\Http\Controllers\Public\EmbedController;
 use App\Modules\Enquetes\Http\Controllers\Public\PollMediaController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,9 @@ Route::get('/embed/enquetes/{placementPublicId}/loader.js', [EmbedController::cl
     ->name('enquetes.embed.loader');
 Route::get('/embed/enquetes/{placementPublicId}', [EmbedController::class, 'show'])
     ->name('enquetes.embed.show');
+Route::get('/news/{publicToken}.md', [NewsItemMarkdownController::class, 'showDocument'])
+    ->where('publicToken', '[0-9a-f\\-]{36}')
+    ->name('news-radar.public.document');
 
 Route::get('/{any}', function () {
     $indexPath = public_path('index.html');

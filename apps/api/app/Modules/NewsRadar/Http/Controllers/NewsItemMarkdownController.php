@@ -17,35 +17,60 @@ class NewsItemMarkdownController extends Controller
 
     public function show(string $publicToken, Request $request): Response
     {
-        $item = NewsItem::with(['source:id,name,homepage_url,source_type', 'aiMetadata'])
-            ->where('public_token', $publicToken)
-            ->whereNotNull('body_text')
-            ->where('body_text', '!=', '')
-            ->where('extraction_status', ExtractionStatus::Extracted)
-            ->firstOrFail();
+        $item = $this->findPublicItem($publicToken);
 
+        abort_if($item === null, 404);
+
+        return $this->markdownResponse($item, $request, 'text/markdown; charset=UTF-8');
+    }
+
+    public function showDocument(string $publicToken, Request $request): Response
+    {
+        $item = $this->findPublicItem($publicToken);
+
+        if ($item === null) {
+            return response("Not found\n", 404, [
+                'Content-Type' => 'text/plain; charset=UTF-8',
+                'X-Robots-Tag' => 'noindex, nofollow',
+                ...$this->publicCorsHeaders(),
+            ]);
+        }
+
+        return $this->markdownResponse($item, $request, 'text/plain; charset=UTF-8');
+    }
+
+    private function markdownResponse(NewsItem $item, Request $request, string $contentType): Response
+    {
         $view = $request->query('view', 'raw');
-        $md = $view === 'enriched'
+        $markdown = $view === 'enriched'
             ? $this->buildEnrichedMarkdown($item)
             : $this->buildRawMarkdown($item);
 
-        $etag = '"' . md5($item->updated_at->timestamp . $view) . '"';
+        $etag = '"' . md5($item->updated_at->timestamp . $view . $contentType) . '"';
 
         if ($request->header('If-None-Match') === $etag) {
             return response('', 304, $this->publicCorsHeaders());
         }
 
-        return response($md, 200, [
-            'Content-Type'  => 'text/markdown; charset=UTF-8',
+        return response($markdown, 200, [
+            'Content-Type' => $contentType,
             'Cache-Control' => 'public, max-age=300',
-            'ETag'          => $etag,
+            'ETag' => $etag,
             'Last-Modified' => $item->updated_at->toRfc7231String(),
-            'X-Robots-Tag'  => 'noindex, nofollow',
+            'X-Robots-Tag' => 'noindex, nofollow',
             ...$this->publicCorsHeaders(),
         ]);
     }
 
-    // ── Template raw (default) ─ para reescrita ─────────────
+    private function findPublicItem(string $publicToken): ?NewsItem
+    {
+        return NewsItem::with(['source:id,name,homepage_url,source_type', 'aiMetadata'])
+            ->where('public_token', $publicToken)
+            ->whereNotNull('body_text')
+            ->where('body_text', '!=', '')
+            ->where('extraction_status', ExtractionStatus::Extracted)
+            ->first();
+    }
 
     private function buildRawMarkdown(NewsItem $item): string
     {
@@ -71,13 +96,9 @@ class NewsItemMarkdownController extends Controller
         return $this->normalizeLineBreaks(implode("\n", $lines));
     }
 
-    // ── Template enriched ─ para análise/editorial ──────────
-
     private function buildEnrichedMarkdown(NewsItem $item): string
     {
         $lines = [];
-
-        // Start with the raw content
         $lines[] = $this->buildRawMarkdown($item);
 
         $meta = $item->aiMetadata;
@@ -90,25 +111,23 @@ class NewsItemMarkdownController extends Controller
         $lines[] = '## Análise I.A.';
         $lines[] = '';
 
-        // Five Ws
         $fiveWs = $meta->five_ws ?? [];
-        $wsLabels = [
-            'who'   => 'Quem',
-            'what'  => 'O quê',
+        $labels = [
+            'who' => 'Quem',
+            'what' => 'O quê',
             'where' => 'Onde',
-            'when'  => 'Quando',
-            'why'   => 'Por quê',
-            'how'   => 'Como',
+            'when' => 'Quando',
+            'why' => 'Por quê',
+            'how' => 'Como',
         ];
 
-        foreach ($wsLabels as $key => $label) {
+        foreach ($labels as $key => $label) {
             $value = $this->normalizeAiValue($fiveWs[$key] ?? null);
             if ($value) {
                 $lines[] = "- **{$label}:** {$value}";
             }
         }
 
-        // Summary bullets
         $bullets = $meta->summary_bullets ?? [];
         if (! empty($bullets)) {
             $lines[] = '';
@@ -116,7 +135,7 @@ class NewsItemMarkdownController extends Controller
             $lines[] = '';
             foreach ($bullets as $bullet) {
                 $clean = trim($bullet);
-                if ($clean) {
+                if ($clean !== '') {
                     $lines[] = '- ' . $this->sanitize($clean);
                 }
             }
@@ -126,8 +145,6 @@ class NewsItemMarkdownController extends Controller
 
         return $this->normalizeLineBreaks(implode("\n", $lines));
     }
-
-    // ── Helpers ─────────────────────────────────────────────
 
     private function buildFrontmatter(NewsItem $item): string
     {
@@ -142,8 +159,8 @@ class NewsItemMarkdownController extends Controller
         $categories = $item->categories_raw ?? [];
         if (! empty($categories)) {
             $fields[] = 'categories:';
-            foreach ($categories as $cat) {
-                $fields[] = '  - ' . $this->yamlString($cat);
+            foreach ($categories as $category) {
+                $fields[] = '  - ' . $this->yamlString($category);
             }
         }
 
@@ -157,7 +174,7 @@ class NewsItemMarkdownController extends Controller
         $parts = [];
 
         $sourceName = $item->source?->name ?? 'Fonte desconhecida';
-        $parts[] = "**Fonte:** {$this->sanitize($sourceName)}";
+        $parts[] = '**Fonte:** ' . $this->sanitize($sourceName);
 
         if ($item->published_at_utc) {
             $parts[] = '**Publicada em:** ' . $item->published_at_utc->format('d/m/Y H:i');
@@ -190,9 +207,8 @@ class NewsItemMarkdownController extends Controller
     private function sanitizeBody(string $body): string
     {
         $clean = strip_tags(trim($body));
-
-        // Truncate absurdly long bodies
         $maxLen = 15000;
+
         if (mb_strlen($clean) > $maxLen) {
             $clean = mb_substr($clean, 0, $maxLen) . "\n\n> _(conteúdo truncado por exceder {$maxLen} caracteres)_";
         }
@@ -208,8 +224,6 @@ class NewsItemMarkdownController extends Controller
     private function yamlString(string $value): string
     {
         $value = trim($value);
-
-        // Always quote to avoid YAML parsing issues with special chars
         $escaped = str_replace('"', '\\"', $value);
 
         return '"' . $escaped . '"';
@@ -219,13 +233,19 @@ class NewsItemMarkdownController extends Controller
     {
         if (is_string($value)) {
             $trimmed = trim($value);
-            return $trimmed ?: null;
+
+            return $trimmed !== '' ? $trimmed : null;
         }
 
         if (is_array($value)) {
-            $items = array_filter(array_map(fn ($v) => trim((string) $v), $value));
+            $items = array_filter(array_map(
+                static fn ($item) => trim((string) $item),
+                $value
+            ));
+
             $joined = implode(', ', $items);
-            return $joined ?: null;
+
+            return $joined !== '' ? $joined : null;
         }
 
         return null;

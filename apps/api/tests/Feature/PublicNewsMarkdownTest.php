@@ -94,6 +94,34 @@ test('public news markdown answers cors preflight for arbitrary origins', functi
     expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('GET');
 });
 
+test('public news document route serves plain text markdown from md url', function () {
+    $source = makePublicMarkdownSource();
+    $item = makePublicMarkdownItem($source);
+
+    $response = $this->withHeaders([
+        'Origin' => 'https://chat.openai.com',
+    ])->get("/news/{$item->public_token}.md");
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'text/plain; charset=UTF-8')
+        ->assertHeader('Access-Control-Allow-Origin', '*');
+
+    expect($response->getContent())->toContain('# ')
+        ->toContain('Conteudo publico');
+});
+
+test('public news document route returns plain text 404 when token is unknown', function () {
+    $response = $this->withHeaders([
+        'Origin' => 'https://chat.openai.com',
+    ])->get('/news/' . Str::uuid()->toString() . '.md');
+
+    $response->assertNotFound()
+        ->assertHeader('Content-Type', 'text/plain; charset=UTF-8')
+        ->assertHeader('Access-Control-Allow-Origin', '*');
+
+    expect($response->getContent())->toBe("Not found\n");
+});
+
 test('public news markdown keeps wildcard cors on not found responses', function () {
     $response = $this->withHeaders([
         'Origin' => 'https://claude.ai',
