@@ -293,7 +293,7 @@ export function AiPromptComposerDialog({
                                                     key={template.id}
                                                     value={String(template.id)}
                                                 >
-                                                    {template.name} · {getProviderLabel(template.provider_target)}
+                                                    {template.name} - {getProviderLabel(template.provider_target)}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -432,7 +432,7 @@ export function AiPromptComposerDialog({
                             <Button
                                 variant="outline"
                                 className="rounded-xl"
-                                onClick={handleOpenProvider("chatgpt")}
+                                onClick={() => handleOpenProvider("chatgpt")}
                                 disabled={!compileResult}
                             >
                                 <Bot className="mr-2 h-4 w-4" />
@@ -441,7 +441,7 @@ export function AiPromptComposerDialog({
                             <Button
                                 variant="outline"
                                 className="rounded-xl"
-                                onClick={handleOpenProvider("claude")}
+                                onClick={() => handleOpenProvider("claude")}
                                 disabled={!compileResult}
                             >
                                 <Brain className="mr-2 h-4 w-4" />
