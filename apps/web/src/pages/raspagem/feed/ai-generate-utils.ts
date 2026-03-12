@@ -1,30 +1,26 @@
-const PUBLIC_NEWS_BASE_URL =
-    import.meta.env.VITE_NEWS_PUBLIC_BASE_URL || window.location.origin;
-
-/**
- * Gets the base URL for the API to ensure the crawler gets the absolute URL
- */
-function getApiBaseUrl(): string {
-    const envUrl = import.meta.env.VITE_API_URL;
-    // If it's a relative path like "/api/v1" or missing, make it absolute
-    if (!envUrl || envUrl.startsWith('/')) {
-        const suffix = envUrl || "/api/v1";
-        return `${window.location.origin}${suffix}`;
+function getPublicNewsBaseUrl(): string {
+    const envUrl = import.meta.env.VITE_NEWS_PUBLIC_BASE_URL?.trim();
+    if (envUrl) {
+        return envUrl;
     }
-    return envUrl;
+
+    const apiUrl = import.meta.env.VITE_API_URL?.trim();
+    if (apiUrl && !apiUrl.startsWith("/")) {
+        return new URL(apiUrl).origin;
+    }
+
+    return window.location.origin;
 }
 
-/**
- * Generates the URL for the raw or enriched markdown
- */
 export function getMarkdownUrl(itemPublicToken: string, view: "raw" | "enriched" = "raw"): string {
-    const baseUrl = getApiBaseUrl();
-    const url = new URL(`${baseUrl}/public/news/${itemPublicToken}/markdown`);
-    
+    const baseUrl = getPublicNewsBaseUrl();
+    const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const url = new URL(`news/${itemPublicToken}.md`, normalizedBaseUrl);
+
     if (view === "enriched") {
         url.searchParams.set("view", "enriched");
     }
-    
+
     return url.toString();
 }
 
