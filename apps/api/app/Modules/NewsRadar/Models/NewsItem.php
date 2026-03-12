@@ -6,6 +6,7 @@ use App\Modules\NewsRadar\Enums\ContentSource;
 use App\Modules\NewsRadar\Enums\EnrichmentStatus;
 use App\Modules\NewsRadar\Enums\ExtractionStatus;
 use App\Modules\NewsRadar\Enums\PublishedAtSource;
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -20,6 +21,7 @@ class NewsItem extends Model
     protected $fillable = [
         'news_source_id',
         'news_raw_item_id',
+        'public_token',
         'url',
         'url_hash',
         'raw_url',
@@ -61,6 +63,15 @@ class NewsItem extends Model
         'enrichment_status' => EnrichmentStatus::class,
         'is_duplicate_candidate' => 'boolean',
     ];
+
+    // ── Boot ──────────────────────────────────────
+
+    protected static function booted(): void
+    {
+        static::creating(function (NewsItem $item) {
+            $item->public_token ??= (string) Str::uuid();
+        });
+    }
 
     // ── Relationships ──────────────────────────────
 

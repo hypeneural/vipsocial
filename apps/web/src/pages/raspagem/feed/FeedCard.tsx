@@ -36,6 +36,7 @@ import {
     urgencyLabels,
 } from "./feed-utils";
 import type { AiFactKey } from "./feed-utils";
+import { AiGenerateMenu } from "./AiGenerateMenu";
 
 interface FeedCardProps {
     item: NewsItem;
@@ -277,6 +278,8 @@ export function FeedCard({ item, index, onSelect }: FeedCardProps) {
                         <ExternalLink className="mr-1 h-3 w-3" />
                         Abrir origem
                     </Button>
+
+                    <AiGenerateMenu publicToken={item.public_token} />
 
                     <div className="ml-auto flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1" title="Data da noticia publicada">
