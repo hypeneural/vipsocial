@@ -26,6 +26,26 @@ interface ErrorPayload {
     errors?: Record<string, string[]>;
 }
 
+type QueryBoolean = boolean | undefined;
+
+export function normalizeBooleanQueryParam(value: QueryBoolean): "1" | undefined {
+    return value ? "1" : undefined;
+}
+
+export function normalizeGroupsQueryParams(params: WhatsAppNewsGroupListParams = {}) {
+    return {
+        ...params,
+        include_inactive: normalizeBooleanQueryParam(params.include_inactive),
+    };
+}
+
+export function normalizeTimelineQueryParams(params: WhatsAppGroupTimelineParams = {}) {
+    return {
+        ...params,
+        include_ignored: normalizeBooleanQueryParam(params.include_ignored),
+    };
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
     if (isAxiosError(error)) {
         const axiosError = error as AxiosError<ErrorPayload>;
@@ -71,7 +91,10 @@ export const newsRadarWhatsAppService = {
         params: WhatsAppNewsGroupListParams = {},
     ): Promise<ApiEnvelope<UserWhatsAppNewsGroup[]>> {
         return request(
-            () => api.get<ApiEnvelope<UserWhatsAppNewsGroup[]>>(`${ENDPOINT}/groups`, { params }),
+            () =>
+                api.get<ApiEnvelope<UserWhatsAppNewsGroup[]>>(`${ENDPOINT}/groups`, {
+                    params: normalizeGroupsQueryParams(params),
+                }),
             "Nao foi possivel carregar os grupos monitorados.",
         );
     },
@@ -104,7 +127,7 @@ export const newsRadarWhatsAppService = {
             () =>
                 api.get<ApiEnvelope<WhatsAppTimelineEvent[], CursorPaginationMeta>>(
                     `${ENDPOINT}/groups/${groupFk}/timeline`,
-                    { params },
+                    { params: normalizeTimelineQueryParams(params) },
                 ),
             "Nao foi possivel carregar a timeline do grupo.",
         );
