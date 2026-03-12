@@ -4,6 +4,25 @@ namespace App\Modules\NewsRadarWhatsApp\Http\Requests;
 
 class IndexWhatsAppGroupTimelineRequest extends BaseNewsRadarWhatsAppRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (! $this->exists('include_ignored')) {
+            return;
+        }
+
+        $normalized = filter_var(
+            $this->input('include_ignored'),
+            FILTER_VALIDATE_BOOLEAN,
+            FILTER_NULL_ON_FAILURE
+        );
+
+        if ($normalized !== null) {
+            $this->merge([
+                'include_ignored' => $normalized,
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         return [

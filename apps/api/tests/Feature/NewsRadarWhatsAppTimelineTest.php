@@ -188,6 +188,28 @@ test('group timeline returns events and excludes ignored messages for the curren
         ->assertJsonCount(2, 'data');
 });
 
+test('group timeline accepts include_ignored as query string false', function () {
+    Sanctum::actingAs($this->user);
+
+    $group = createNewsRadarWhatsAppGroup();
+    UserWhatsAppNewsGroup::query()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_group_fk' => $group->id,
+        'is_active' => true,
+        'sort_order' => 1,
+    ]);
+
+    createInboundEvent($group, [
+        'message_id' => 'msg-query-false',
+        'text_message' => 'Mensagem valida com filtro false',
+    ]);
+
+    $this->getJson("/api/v1/news-radar/whatsapp/groups/{$group->id}/timeline?include_ignored=false&per_page=30")
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 30)
+        ->assertJsonCount(1, 'data');
+});
+
 test('group timeline and summary include media pending events with caption while attachment is still processing', function () {
     Sanctum::actingAs($this->user);
 
