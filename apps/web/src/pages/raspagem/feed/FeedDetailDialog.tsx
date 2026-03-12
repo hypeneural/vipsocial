@@ -269,7 +269,7 @@ export function FeedDetailDialog({
                                             Abrir materia
                                         </Button>
 
-                                        <AiGenerateMenu publicToken={selectedItem.public_token} />
+                                        <AiGenerateMenu item={selectedItem} />
 
                                         {selectedItem.source?.homepage_url && (
                                             <Button

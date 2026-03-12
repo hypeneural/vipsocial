@@ -18,6 +18,7 @@ const RaspagemFeed = lazy(() => import("./pages/raspagem/Feed"));
 const RaspagemFontes = lazy(() => import("./pages/raspagem/Fontes"));
 const RaspagemFiltros = lazy(() => import("./pages/raspagem/Filtros"));
 const FeedStreaming = lazy(() => import("./pages/raspagem/streaming/FeedStreaming"));
+const RaspagemAiPromptsManager = lazy(() => import("./pages/raspagem/AiPromptsManager"));
 
 const PessoasColaboradores = lazy(() => import("./pages/pessoas/Colaboradores"));
 const PessoasAniversarios = lazy(() => import("./pages/pessoas/Aniversarios"));
@@ -152,6 +153,7 @@ const App = () => (
                     <Route path="/raspagem/feed" element={<RaspagemFeed />} />
                     <Route path="/raspagem/fontes" element={<RaspagemFontes />} />
                     <Route path="/raspagem/filtros" element={<RaspagemFiltros />} />
+                    <Route path="/raspagem/config/prompts-ia" element={<RaspagemAiPromptsManager />} />
 
                     <Route path="/pessoas/colaboradores" element={<PessoasColaboradores />} />
                     <Route path="/pessoas/aniversarios" element={<PessoasAniversarios />} />

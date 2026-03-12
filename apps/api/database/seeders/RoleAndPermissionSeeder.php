@@ -29,6 +29,7 @@ class RoleAndPermissionSeeder extends Seeder
             'categorias',
             'config',
             'raspagem',
+            'ai_prompts',
             'audit',
             'whatsapp',
         ];
@@ -88,6 +89,10 @@ class RoleAndPermissionSeeder extends Seeder
                 'publicacoes.view',
                 'publicacoes.edit',
                 'categorias.view',
+                'ai_prompts.view',
+                'ai_prompts.create',
+                'ai_prompts.edit',
+                'ai_prompts.delete',
             ])->get()
         );
 

@@ -25,7 +25,7 @@ interface NavItem {
   label: string;
   path: string;
   requiredPermission?: string;
-  children?: { label: string; path: string }[];
+  children?: { label: string; path: string; requiredPermission?: string }[];
 }
 
 const navItems: NavItem[] = [
@@ -92,6 +92,7 @@ const navItems: NavItem[] = [
       { label: "Feed ao Vivo", path: "/raspagem/feed" },
       { label: "Fontes", path: "/raspagem/fontes" },
       { label: "Filtros", path: "/raspagem/filtros" },
+      { label: "Prompts I.A.", path: "/raspagem/config/prompts-ia", requiredPermission: "ai_prompts.view" },
     ],
   },
   {
@@ -133,10 +134,15 @@ export function MobileNav() {
 
   const userPermissions = user?.permissions || [];
   const isAdmin = user?.role === "admin";
-  const filteredNavItems = navItems.filter((item) => {
+  const canAccessItem = (item: { requiredPermission?: string }) => {
     if (isAdmin) return true;
     if (!item.requiredPermission) return true;
     return userPermissions.includes(item.requiredPermission);
+  };
+  const filteredNavItems = navItems.filter((item) => {
+    if (!canAccessItem(item)) return false;
+    if (!item.children?.length) return true;
+    return item.children.some(canAccessItem);
   });
 
   const isActive = (path: string) => location.pathname === path;
@@ -187,7 +193,7 @@ export function MobileNav() {
                               className="overflow-hidden"
                             >
                               <div className="ml-6 mt-1 space-y-1 border-l border-white/20 pl-3">
-                                {item.children.map((child) => (
+                                {item.children.filter(canAccessItem).map((child) => (
                                   <Link
                                     key={child.path}
                                     to={child.path}

@@ -168,7 +168,7 @@ export interface NewsItem {
     id: number;
     news_source_id: number;
     news_raw_item_id?: number | null;
-    public_token?: string | null;
+    public_token: string;
     url: string;
     raw_url: string;
     guid?: string | null;

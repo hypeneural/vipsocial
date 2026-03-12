@@ -29,6 +29,7 @@ import {
   MapPin,
   Package,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoVipsocial from "@/assets/logo-vipsocial.png";
@@ -108,6 +109,7 @@ const menuItems: MenuItem[] = [
       { icon: Rss, label: "Feed ao Vivo", path: "/raspagem/feed" },
       { icon: Plug, label: "Fontes", path: "/raspagem/fontes" },
       { icon: Filter, label: "Filtros", path: "/raspagem/filtros" },
+      { icon: Sparkles, label: "Prompts I.A.", path: "/raspagem/config/prompts-ia", requiredPermission: "ai_prompts.view" },
     ],
   },
   {
@@ -151,10 +153,15 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
 
   const userPermissions = user?.permissions || [];
   const isAdmin = user?.role === "admin";
-  const filteredMenuItems = menuItems.filter((item) => {
+  const canAccessItem = (item: MenuItem) => {
     if (isAdmin) return true;
     if (!item.requiredPermission) return true;
     return userPermissions.includes(item.requiredPermission);
+  };
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (!canAccessItem(item)) return false;
+    if (!item.children?.length) return true;
+    return item.children.some(canAccessItem);
   });
 
   const toggleExpanded = (path: string) => {
@@ -246,7 +253,7 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
                       className="overflow-hidden"
                     >
                       <div className="ml-4 mt-1 space-y-1 border-l border-white/20 pl-3">
-                        {item.children.map((child) => (
+                        {item.children.filter(canAccessItem).map((child) => (
                           <PrefetchLink
                             key={child.path}
                             to={child.path}

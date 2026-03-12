@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { StreamingHeader } from "./StreamingHeader";
 import { StreamingGrid } from "./StreamingGrid";
 import { useStreamingFeed } from "./useStreamingFeed";
+import { AiPromptComposerProvider } from "@/features/ai-prompts/components/AiPromptComposerProvider";
 
 export default function FeedStreaming() {
     const stream = useStreamingFeed();
@@ -30,23 +31,25 @@ export default function FeedStreaming() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-background">
-            <StreamingHeader
-                newCount={stream.newCount}
-                lastUpdatedAt={stream.lastUpdatedAt}
-                isOffline={stream.consecutiveErrors >= 2}
-            />
-
-            <main className="px-4 pb-8 pt-20">
-                <StreamingGrid
-                    items={stream.items}
-                    isLoading={stream.isLoading}
-                    isError={stream.isError}
-                    hasOlderItems={stream.hasOlderItems}
-                    isFetchingOlder={stream.isFetchingOlder}
-                    onLoadOlder={stream.fetchOlderItems}
+        <AiPromptComposerProvider>
+            <div className="min-h-screen bg-background">
+                <StreamingHeader
+                    newCount={stream.newCount}
+                    lastUpdatedAt={stream.lastUpdatedAt}
+                    isOffline={stream.consecutiveErrors >= 2}
                 />
-            </main>
-        </div>
+
+                <main className="px-4 pb-8 pt-20">
+                    <StreamingGrid
+                        items={stream.items}
+                        isLoading={stream.isLoading}
+                        isError={stream.isError}
+                        hasOlderItems={stream.hasOlderItems}
+                        isFetchingOlder={stream.isFetchingOlder}
+                        onLoadOlder={stream.fetchOlderItems}
+                    />
+                </main>
+            </div>
+        </AiPromptComposerProvider>
     );
 }

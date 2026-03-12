@@ -14,6 +14,7 @@ import { FeedInfiniteList } from "./feed/FeedInfiniteList";
 import { FeedDetailDialog } from "./feed/FeedDetailDialog";
 import { useFeedFiltersState } from "./feed/useFeedFiltersState";
 import { useInfiniteNewsItems } from "./feed/useInfiniteNewsItems";
+import { AiPromptComposerProvider } from "@/features/ai-prompts/components/AiPromptComposerProvider";
 
 const RaspagemFeed = () => {
     const filters = useFeedFiltersState();
@@ -49,59 +50,61 @@ const RaspagemFeed = () => {
     const pages = itemsQuery.data?.pages.map((p) => p.data) ?? [];
 
     return (
-        <AppShell>
-            <FeedHeader isRefreshing={isRefreshing} onRefresh={refreshAll} />
+        <AiPromptComposerProvider>
+            <AppShell>
+                <FeedHeader isRefreshing={isRefreshing} onRefresh={refreshAll} />
 
-            <FeedStats
-                dashboard={dashboardQuery.data}
-                isLoading={dashboardQuery.isLoading}
-            />
+                <FeedStats
+                    dashboard={dashboardQuery.data}
+                    isLoading={dashboardQuery.isLoading}
+                />
 
-            <FeedFilters
-                search={filters.search}
-                onSearchChange={filters.setSearch}
-                city={filters.city}
-                onCityChange={filters.setCity}
-                sourceFilter={filters.sourceFilter}
-                onSourceFilterChange={filters.setSourceFilter}
-                extractionFilter={filters.extractionFilter}
-                onExtractionFilterChange={filters.setExtractionFilter}
-                enrichmentFilter={filters.enrichmentFilter}
-                onEnrichmentFilterChange={filters.setEnrichmentFilter}
-                urgencyFilter={filters.urgencyFilter}
-                onUrgencyFilterChange={filters.setUrgencyFilter}
-                viewFilter={filters.viewFilter}
-                onViewFilterChange={filters.setViewFilter as (v: FeedView) => void}
-                sortBy={filters.sortBy}
-                onSortByChange={filters.setSortBy}
-                sortDirection={filters.sortDirection}
-                onSortDirectionChange={filters.setSortDirection}
-                sources={(sourcesQuery.data?.data ?? []).map((s) => ({
-                    id: s.id,
-                    name: s.name,
-                }))}
-                onResetPage={filters.resetToFirstPage}
-                onSetPage={filters.setPage}
-            />
+                <FeedFilters
+                    search={filters.search}
+                    onSearchChange={filters.setSearch}
+                    city={filters.city}
+                    onCityChange={filters.setCity}
+                    sourceFilter={filters.sourceFilter}
+                    onSourceFilterChange={filters.setSourceFilter}
+                    extractionFilter={filters.extractionFilter}
+                    onExtractionFilterChange={filters.setExtractionFilter}
+                    enrichmentFilter={filters.enrichmentFilter}
+                    onEnrichmentFilterChange={filters.setEnrichmentFilter}
+                    urgencyFilter={filters.urgencyFilter}
+                    onUrgencyFilterChange={filters.setUrgencyFilter}
+                    viewFilter={filters.viewFilter}
+                    onViewFilterChange={filters.setViewFilter as (v: FeedView) => void}
+                    sortBy={filters.sortBy}
+                    onSortByChange={filters.setSortBy}
+                    sortDirection={filters.sortDirection}
+                    onSortDirectionChange={filters.setSortDirection}
+                    sources={(sourcesQuery.data?.data ?? []).map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                    }))}
+                    onResetPage={filters.resetToFirstPage}
+                    onSetPage={filters.setPage}
+                />
 
-            <FeedInfiniteList
-                pages={pages}
-                isLoading={itemsQuery.isLoading}
-                hasNextPage={itemsQuery.hasNextPage}
-                isFetchingNextPage={itemsQuery.isFetchingNextPage}
-                fetchNextPage={itemsQuery.fetchNextPage}
-                viewFilter={filters.viewFilter}
-                onSelectItem={setSelectedItemId}
-            />
+                <FeedInfiniteList
+                    pages={pages}
+                    isLoading={itemsQuery.isLoading}
+                    hasNextPage={itemsQuery.hasNextPage}
+                    isFetchingNextPage={itemsQuery.isFetchingNextPage}
+                    fetchNextPage={itemsQuery.fetchNextPage}
+                    viewFilter={filters.viewFilter}
+                    onSelectItem={setSelectedItemId}
+                />
 
-            <FeedDetailDialog
-                selectedItemId={selectedItemId}
-                onClose={() => setSelectedItemId(null)}
-                itemDetailQuery={itemDetailQuery}
-                relatedItemsQuery={relatedItemsQuery}
-                onSelectRelated={setSelectedItemId}
-            />
-        </AppShell>
+                <FeedDetailDialog
+                    selectedItemId={selectedItemId}
+                    onClose={() => setSelectedItemId(null)}
+                    itemDetailQuery={itemDetailQuery}
+                    relatedItemsQuery={relatedItemsQuery}
+                    onSelectRelated={setSelectedItemId}
+                />
+            </AppShell>
+        </AiPromptComposerProvider>
     );
 };
 

@@ -119,7 +119,7 @@ export function StreamingCard({ item, isNew }: StreamingCardProps) {
                             Abrir matéria
                         </Button>
 
-                        <AiGenerateMenu publicToken={item.public_token} />
+                        <AiGenerateMenu item={item} />
                     </div>
                 </DialogContent>
             </Dialog>
