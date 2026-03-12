@@ -373,6 +373,8 @@ export function WhatsAppFeedTab() {
                     <WhatsAppGroupTimeline
                         events={timelineEvents}
                         isLoading={timelineQuery.isLoading}
+                        isError={timelineQuery.isError}
+                        errorMessage={timelineQuery.error?.message ?? null}
                         hasNextPage={Boolean(timelineQuery.hasNextPage)}
                         isFetchingNextPage={timelineQuery.isFetchingNextPage}
                         onFetchNextPage={() => timelineQuery.fetchNextPage()}

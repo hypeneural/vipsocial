@@ -217,6 +217,8 @@ describe("WhatsAppFeedTab", () => {
                 ],
             },
             isLoading: false,
+            isError: false,
+            error: null,
             isFetching: false,
             isFetchingNextPage: false,
             hasNextPage: false,
@@ -322,5 +324,28 @@ describe("WhatsAppFeedTab", () => {
             screen.getByText(/mensagem\(ns\) pronta\(s\) para agrupamento/i),
         ).toBeInTheDocument();
         expect(screen.getByRole("button", { name: /criar bundle/i })).toBeInTheDocument();
+    });
+
+    it("shows an error state instead of an empty state when the timeline query fails", () => {
+        vi.mocked(useInfiniteWhatsAppGroupTimeline).mockReturnValue({
+            data: undefined,
+            isLoading: false,
+            isError: true,
+            error: new Error("Nao foi possivel carregar a timeline do grupo."),
+            isFetching: false,
+            isFetchingNextPage: false,
+            hasNextPage: false,
+            fetchNextPage: vi.fn(),
+            refetch: vi.fn(),
+        } as ReturnType<typeof useInfiniteWhatsAppGroupTimeline>);
+
+        render(<WhatsAppFeedTab />);
+
+        expect(
+            screen.getByText("Nao foi possivel carregar a timeline"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByText("Nao foi possivel carregar a timeline do grupo."),
+        ).toBeInTheDocument();
     });
 });

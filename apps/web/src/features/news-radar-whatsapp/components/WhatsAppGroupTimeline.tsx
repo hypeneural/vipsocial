@@ -7,6 +7,8 @@ import { WhatsAppTimelineMessageRow } from "@/features/news-radar-whatsapp/compo
 interface WhatsAppGroupTimelineProps {
     events: WhatsAppTimelineEvent[];
     isLoading: boolean;
+    isError?: boolean;
+    errorMessage?: string | null;
     hasNextPage: boolean;
     isFetchingNextPage: boolean;
     onFetchNextPage: () => void;
@@ -22,6 +24,8 @@ interface WhatsAppGroupTimelineProps {
 export function WhatsAppGroupTimeline({
     events,
     isLoading,
+    isError = false,
+    errorMessage,
     hasNextPage,
     isFetchingNextPage,
     onFetchNextPage,
@@ -39,6 +43,22 @@ export function WhatsAppGroupTimeline({
                 <Skeleton className="h-48 rounded-3xl" />
                 <Skeleton className="h-48 rounded-3xl" />
                 <Skeleton className="h-48 rounded-3xl" />
+            </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-3xl border border-dashed border-warning/40 bg-warning/5 p-8 text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-warning/10 text-warning">
+                    <Inbox className="h-8 w-8" />
+                </div>
+                <h3 className="text-base font-semibold text-foreground">
+                    Nao foi possivel carregar a timeline
+                </h3>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                    {errorMessage || "Atualize a timeline e tente novamente."}
+                </p>
             </div>
         );
     }
