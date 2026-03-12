@@ -31,7 +31,7 @@ class WhatsAppTimelineController extends BaseController
                 'userStates' => fn ($relation) => $relation->where('user_id', $userId),
             ])
             ->where('whatsapp_group_fk', $groupFk)
-            ->whereNotNull('ready_at');
+            ->visibleInTimeline();
 
         if (! filter_var($request->input('include_ignored', false), FILTER_VALIDATE_BOOLEAN)) {
             $query->whereDoesntHave('userStates', fn (Builder $builder) => $builder

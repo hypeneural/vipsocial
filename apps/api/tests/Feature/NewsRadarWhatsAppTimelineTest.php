@@ -188,6 +188,70 @@ test('group timeline returns events and excludes ignored messages for the curren
         ->assertJsonCount(2, 'data');
 });
 
+test('group timeline and summary include media pending events with caption while attachment is still processing', function () {
+    Sanctum::actingAs($this->user);
+
+    $group = createNewsRadarWhatsAppGroup();
+    UserWhatsAppNewsGroup::query()->create([
+        'user_id' => $this->user->id,
+        'whatsapp_group_fk' => $group->id,
+        'is_active' => true,
+        'sort_order' => 1,
+    ]);
+
+    createInboundEvent($group, [
+        'message_id' => 'msg-text-visible',
+        'message_kind' => 'text',
+        'text_message' => 'Mensagem textual pronta',
+        'processing_status' => WhatsAppInboundEvent::STATUS_READY,
+        'download_status' => WhatsAppInboundEvent::DOWNLOAD_SKIPPED,
+        'has_media' => false,
+        'sent_at' => now()->subMinutes(2),
+        'ready_at' => now()->subMinutes(2),
+    ]);
+
+    $imageEvent = createInboundEvent($group, [
+        'message_id' => 'msg-image-pending',
+        'message_kind' => 'image',
+        'text_message' => 'Policia acionada para um afogamento',
+        'processing_status' => WhatsAppInboundEvent::STATUS_MEDIA_PENDING,
+        'download_status' => WhatsAppInboundEvent::DOWNLOAD_PENDING,
+        'has_media' => true,
+        'has_caption' => true,
+        'sent_at' => now()->subMinute(),
+        'ready_at' => null,
+    ]);
+
+    $imageEvent->media()->create([
+        'kind' => 'image',
+        'source_url' => 'https://example.com/afogamento.jpg',
+        'thumbnail_source_url' => 'https://example.com/afogamento-thumb.jpg',
+        'mime_type' => 'image/jpeg',
+        'download_status' => WhatsAppInboundEvent::DOWNLOAD_PENDING,
+        'width' => 720,
+        'height' => 1280,
+    ]);
+
+    $this->getJson("/api/v1/news-radar/whatsapp/groups/{$group->id}/summary")
+        ->assertOk()
+        ->assertJsonPath('data.stats.total_events', 2)
+        ->assertJsonPath('data.stats.latest_event_at', $imageEvent->sent_at?->toIso8601String());
+
+    $response = $this->getJson("/api/v1/news-radar/whatsapp/groups/{$group->id}/timeline")
+        ->assertOk()
+        ->assertJsonCount(2, 'data');
+
+    $events = collect($response->json('data'));
+    $imagePayload = $events->firstWhere('id', $imageEvent->id);
+
+    expect($imagePayload)->not->toBeNull();
+    expect($imagePayload['message_kind'])->toBe('image');
+    expect($imagePayload['text_message'])->toBe('Policia acionada para um afogamento');
+    expect($imagePayload['download_status'])->toBe(WhatsAppInboundEvent::DOWNLOAD_PENDING);
+    expect($imagePayload['media'][0]['kind'])->toBe('image');
+    expect($imagePayload['media'][0]['thumbnail_source_url'])->toBe('https://example.com/afogamento-thumb.jpg');
+});
+
 test('event actions are stored per user and do not alter visibility for another user', function () {
     $otherUser = User::factory()->create(['active' => true]);
 

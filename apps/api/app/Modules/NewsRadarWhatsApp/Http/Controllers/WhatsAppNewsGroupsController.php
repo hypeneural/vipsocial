@@ -114,7 +114,7 @@ class WhatsAppNewsGroupsController extends BaseController
     {
         return WhatsAppInboundEvent::query()
             ->where('whatsapp_group_fk', $preference->whatsapp_group_fk)
-            ->whereNotNull('ready_at');
+            ->visibleInTimeline();
     }
 
     private function latestEvent(UserWhatsAppNewsGroup $preference): ?WhatsAppInboundEvent

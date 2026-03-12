@@ -3,6 +3,7 @@
 namespace App\Modules\NewsRadarWhatsApp\Models;
 
 use App\Modules\WhatsApp\Models\WhatsAppGroup;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,6 +17,11 @@ class WhatsAppInboundEvent extends Model
     public const STATUS_READY = 'ready';
     public const STATUS_IGNORED = 'ignored';
     public const STATUS_FAILED = 'failed';
+
+    public const VISIBLE_TIMELINE_STATUSES = [
+        self::STATUS_READY,
+        self::STATUS_MEDIA_PENDING,
+    ];
 
     public const IGNORED_GROUP_NOT_ENABLED = 'group_not_enabled';
     public const IGNORED_NOT_GROUP_MESSAGE = 'not_group_message';
@@ -133,5 +139,10 @@ class WhatsAppInboundEvent extends Model
     public function bundleItems(): HasMany
     {
         return $this->hasMany(WhatsAppNewsBundleItem::class, 'inbound_event_id');
+    }
+
+    public function scopeVisibleInTimeline(Builder $query): Builder
+    {
+        return $query->whereIn('processing_status', self::VISIBLE_TIMELINE_STATUSES);
     }
 }
