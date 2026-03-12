@@ -3,7 +3,13 @@
 use App\Modules\NewsRadar\Http\Controllers\NewsItemController;
 use App\Modules\NewsRadar\Http\Controllers\NewsSourceController;
 use App\Modules\NewsRadar\Http\Controllers\SourceDiscoveryController;
+use App\Modules\NewsRadar\Http\Controllers\NewsItemMarkdownController;
 use Illuminate\Support\Facades\Route;
+
+// ── Public News Markdown (no auth) ─────────────
+Route::get('/public/news/{publicToken}/markdown', [NewsItemMarkdownController::class, 'show'])
+    ->where('publicToken', '[0-9a-f\-]{36}')
+    ->name('news-radar.public.markdown');
 
 Route::middleware('auth:sanctum')->prefix('news-radar')->group(function () {
 

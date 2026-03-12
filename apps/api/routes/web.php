@@ -2,17 +2,7 @@
 
 use App\Modules\Enquetes\Http\Controllers\Public\EmbedController;
 use App\Modules\Enquetes\Http\Controllers\Public\PollMediaController;
-use App\Modules\NewsRadar\Http\Controllers\NewsItemMarkdownController;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| Public News Markdown (no auth)
-|--------------------------------------------------------------------------
-*/
-Route::get('/news/{publicToken}.md', [NewsItemMarkdownController::class, 'show'])
-    ->where('publicToken', '[0-9a-f\-]{36}')
-    ->name('news-radar.items.markdown');
 
 /*
 |--------------------------------------------------------------------------
