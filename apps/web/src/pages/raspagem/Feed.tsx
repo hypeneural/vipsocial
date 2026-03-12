@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { WhatsAppFeedTab } from "@/features/news-radar-whatsapp/components/WhatsAppFeedTab";
 import {
     useNewsDashboard,
     useNewsItem,
@@ -19,6 +21,7 @@ import { AiPromptComposerProvider } from "@/features/ai-prompts/components/AiPro
 const RaspagemFeed = () => {
     const filters = useFeedFiltersState();
     const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+    const [activeTab, setActiveTab] = useState<"web" | "whatsapp">("web");
 
     const dashboardQuery = useNewsDashboard();
     const sourcesQuery = useNewsSources({
@@ -52,57 +55,76 @@ const RaspagemFeed = () => {
     return (
         <AiPromptComposerProvider>
             <AppShell>
-                <FeedHeader isRefreshing={isRefreshing} onRefresh={refreshAll} />
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "web" | "whatsapp")}>
+                    <div className="mb-4 flex justify-end">
+                        <TabsList className="rounded-2xl">
+                            <TabsTrigger value="web" className="rounded-xl">
+                                Web
+                            </TabsTrigger>
+                            <TabsTrigger value="whatsapp" className="rounded-xl">
+                                WhatsApp
+                            </TabsTrigger>
+                        </TabsList>
+                    </div>
 
-                <FeedStats
-                    dashboard={dashboardQuery.data}
-                    isLoading={dashboardQuery.isLoading}
-                />
+                    <TabsContent value="web" className="mt-0">
+                        <FeedHeader isRefreshing={isRefreshing} onRefresh={refreshAll} />
 
-                <FeedFilters
-                    search={filters.search}
-                    onSearchChange={filters.setSearch}
-                    city={filters.city}
-                    onCityChange={filters.setCity}
-                    sourceFilter={filters.sourceFilter}
-                    onSourceFilterChange={filters.setSourceFilter}
-                    extractionFilter={filters.extractionFilter}
-                    onExtractionFilterChange={filters.setExtractionFilter}
-                    enrichmentFilter={filters.enrichmentFilter}
-                    onEnrichmentFilterChange={filters.setEnrichmentFilter}
-                    urgencyFilter={filters.urgencyFilter}
-                    onUrgencyFilterChange={filters.setUrgencyFilter}
-                    viewFilter={filters.viewFilter}
-                    onViewFilterChange={filters.setViewFilter as (v: FeedView) => void}
-                    sortBy={filters.sortBy}
-                    onSortByChange={filters.setSortBy}
-                    sortDirection={filters.sortDirection}
-                    onSortDirectionChange={filters.setSortDirection}
-                    sources={(sourcesQuery.data?.data ?? []).map((s) => ({
-                        id: s.id,
-                        name: s.name,
-                    }))}
-                    onResetPage={filters.resetToFirstPage}
-                    onSetPage={filters.setPage}
-                />
+                        <FeedStats
+                            dashboard={dashboardQuery.data}
+                            isLoading={dashboardQuery.isLoading}
+                        />
 
-                <FeedInfiniteList
-                    pages={pages}
-                    isLoading={itemsQuery.isLoading}
-                    hasNextPage={itemsQuery.hasNextPage}
-                    isFetchingNextPage={itemsQuery.isFetchingNextPage}
-                    fetchNextPage={itemsQuery.fetchNextPage}
-                    viewFilter={filters.viewFilter}
-                    onSelectItem={setSelectedItemId}
-                />
+                        <FeedFilters
+                            search={filters.search}
+                            onSearchChange={filters.setSearch}
+                            city={filters.city}
+                            onCityChange={filters.setCity}
+                            sourceFilter={filters.sourceFilter}
+                            onSourceFilterChange={filters.setSourceFilter}
+                            extractionFilter={filters.extractionFilter}
+                            onExtractionFilterChange={filters.setExtractionFilter}
+                            enrichmentFilter={filters.enrichmentFilter}
+                            onEnrichmentFilterChange={filters.setEnrichmentFilter}
+                            urgencyFilter={filters.urgencyFilter}
+                            onUrgencyFilterChange={filters.setUrgencyFilter}
+                            viewFilter={filters.viewFilter}
+                            onViewFilterChange={filters.setViewFilter as (v: FeedView) => void}
+                            sortBy={filters.sortBy}
+                            onSortByChange={filters.setSortBy}
+                            sortDirection={filters.sortDirection}
+                            onSortDirectionChange={filters.setSortDirection}
+                            sources={(sourcesQuery.data?.data ?? []).map((s) => ({
+                                id: s.id,
+                                name: s.name,
+                            }))}
+                            onResetPage={filters.resetToFirstPage}
+                            onSetPage={filters.setPage}
+                        />
 
-                <FeedDetailDialog
-                    selectedItemId={selectedItemId}
-                    onClose={() => setSelectedItemId(null)}
-                    itemDetailQuery={itemDetailQuery}
-                    relatedItemsQuery={relatedItemsQuery}
-                    onSelectRelated={setSelectedItemId}
-                />
+                        <FeedInfiniteList
+                            pages={pages}
+                            isLoading={itemsQuery.isLoading}
+                            hasNextPage={itemsQuery.hasNextPage}
+                            isFetchingNextPage={itemsQuery.isFetchingNextPage}
+                            fetchNextPage={itemsQuery.fetchNextPage}
+                            viewFilter={filters.viewFilter}
+                            onSelectItem={setSelectedItemId}
+                        />
+
+                        <FeedDetailDialog
+                            selectedItemId={selectedItemId}
+                            onClose={() => setSelectedItemId(null)}
+                            itemDetailQuery={itemDetailQuery}
+                            relatedItemsQuery={relatedItemsQuery}
+                            onSelectRelated={setSelectedItemId}
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="whatsapp" className="mt-0">
+                        <WhatsAppFeedTab />
+                    </TabsContent>
+                </Tabs>
             </AppShell>
         </AiPromptComposerProvider>
     );

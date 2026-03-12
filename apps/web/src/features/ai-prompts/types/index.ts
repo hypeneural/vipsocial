@@ -1,4 +1,5 @@
 import type { NewsItem } from "@/services/newsRadar.service";
+import type { WhatsAppNewsBundle } from "@/features/news-radar-whatsapp/types";
 
 export type PromptProviderTarget = "generic" | "chatgpt" | "claude";
 export type PromptActionProvider = Exclude<PromptProviderTarget, "generic">;
@@ -64,6 +65,10 @@ export interface PromptTrackUseResponse {
 
 export interface PromptTemplateListResponse extends ApiEnvelope<PromptTemplate[]> {}
 
-export interface PromptCompileContext {
-    newsItem: NewsItem;
-}
+export type PromptCompileContext =
+    | { kind: "news-item"; newsItem: NewsItem }
+    | {
+          kind: "whatsapp-bundle";
+          bundle: WhatsAppNewsBundle;
+          markdownUrl?: string | null;
+      };

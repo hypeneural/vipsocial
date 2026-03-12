@@ -38,6 +38,7 @@ beforeEach(function () {
     Storage::fake('public');
 
     Schema::disableForeignKeyConstraints();
+    Schema::dropIfExists('whatsapp_webhook_receipts');
     Schema::dropIfExists('vip_gallery_webhook_logs');
     Schema::dropIfExists('vip_gallery_banners');
     Schema::dropIfExists('vip_gallery_photos');
@@ -226,6 +227,25 @@ beforeEach(function () {
         $table->unsignedBigInteger('vip_gallery_photo_id')->nullable();
         $table->text('error_message')->nullable();
         $table->timestamps();
+    });
+
+    Schema::create('whatsapp_webhook_receipts', function (Blueprint $table) {
+        $table->id();
+        $table->string('provider', 32);
+        $table->string('instance_id', 120)->nullable();
+        $table->string('receipt_type', 50)->default('message_received');
+        $table->json('headers_json')->nullable();
+        $table->json('payload_json');
+        $table->string('payload_hash', 64)->nullable();
+        $table->timestamp('received_at')->nullable();
+        $table->string('processing_status', 32)->default('received');
+        $table->unsignedInteger('processing_attempts')->default(0);
+        $table->text('last_error')->nullable();
+        $table->unsignedBigInteger('normalized_event_id')->nullable();
+        $table->timestamps();
+
+        $table->index(['provider', 'instance_id']);
+        $table->index('processing_status');
     });
 
     Schema::create('event_collaborators', function (Blueprint $table) {

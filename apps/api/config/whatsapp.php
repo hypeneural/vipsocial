@@ -13,6 +13,14 @@ return [
         'retry_sleep_ms' => (int) env('ZAPI_RETRY_SLEEP_MS', 300),
     ],
 
+    'inbound' => [
+        'webhook' => [
+            'secret' => (string) env('WHATSAPP_INBOUND_WEBHOOK_SECRET', ''),
+            'secret_header' => (string) env('WHATSAPP_INBOUND_WEBHOOK_SECRET_HEADER', 'X-WHATSAPP-INBOUND-SECRET'),
+        ],
+        'queue' => (string) env('WHATSAPP_INBOUND_QUEUE', 'whatsapp-inbound'),
+    ],
+
     'cache' => [
         'status_ttl_sec' => (int) env('WHATSAPP_CACHE_TTL_STATUS', 15),
         'qrcode_ttl_sec' => (int) env('WHATSAPP_CACHE_TTL_QRCODE', 10),

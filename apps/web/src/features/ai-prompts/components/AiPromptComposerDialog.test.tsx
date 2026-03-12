@@ -82,7 +82,10 @@ describe("AiPromptComposerDialog", () => {
             <MemoryRouter>
                 <AiPromptComposerDialog
                     open
-                    newsItem={createPromptPreviewNewsItem()}
+                    context={{
+                        kind: "news-item",
+                        newsItem: createPromptPreviewNewsItem(),
+                    }}
                     onOpenChange={vi.fn()}
                 />
             </MemoryRouter>,

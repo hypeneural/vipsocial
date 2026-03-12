@@ -8,9 +8,12 @@ import {
 } from "react";
 import type { NewsItem } from "@/services/newsRadar.service";
 import { AiPromptComposerDialog } from "@/features/ai-prompts/components/AiPromptComposerDialog";
+import type { PromptCompileContext } from "@/features/ai-prompts/types";
+import type { WhatsAppNewsBundle } from "@/features/news-radar-whatsapp/types";
 
 interface AiPromptComposerContextValue {
     openComposer: (newsItem: NewsItem) => void;
+    openBundleComposer: (bundle: WhatsAppNewsBundle) => void;
     closeComposer: () => void;
 }
 
@@ -19,30 +22,41 @@ const AiPromptComposerContext = createContext<AiPromptComposerContextValue | und
 );
 
 export function AiPromptComposerProvider({ children }: { children: ReactNode }) {
-    const [selectedNewsItem, setSelectedNewsItem] = useState<NewsItem | null>(null);
+    const [selectedContext, setSelectedContext] = useState<PromptCompileContext | null>(null);
 
     const openComposer = useCallback((newsItem: NewsItem) => {
-        setSelectedNewsItem(newsItem);
+        setSelectedContext({
+            kind: "news-item",
+            newsItem,
+        });
+    }, []);
+
+    const openBundleComposer = useCallback((bundle: WhatsAppNewsBundle) => {
+        setSelectedContext({
+            kind: "whatsapp-bundle",
+            bundle,
+        });
     }, []);
 
     const closeComposer = useCallback(() => {
-        setSelectedNewsItem(null);
+        setSelectedContext(null);
     }, []);
 
     const value = useMemo(
         () => ({
             openComposer,
+            openBundleComposer,
             closeComposer,
         }),
-        [closeComposer, openComposer],
+        [closeComposer, openBundleComposer, openComposer],
     );
 
     return (
         <AiPromptComposerContext.Provider value={value}>
             {children}
             <AiPromptComposerDialog
-                open={Boolean(selectedNewsItem)}
-                newsItem={selectedNewsItem}
+                open={Boolean(selectedContext)}
+                context={selectedContext}
                 onOpenChange={(open) => {
                     if (!open) {
                         closeComposer();

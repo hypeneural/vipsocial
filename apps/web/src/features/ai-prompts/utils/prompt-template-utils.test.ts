@@ -4,6 +4,7 @@ import {
     buildProviderDeepLink,
     compilePrompt,
     createPromptPreviewNewsItem,
+    createPromptPreviewWhatsAppBundle,
     extractUnknownVariables,
     hasRecommendedMdUrl,
     isDeepLinkSafe,
@@ -115,6 +116,22 @@ describe("prompt-template-utils", () => {
         const result = compilePrompt("{{item_city}} / {{item_urgency}}", item);
 
         expect(result.compiledText).toBe("Blumenau / Media");
+    });
+
+    it("compiles a whatsapp bundle using the signed markdown snapshot url", () => {
+        const bundle = createPromptPreviewWhatsAppBundle("https://adm.tvvip.social/signed/bundle");
+        const result = compilePrompt("{{item_source}} | {{item_title}} | {{md_url}}", {
+            kind: "whatsapp-bundle",
+            bundle,
+            markdownUrl: "https://adm.tvvip.social/signed/bundle",
+        });
+
+        expect(result.compiledText).toContain("PRF SC Imprensa");
+        expect(result.compiledText).toContain("Release da PRF sobre acidente na BR-101");
+        expect(result.compiledText).toContain("https://adm.tvvip.social/signed/bundle");
+        expect(result.usedVariables).toEqual(
+            expect.arrayContaining(["{{item_source}}", "{{item_title}}", "{{md_url}}"]),
+        );
     });
 
     it("flags missing md_url without blocking compilation", () => {

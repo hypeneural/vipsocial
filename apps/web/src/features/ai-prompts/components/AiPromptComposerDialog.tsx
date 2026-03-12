@@ -30,13 +30,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import showToast from "@/lib/toast";
-import type { NewsItem } from "@/services/newsRadar.service";
 import {
     useAiPromptTemplates,
     useAiPromptVariables,
     useCreateStarterAiPromptTemplate,
     useTrackAiPromptTemplateUse,
 } from "@/features/ai-prompts/hooks/useAiPrompts";
+import type { PromptCompileContext, PromptActionProvider } from "@/features/ai-prompts/types";
 import {
     buildMarkdownUrl,
     buildProviderDeepLink,
@@ -47,11 +47,11 @@ import {
     isDeepLinkSafe,
     sortPromptTemplates,
 } from "@/features/ai-prompts/utils/prompt-template-utils";
-import type { PromptActionProvider } from "@/features/ai-prompts/types";
+import newsRadarWhatsAppService from "@/features/news-radar-whatsapp/api/newsRadarWhatsApp.service";
 
 interface AiPromptComposerDialogProps {
     open: boolean;
-    newsItem: NewsItem | null;
+    context: PromptCompileContext | null;
     onOpenChange: (open: boolean) => void;
 }
 
@@ -67,12 +67,27 @@ function getProviderLabel(provider: string): string {
     return "Generico";
 }
 
-function getMetaItems(newsItem: NewsItem) {
+function getMetaItems(context: PromptCompileContext): string[] {
+    if (context.kind === "news-item") {
+        return [
+            context.newsItem.source?.name ? `Fonte: ${context.newsItem.source.name}` : null,
+            context.newsItem.ai_metadata?.city
+                ? `Cidade: ${context.newsItem.ai_metadata.city}`
+                : null,
+            context.newsItem.ai_metadata?.urgency
+                ? `Urgencia: ${context.newsItem.ai_metadata.urgency}`
+                : null,
+            context.newsItem.categories_raw?.[0]
+                ? `Categoria: ${context.newsItem.categories_raw[0]}`
+                : null,
+        ].filter(Boolean) as string[];
+    }
+
     return [
-        newsItem.source?.name ? `Fonte: ${newsItem.source.name}` : null,
-        newsItem.ai_metadata?.city ? `Cidade: ${newsItem.ai_metadata.city}` : null,
-        newsItem.ai_metadata?.urgency ? `Urgencia: ${newsItem.ai_metadata.urgency}` : null,
-        newsItem.categories_raw?.[0] ? `Categoria: ${newsItem.categories_raw[0]}` : null,
+        context.bundle.group?.name ? `Grupo: ${context.bundle.group.name}` : null,
+        context.bundle.city ? `Cidade: ${context.bundle.city}` : null,
+        context.bundle.urgency ? `Urgencia: ${context.bundle.urgency}` : null,
+        context.bundle.category ? `Categoria: ${context.bundle.category}` : null,
     ].filter(Boolean) as string[];
 }
 
@@ -83,7 +98,7 @@ function safeWindowOpen(url: string): boolean {
 
 export function AiPromptComposerDialog({
     open,
-    newsItem,
+    context,
     onOpenChange,
 }: AiPromptComposerDialogProps) {
     const navigate = useNavigate();
@@ -97,6 +112,12 @@ export function AiPromptComposerDialog({
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewContent, setPreviewContent] = useState("");
     const [previewLoading, setPreviewLoading] = useState(false);
+    const [bundleMarkdownUrl, setBundleMarkdownUrl] = useState("");
+    const [bundleMarkdownReady, setBundleMarkdownReady] = useState(false);
+    const [bundleMarkdownError, setBundleMarkdownError] = useState<string | null>(null);
+
+    const newsItem = context?.kind === "news-item" ? context.newsItem : null;
+    const bundle = context?.kind === "whatsapp-bundle" ? context.bundle : null;
 
     const templates = useMemo(
         () => sortPromptTemplates(templatesQuery.data?.data ?? []),
@@ -106,15 +127,23 @@ export function AiPromptComposerDialog({
         (template) => String(template.id) === selectedTemplateId,
     ) ?? null;
     const compileResult = useMemo(() => {
-        if (!newsItem || !selectedTemplate) {
+        if (!context || !selectedTemplate) {
             return null;
         }
 
-        return compilePrompt(selectedTemplate.content, newsItem);
-    }, [newsItem, selectedTemplate]);
+        if (context.kind === "whatsapp-bundle") {
+            return compilePrompt(selectedTemplate.content, {
+                kind: "whatsapp-bundle",
+                bundle: context.bundle,
+                markdownUrl: bundleMarkdownUrl,
+            });
+        }
+
+        return compilePrompt(selectedTemplate.content, context);
+    }, [bundleMarkdownUrl, context, selectedTemplate]);
     const variableCatalog = variablesQuery.data?.data ?? getAvailableVariables();
     const draftChanged = Boolean(compileResult) && draftText !== compileResult.compiledText;
-    const metaItems = newsItem ? getMetaItems(newsItem) : [];
+    const metaItems = context ? getMetaItems(context) : [];
 
     useEffect(() => {
         if (!open || templates.length === 0) {
@@ -141,6 +170,46 @@ export function AiPromptComposerDialog({
         setDraftText(compileResult.compiledText);
     }, [compileResult?.compiledText, open]);
 
+    useEffect(() => {
+        if (!open || !bundle) {
+            setBundleMarkdownUrl("");
+            setBundleMarkdownReady(false);
+            setBundleMarkdownError(null);
+            return;
+        }
+
+        let cancelled = false;
+
+        setBundleMarkdownReady(false);
+        setBundleMarkdownError(null);
+        setBundleMarkdownUrl("");
+
+        void newsRadarWhatsAppService
+            .exportBundleMarkdown(bundle.id, {
+                lock_version: bundle.lock_version,
+            })
+            .then((response) => {
+                if (cancelled) {
+                    return;
+                }
+
+                setBundleMarkdownUrl(response.data.signed_url);
+                setBundleMarkdownReady(true);
+            })
+            .catch((error: Error) => {
+                if (cancelled) {
+                    return;
+                }
+
+                setBundleMarkdownError(error.message);
+                setBundleMarkdownReady(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [bundle, open]);
+
     const trackUse = () => {
         if (!selectedTemplate) {
             return;
@@ -152,6 +221,14 @@ export function AiPromptComposerDialog({
     const handleOpenProvider = (provider: PromptActionProvider) => {
         if (!draftText.trim()) {
             showToast.warning("Nao ha prompt compilado para abrir.");
+            return;
+        }
+
+        if (bundle && !bundleMarkdownReady) {
+            showToast.warning(
+                bundleMarkdownError ??
+                    "O link assinado do markdown do bundle ainda nao ficou pronto.",
+            );
             return;
         }
 
@@ -190,15 +267,26 @@ export function AiPromptComposerDialog({
     };
 
     const handleOpenMarkdown = () => {
-        if (!newsItem) {
+        if (bundle) {
+            if (!bundleMarkdownUrl) {
+                showToast.warning(
+                    bundleMarkdownError ??
+                        "O markdown do bundle ainda nao ficou pronto para abertura.",
+                );
+                return;
+            }
+
+            safeWindowOpen(bundleMarkdownUrl);
             return;
         }
 
-        safeWindowOpen(buildMarkdownUrl(newsItem.public_token));
+        if (newsItem?.public_token) {
+            safeWindowOpen(buildMarkdownUrl(newsItem.public_token));
+        }
     };
 
     const handleViewMarkdown = async () => {
-        if (!newsItem) {
+        if (!context) {
             return;
         }
 
@@ -206,8 +294,15 @@ export function AiPromptComposerDialog({
         setPreviewLoading(true);
 
         try {
-            const content = await fetchMarkdownContent(newsItem.public_token);
-            setPreviewContent(content);
+            if (context.kind === "whatsapp-bundle") {
+                const response = await newsRadarWhatsAppService.previewBundleMarkdown(
+                    context.bundle.id,
+                );
+                setPreviewContent(response.data.markdown_text);
+            } else {
+                const content = await fetchMarkdownContent(context.newsItem.public_token);
+                setPreviewContent(content);
+            }
         } catch {
             setPreviewContent("Erro ao carregar o markdown.");
             showToast.error("Nao foi possivel carregar o markdown.");
@@ -245,7 +340,7 @@ export function AiPromptComposerDialog({
                         </DialogDescription>
                     </DialogHeader>
 
-                    {!newsItem ? null : templatesQuery.isLoading ? (
+                    {!context ? null : templatesQuery.isLoading ? (
                         <div className="py-10 text-center text-sm text-muted-foreground">
                             Carregando templates...
                         </div>
@@ -326,6 +421,25 @@ export function AiPromptComposerDialog({
 
                             {compileResult && (
                                 <>
+                                    {bundle && !bundleMarkdownReady && (
+                                        <div className="rounded-2xl border border-info/30 bg-info/10 p-4 text-sm text-info">
+                                            Preparando link assinado do markdown do bundle para o
+                                            prompt.
+                                        </div>
+                                    )}
+
+                                    {bundleMarkdownError && (
+                                        <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+                                            <div className="flex items-start gap-2">
+                                                <AlertTriangle className="mt-0.5 h-4 w-4" />
+                                                <div>
+                                                    Nao foi possivel gerar o link do markdown do
+                                                    bundle: {bundleMarkdownError}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {compileResult.unknownVariables.length > 0 && (
                                         <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
                                             <div className="flex items-start gap-2">
@@ -412,7 +526,7 @@ export function AiPromptComposerDialog({
                                 variant="outline"
                                 className="rounded-xl"
                                 onClick={handleViewMarkdown}
-                                disabled={!newsItem}
+                                disabled={!context}
                             >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Visualizar Markdown
@@ -421,7 +535,7 @@ export function AiPromptComposerDialog({
                                 variant="outline"
                                 className="rounded-xl"
                                 onClick={handleOpenMarkdown}
-                                disabled={!newsItem}
+                                disabled={!context}
                             >
                                 <ExternalLink className="mr-2 h-4 w-4" />
                                 Abrir Markdown

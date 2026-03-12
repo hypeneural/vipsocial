@@ -2,6 +2,8 @@
 
 namespace App\Modules\VipGallery\Http\Controllers;
 
+use App\Modules\WhatsAppInbound\Actions\CreateWhatsAppWebhookReceiptAction;
+use App\Modules\WhatsAppInbound\Support\InboundWebhookRequestNormalizer;
 use App\Modules\VipGallery\Jobs\ProcessVipGalleryWebhookJob;
 use App\Modules\VipGallery\Models\VipGalleryWebhookLog;
 use App\Modules\VipGallery\Support\ZApiGalleryPayload;
@@ -11,7 +13,7 @@ use Illuminate\Http\Request;
 
 class ZApiGalleryWebhookController extends BaseController
 {
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CreateWhatsAppWebhookReceiptAction $createReceipt): JsonResponse
     {
         $headerName = (string) config('vip_gallery.webhook.secret_header', 'X-VIP-GALLERY-SECRET');
         $expectedSecret = trim((string) config('vip_gallery.webhook.secret', ''));
@@ -21,7 +23,10 @@ class ZApiGalleryWebhookController extends BaseController
             return $this->jsonError('Webhook secret invalido', 'FORBIDDEN', 403);
         }
 
-        $payload = $this->normalizePayload($request);
+        $payload = InboundWebhookRequestNormalizer::payload($request);
+        $headers = InboundWebhookRequestNormalizer::headers($request, [$headerName]);
+
+        $receipt = $createReceipt->execute($payload, $headers);
 
         $log = VipGalleryWebhookLog::query()->create([
             'message_id' => ZApiGalleryPayload::messageId($payload),
@@ -38,27 +43,9 @@ class ZApiGalleryWebhookController extends BaseController
             'data' => [
                 'accepted' => true,
                 'log_id' => $log->id,
+                'receipt_id' => $receipt->id,
             ],
             'message' => 'Webhook recebido',
         ], 202);
-    }
-
-    private function normalizePayload(Request $request): array
-    {
-        $payload = $request->json()->all();
-
-        if (is_array($payload) && $payload !== []) {
-            return $payload;
-        }
-
-        $decoded = json_decode((string) $request->getContent(), true);
-
-        if (is_array($decoded)) {
-            return $decoded;
-        }
-
-        return [
-            '_raw' => (string) $request->getContent(),
-        ];
     }
 }
