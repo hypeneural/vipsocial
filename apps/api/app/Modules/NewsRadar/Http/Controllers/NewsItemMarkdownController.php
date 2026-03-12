@@ -10,6 +10,11 @@ use Illuminate\Routing\Controller;
 
 class NewsItemMarkdownController extends Controller
 {
+    public function preflight(): Response
+    {
+        return response('', 204, $this->publicCorsHeaders());
+    }
+
     public function show(string $publicToken, Request $request): Response
     {
         $item = NewsItem::with(['source:id,name,homepage_url,source_type', 'aiMetadata'])
@@ -27,7 +32,7 @@ class NewsItemMarkdownController extends Controller
         $etag = '"' . md5($item->updated_at->timestamp . $view) . '"';
 
         if ($request->header('If-None-Match') === $etag) {
-            return response('', 304);
+            return response('', 304, $this->publicCorsHeaders());
         }
 
         return response($md, 200, [
@@ -36,6 +41,7 @@ class NewsItemMarkdownController extends Controller
             'ETag'          => $etag,
             'Last-Modified' => $item->updated_at->toRfc7231String(),
             'X-Robots-Tag'  => 'noindex, nofollow',
+            ...$this->publicCorsHeaders(),
         ]);
     }
 
@@ -223,5 +229,16 @@ class NewsItemMarkdownController extends Controller
         }
 
         return null;
+    }
+
+    private function publicCorsHeaders(): array
+    {
+        return [
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Allow-Methods' => 'GET, HEAD, OPTIONS',
+            'Access-Control-Allow-Headers' => 'Origin, Content-Type, Accept, Cache-Control, If-Modified-Since, If-None-Match',
+            'Access-Control-Expose-Headers' => 'Content-Type, Cache-Control, ETag, Last-Modified, X-Request-Id, X-Trace-Id',
+            'Access-Control-Max-Age' => '86400',
+        ];
     }
 }

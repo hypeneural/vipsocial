@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/public/news/{publicToken}/markdown', [NewsItemMarkdownController::class, 'show'])
     ->where('publicToken', '[0-9a-f\-]{36}')
     ->name('news-radar.public.markdown');
+Route::options('/public/news/{publicToken}/markdown', [NewsItemMarkdownController::class, 'preflight'])
+    ->where('publicToken', '[0-9a-f\-]{36}')
+    ->name('news-radar.public.markdown.preflight');
 
 Route::middleware('auth:sanctum')->prefix('news-radar')->group(function () {
 

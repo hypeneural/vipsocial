@@ -12,6 +12,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
+use App\Support\Http\Middleware\ConfigurePublicNewsCors;
 use App\Support\Http\Middleware\InjectRequestContext;
 use App\Support\Http\Middleware\IdempotencyKey;
 
@@ -77,6 +78,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(ConfigurePublicNewsCors::class);
+
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
             InjectRequestContext::class,
