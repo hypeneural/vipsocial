@@ -1340,12 +1340,21 @@ Endpoints recomendados:
 - `POST /api/v1/news-radar/whatsapp/bundles/{id}/markdown-export`
 - `GET /api/v1/public/news-radar/whatsapp/markdown-exports/{token}`
 
+Contrato minimo recomendado para `markdown-export`:
+
+```json
+{
+  "lock_version": 3
+}
+```
+
 Decisao recomendada:
 
 - preview autenticado no painel
 - export gera snapshot persistido
 - resposta retorna link assinado e expirado para aquele snapshot
 - a leitura externa do snapshot ocorre pela rota publica assinada por `token`
+- o export deve validar `lock_version` para impedir snapshot sobre bundle desatualizado
 
 ## 8.6 Busca e indexacao
 
@@ -1716,6 +1725,7 @@ Backend e frontend devem ter permissao dedicada:
 - nao fazer transcricao de audio no V1
 - nao suportar multiplos providers no V1, apenas preparar o contrato
 - nao fazer publicacao automatica sem operador
+- nao suportar conversas 1:1 fora do contrato de `group_id` do provider
 
 ## 16. Contratos invariantes e casos de borda
 

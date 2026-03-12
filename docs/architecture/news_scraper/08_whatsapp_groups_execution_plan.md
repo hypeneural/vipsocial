@@ -66,6 +66,8 @@ Estas decisoes devem ser tratadas como baseline do V1.
 - O markdown para I.A. deve usar snapshot textual, nunca bundle resolvido ao vivo para link externo.
 - O link do snapshot deve ser assinado e expirar.
 - O modulo atual de prompts deve ser reutilizado com contexto `whatsapp-bundle`.
+- O endpoint de exportacao deve exigir `lock_version`.
+- Conversas 1:1 fora do contrato de grupo do provider ficam fora do V1.
 
 ### 1.9 Fora do V1
 
@@ -475,6 +477,7 @@ Subtasks:
 
 - Implementar preview autenticado do markdown do bundle.
 - Implementar exportacao com snapshot.
+- Exigir `lock_version` no payload de exportacao.
 - Persistir `whatsapp_bundle_markdown_exports`.
 - Gerar link assinado e expirado.
 - Expor rota publica assinada para leitura do snapshot exportado.
@@ -483,6 +486,7 @@ Subtasks:
 Criterio de aceite:
 
 - A I.A. recebe sempre um snapshot estavel do bundle.
+- A exportacao falha com validacao ou conflito quando `lock_version` nao for enviado ou estiver defasado.
 
 ### Task 4.5: Promocao para News Radar
 
