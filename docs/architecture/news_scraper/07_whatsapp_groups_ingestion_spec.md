@@ -253,6 +253,7 @@ Decisao recomendada:
 - `{{md_url}}` continua existindo
 - no feed web ele aponta para `/news/{public_token}.md`
 - na aba WhatsApp ele aponta para snapshot assinado de markdown do bundle
+- a URL assinada externa do snapshot deve terminar com `.md` para facilitar reconhecimento por ChatGPT, Claude e ferramentas similares
 
 Nao usar URL publica permanente para bundle.
 
@@ -1275,6 +1276,7 @@ Resposta recomendada:
 - devolver mensagens do grupo em ordem cronologica de operacao
 - devolver metadados derivados como `bundle_usage_state`
 - devolver informacoes para reposicionamento perto do ultimo ponto visto
+- a lista visual do frontend deve apresentar a mensagem mais recente no topo, em ordem `sent_at desc, id desc`
 
 Semantica operacional:
 
@@ -1559,17 +1561,17 @@ Painel central:
 
 Barra de acao:
 
-- `Criar noticia`
-- `Adicionar ao bundle existente`
+- `Criar agrupamento editorial`
+- `Destacar`
 - `Ignorar`
-- `Marcar importante`
+- `Marcar como revisada`
 
 Dentro do bundle:
 
 - editar titulo
 - reordenar mensagens
 - escolher imagem principal
-- abrir no composer de I.A.
+- acionar `Gerar o Prompt de I.A.`
 - promover para feed
 
 ## 11.5 Melhorias de UX recomendadas
@@ -1610,6 +1612,20 @@ Motivo:
 
 - a unidade visual de WhatsApp nao e noticia pronta
 - e timeline de mensagens do grupo
+
+### 11.7 Linguagem de interface recomendada
+
+No backend e na especificacao tecnica, `bundle` pode continuar como nome de entidade interna.
+
+Na interface do usuario, preferir linguagem em portugues e orientada a operacao:
+
+- `agrupamento editorial`
+- `abrir agrupamento`
+- `criar agrupamento editorial`
+- `agrupamentos editoriais do grupo`
+- `gerar o prompt de I.A.`
+
+Evitar expor o termo `bundle` na UI final.
 
 ## 12. Seguranca, retencao e conformidade
 

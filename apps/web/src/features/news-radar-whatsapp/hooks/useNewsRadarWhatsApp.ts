@@ -184,7 +184,7 @@ export function useCreateWhatsAppNewsBundle() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleList({ group_fk: variables.group_fk }) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.groupTimelineRoot(variables.group_fk) });
-            showToast.success("Bundle criado com sucesso.");
+            showToast.success("Agrupamento editorial criado com sucesso.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -204,7 +204,7 @@ export function useUpdateWhatsAppNewsBundle() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleDetail(variables.id) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
-            showToast.success("Bundle atualizado.");
+            showToast.success("Agrupamento editorial atualizado.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -224,7 +224,7 @@ export function useAddWhatsAppNewsBundleItems() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleDetail(variables.id) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
-            showToast.success("Mensagens adicionadas ao bundle.");
+            showToast.success("Mensagens adicionadas ao agrupamento editorial.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -246,7 +246,7 @@ export function useRemoveWhatsAppNewsBundleItem() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleDetail(variables.id) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
-            showToast.success("Mensagem removida do bundle.");
+            showToast.success("Mensagem removida do agrupamento editorial.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -261,7 +261,7 @@ export function useSetWhatsAppBundleStar() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleDetail(variables.id) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
-            showToast.success("Bundle atualizado.");
+            showToast.success("Agrupamento editorial atualizado.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -276,7 +276,7 @@ export function useArchiveWhatsAppBundle() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleDetail(variables.id) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
-            showToast.success("Bundle arquivado.");
+            showToast.success("Agrupamento editorial arquivado.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -291,7 +291,7 @@ export function useReopenWhatsAppBundle() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleDetail(variables.id) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
-            showToast.success("Bundle reaberto.");
+            showToast.success("Agrupamento editorial reaberto.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -304,7 +304,7 @@ export function useDuplicateWhatsAppBundle() {
         mutationFn: (id: number) => newsRadarWhatsAppService.duplicateBundle(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
-            showToast.success("Bundle duplicado.");
+            showToast.success("Agrupamento editorial duplicado.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });
@@ -320,7 +320,7 @@ export function usePromoteWhatsAppBundle() {
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundleDetail(variables.id) });
             queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.bundles() });
             queryClient.invalidateQueries({ queryKey: newsRadarKeys.all });
-            showToast.success("Bundle promovido.");
+            showToast.success("Agrupamento editorial promovido.");
         },
         onError: (error: Error) => showToast.error(error.message),
     });

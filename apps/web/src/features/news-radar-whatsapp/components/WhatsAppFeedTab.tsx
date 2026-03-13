@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
     AlertTriangle,
@@ -11,13 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import showToast from "@/lib/toast";
+import newsRadarWhatsAppService from "@/features/news-radar-whatsapp/api/newsRadarWhatsApp.service";
 import { CreateWhatsAppBundleDialog } from "@/features/news-radar-whatsapp/components/CreateWhatsAppBundleDialog";
 import { WhatsAppBundleSheet } from "@/features/news-radar-whatsapp/components/WhatsAppBundleSheet";
 import { WhatsAppBundlesPanel } from "@/features/news-radar-whatsapp/components/WhatsAppBundlesPanel";
@@ -36,30 +32,24 @@ import {
     useWhatsAppGroupSummary,
     useWhatsAppNewsBundles,
     useWhatsAppNewsGroups,
+    whatsappNewsKeys,
 } from "@/features/news-radar-whatsapp/hooks/useNewsRadarWhatsApp";
-import type { WhatsAppTimelineEvent } from "@/features/news-radar-whatsapp/types";
 import {
-    compareTimelineEventsAsc,
+    compareTimelineEventsDesc,
     formatWhatsAppDateTime,
 } from "@/features/news-radar-whatsapp/utils/formatters";
 
-const MESSAGE_KIND_OPTIONS = [
-    { value: "all", label: "Todos os tipos" },
-    { value: "text", label: "Texto" },
-    { value: "image", label: "Imagem" },
-    { value: "video", label: "Video" },
-    { value: "document", label: "Documento" },
-    { value: "audio", label: "Audio" },
-];
+type BulkAction = "star" | "ignore" | "review" | null;
 
 export function WhatsAppFeedTab() {
+    const queryClient = useQueryClient();
     const [selectedGroupFk, setSelectedGroupFk] = useState<string | null>(null);
     const [search, setSearch] = useState("");
-    const [messageKind, setMessageKind] = useState("all");
     const [includeIgnored, setIncludeIgnored] = useState(false);
     const [createBundleOpen, setCreateBundleOpen] = useState(false);
     const [selectedBundleId, setSelectedBundleId] = useState<number | null>(null);
     const [bundleSheetOpen, setBundleSheetOpen] = useState(false);
+    const [bulkAction, setBulkAction] = useState<BulkAction>(null);
     const [selectedEventIdsByGroup, setSelectedEventIdsByGroup] = useState<
         Record<string, number[]>
     >({});
@@ -74,7 +64,6 @@ export function WhatsAppFeedTab() {
         selectedGroupFk ?? undefined,
         {
             search: search || undefined,
-            message_kind: messageKind === "all" ? undefined : messageKind,
             include_ignored: includeIgnored,
             per_page: 30,
         },
@@ -107,16 +96,13 @@ export function WhatsAppFeedTab() {
     const timelineEvents = timelinePages
         .flatMap((page) => page.data)
         .slice()
-        .sort(compareTimelineEventsAsc);
+        .sort(compareTimelineEventsDesc);
 
     const selectedEventIds = selectedGroupFk
         ? selectedEventIdsByGroup[selectedGroupFk] ?? []
         : [];
 
-    const latestVisibleEvent = timelinePages
-        .flatMap((page) => page.data)
-        .slice()
-        .sort((left, right) => compareTimelineEventsAsc(right, left))[0];
+    const latestVisibleEvent = timelineEvents[0];
 
     const selectedGroup = groups.find((group) => group.whatsapp_group_fk === selectedGroupFk);
     const isRefreshing =
@@ -178,6 +164,77 @@ export function WhatsAppFeedTab() {
         );
     };
 
+    const invalidateGroupOperationalQueries = async (groupFk: string) => {
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.groups() }),
+            queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.groupSummary(groupFk) }),
+            queryClient.invalidateQueries({ queryKey: whatsappNewsKeys.groupTimelineRoot(groupFk) }),
+        ]);
+    };
+
+    const runBulkAction = async ({
+        action,
+        successMessage,
+        loadingMessage,
+        clearAfterSuccess = false,
+        request,
+    }: {
+        action: Exclude<BulkAction, null>;
+        successMessage: string;
+        loadingMessage: string;
+        clearAfterSuccess?: boolean;
+        request: (eventId: number) => Promise<unknown>;
+    }) => {
+        if (!selectedGroupFk || selectedEventIds.length === 0 || bulkAction) {
+            return;
+        }
+
+        const eventIdsSnapshot = [...selectedEventIds];
+        const toastId = showToast.loading(loadingMessage);
+
+        setBulkAction(action);
+
+        try {
+            const results = await Promise.allSettled(
+                eventIdsSnapshot.map((eventId) => request(eventId)),
+            );
+            const failures = results.filter(
+                (result): result is PromiseRejectedResult => result.status === "rejected",
+            );
+            const successCount = results.length - failures.length;
+
+            await invalidateGroupOperationalQueries(selectedGroupFk);
+
+            if (successCount > 0 && clearAfterSuccess) {
+                clearSelection();
+            }
+
+            showToast.dismiss(toastId);
+
+            if (successCount === 0) {
+                const firstError = failures[0]?.reason;
+                showToast.error(
+                    firstError instanceof Error
+                        ? firstError.message
+                        : "Nao foi possivel aplicar a acao nas mensagens selecionadas.",
+                );
+                return;
+            }
+
+            if (failures.length > 0) {
+                showToast.warning(
+                    `${successMessage} ${successCount} mensagem(ns) concluida(s) e ${failures.length} falharam.`,
+                );
+                return;
+            }
+
+            showToast.success(successMessage);
+        } finally {
+            showToast.dismiss(toastId);
+            setBulkAction(null);
+        }
+    };
+
     const handleCreateBundle = async (title: string) => {
         if (!selectedGroupFk || selectedEventIds.length === 0) {
             return;
@@ -223,7 +280,7 @@ export function WhatsAppFeedTab() {
                             </h2>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                            Grupo, timeline, selecao manual e bundle no mesmo fluxo editorial.
+                            Grupo, timeline, selecao manual e agrupamento editorial no mesmo fluxo.
                         </p>
                     </div>
 
@@ -322,7 +379,7 @@ export function WhatsAppFeedTab() {
                                     </div>
                                 </div>
 
-                                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),220px,180px]">
+                                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),180px]">
                                     <div className="space-y-2">
                                         <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                             Buscar na timeline
@@ -333,24 +390,6 @@ export function WhatsAppFeedTab() {
                                             className="rounded-xl"
                                             placeholder="Texto, remetente, telefone ou link"
                                         />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                            Tipo de mensagem
-                                        </label>
-                                        <Select value={messageKind} onValueChange={setMessageKind}>
-                                            <SelectTrigger className="rounded-xl">
-                                                <SelectValue placeholder="Todos os tipos" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {MESSAGE_KIND_OPTIONS.map((option) => (
-                                                    <SelectItem key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
                                     </div>
 
                                     <div className="flex items-end">
@@ -455,7 +494,33 @@ export function WhatsAppFeedTab() {
             <WhatsAppSelectionBar
                 selectedCount={selectedEventIds.length}
                 isCreatingBundle={createBundleMutation.isPending}
+                activeAction={bulkAction}
                 onClearSelection={clearSelection}
+                onStarSelection={() =>
+                    runBulkAction({
+                        action: "star",
+                        loadingMessage: "Destacando mensagens selecionadas...",
+                        successMessage: "Mensagens destacadas com sucesso.",
+                        request: (eventId) => newsRadarWhatsAppService.starEvent(eventId),
+                    })
+                }
+                onIgnoreSelection={() =>
+                    runBulkAction({
+                        action: "ignore",
+                        loadingMessage: "Ignorando mensagens selecionadas...",
+                        successMessage: "Mensagens ignoradas com sucesso.",
+                        clearAfterSuccess: true,
+                        request: (eventId) => newsRadarWhatsAppService.ignoreEvent(eventId),
+                    })
+                }
+                onMarkReviewedSelection={() =>
+                    runBulkAction({
+                        action: "review",
+                        loadingMessage: "Marcando mensagens como revisadas...",
+                        successMessage: "Mensagens marcadas como revisadas.",
+                        request: (eventId) => newsRadarWhatsAppService.markEventReviewed(eventId),
+                    })
+                }
                 onCreateBundle={() => setCreateBundleOpen(true)}
             />
 

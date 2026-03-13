@@ -11,11 +11,11 @@ class BuildWhatsAppNewsBundleMarkdownAction
         $bundle->loadMissing(['group', 'items.event.media']);
 
         $lines = [
-            '# Bundle WhatsApp',
+            '# Agrupamento editorial do WhatsApp',
             '',
             sprintf('Grupo: %s', $bundle->group?->name ?? $bundle->whatsapp_group_fk),
-            sprintf('Bundle ID: %d', $bundle->id),
-            sprintf('Status: %s', $bundle->status),
+            sprintf('ID do agrupamento: %d', $bundle->id),
+            sprintf('Situacao: %s', $bundle->status),
         ];
 
         if ($bundle->title) {
@@ -29,7 +29,7 @@ class BuildWhatsAppNewsBundleMarkdownAction
         }
 
         $lines[] = '';
-        $lines[] = '## Mensagens';
+        $lines[] = '## Mensagens selecionadas';
 
         foreach ($bundle->items as $index => $item) {
             $event = $item->event;
@@ -56,8 +56,7 @@ class BuildWhatsAppNewsBundleMarkdownAction
 
             foreach ($event->media as $media) {
                 $lines[] = sprintf(
-                    'Midia [%s]: %s',
-                    $media->kind,
+                    'Anexo: %s',
                     $media->storage_path ?: $media->source_url ?: 'indisponivel'
                 );
             }

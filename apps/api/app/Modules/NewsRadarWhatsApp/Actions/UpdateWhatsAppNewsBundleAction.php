@@ -25,7 +25,7 @@ class UpdateWhatsAppNewsBundleAction
     public function assertLockVersion(WhatsAppNewsBundle $bundle, int $lockVersion): void
     {
         if ($bundle->lock_version !== $lockVersion) {
-            throw new \RuntimeException('Bundle desatualizado. Atualize a tela antes de salvar.');
+            throw new \RuntimeException('Agrupamento editorial desatualizado. Atualize a tela antes de salvar.');
         }
     }
 }

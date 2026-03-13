@@ -6,8 +6,9 @@ use App\Modules\NewsRadarWhatsApp\Http\Controllers\WhatsAppBundleMarkdownControl
 use App\Modules\NewsRadarWhatsApp\Http\Controllers\WhatsAppTimelineController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/public/news-radar/whatsapp/markdown-exports/{token}', [WhatsAppBundleMarkdownController::class, 'publicShow'])
+Route::get('/public/news-radar/whatsapp/markdown-exports/{token}.md', [WhatsAppBundleMarkdownController::class, 'publicShow'])
     ->name('news-radar.whatsapp.markdown.public');
+Route::get('/public/news-radar/whatsapp/markdown-exports/{token}', [WhatsAppBundleMarkdownController::class, 'publicShow']);
 
 Route::middleware('auth:sanctum')->prefix('news-radar/whatsapp')->group(function () {
     Route::get('/groups', [WhatsAppNewsGroupsController::class, 'index'])->name('news-radar.whatsapp.groups.index');

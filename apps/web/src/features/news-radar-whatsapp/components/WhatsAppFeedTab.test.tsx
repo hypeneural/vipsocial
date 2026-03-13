@@ -1,6 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WhatsAppFeedTab } from "@/features/news-radar-whatsapp/components/WhatsAppFeedTab";
+
+vi.mock("@/features/news-radar-whatsapp/api/newsRadarWhatsApp.service", () => ({
+    default: {
+        starEvent: vi.fn().mockResolvedValue({ success: true }),
+        ignoreEvent: vi.fn().mockResolvedValue({ success: true }),
+        markEventReviewed: vi.fn().mockResolvedValue({ success: true }),
+    },
+}));
 
 vi.mock("@/features/news-radar-whatsapp/hooks/useNewsRadarWhatsApp", () => ({
     useWhatsAppNewsGroups: vi.fn(),
@@ -81,7 +90,7 @@ const group = {
     stats: {
         unread_count: 3,
         latest_event_at: "2026-03-12T18:00:00Z",
-        latest_event_preview: "Release principal da PRF",
+        latest_event_preview: "Preview lateral da PRF",
     },
 };
 
@@ -105,7 +114,7 @@ const summary = {
     },
 };
 
-const event = {
+const olderEvent = {
     id: 101,
     provider: "zapi",
     instance_id: "instance-1",
@@ -143,13 +152,22 @@ const event = {
     media: [],
 };
 
+const newerEvent = {
+    ...olderEvent,
+    id: 102,
+    message_id: "message-2",
+    text_message: "Atualizacao mais recente da PRF",
+    sent_at: "2026-03-12T18:05:00Z",
+    received_at: "2026-03-12T18:05:01Z",
+};
+
 const bundle = {
     id: 91,
     whatsapp_group_fk: "group-1",
     status: "open" as const,
     creation_mode: "manual_selection" as const,
     assigned_to: null,
-    title: "Bundle PRF",
+    title: "Agrupamento PRF",
     headline_draft: null,
     subheadline_draft: null,
     lead_draft: null,
@@ -179,6 +197,22 @@ const bundle = {
 };
 
 describe("WhatsAppFeedTab", () => {
+    const renderWithClient = () => {
+        const client = new QueryClient({
+            defaultOptions: {
+                queries: {
+                    retry: false,
+                },
+            },
+        });
+
+        return render(
+            <QueryClientProvider client={client}>
+                <WhatsAppFeedTab />
+            </QueryClientProvider>,
+        );
+    };
+
     beforeEach(() => {
         vi.clearAllMocks();
 
@@ -206,7 +240,7 @@ describe("WhatsAppFeedTab", () => {
             data: {
                 pages: [
                     {
-                        data: [event],
+                        data: [olderEvent, newerEvent],
                         meta: {
                             per_page: 30,
                             next_cursor: null,
@@ -311,19 +345,29 @@ describe("WhatsAppFeedTab", () => {
     });
 
     it("renders the selected group timeline and exposes bundle selection flow", async () => {
-        render(<WhatsAppFeedTab />);
+        renderWithClient();
 
         expect(screen.getAllByText("PRF SC Imprensa")).toHaveLength(2);
-        expect(screen.getAllByText("Release principal da PRF")).toHaveLength(2);
-        expect(screen.getByText("Bundle PRF")).toBeInTheDocument();
+        expect(screen.getByText("Release principal da PRF")).toBeInTheDocument();
+        expect(screen.getByText("Atualizacao mais recente da PRF")).toBeInTheDocument();
+        expect(screen.getByText("Agrupamento PRF")).toBeInTheDocument();
+
+        const timelineTexts = screen
+            .getAllByText(/Release principal da PRF|Atualizacao mais recente da PRF/)
+            .filter((node) => node.className.includes("text-sm"));
+        expect(timelineTexts[0]).toHaveTextContent("Atualizacao mais recente da PRF");
+        expect(timelineTexts[1]).toHaveTextContent("Release principal da PRF");
 
         const checkboxes = screen.getAllByRole("checkbox");
         fireEvent.click(checkboxes[1]);
 
+        expect(screen.getByText(/mensagem\(ns\) selecionada\(s\)/i)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /criar agrupamento/i })).toBeInTheDocument();
+        expect(screen.getAllByRole("button", { name: /^Destacar$/i }).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole("button", { name: /^Ignorar$/i }).length).toBeGreaterThan(0);
         expect(
-            screen.getByText(/mensagem\(ns\) pronta\(s\) para agrupamento/i),
+            screen.getByRole("button", { name: /Marcar como revisadas/i }),
         ).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /criar bundle/i })).toBeInTheDocument();
     });
 
     it("shows an error state instead of an empty state when the timeline query fails", () => {
@@ -339,7 +383,7 @@ describe("WhatsAppFeedTab", () => {
             refetch: vi.fn(),
         } as ReturnType<typeof useInfiniteWhatsAppGroupTimeline>);
 
-        render(<WhatsAppFeedTab />);
+        renderWithClient();
 
         expect(
             screen.getByText("Nao foi possivel carregar a timeline"),

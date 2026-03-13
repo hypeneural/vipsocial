@@ -23,7 +23,7 @@ class DuplicateWhatsAppNewsBundleAction
                 'status' => WhatsAppNewsBundle::STATUS_OPEN,
                 'creation_mode' => $bundle->creation_mode,
                 'assigned_to' => null,
-                'title' => $bundle->title ? "{$bundle->title} (Copia)" : 'Bundle (Copia)',
+                'title' => $bundle->title ? "{$bundle->title} (Copia)" : 'Agrupamento editorial (Copia)',
                 'slug_hint' => $bundle->slug_hint,
                 'headline_draft' => $bundle->headline_draft,
                 'subheadline_draft' => $bundle->subheadline_draft,

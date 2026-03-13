@@ -82,14 +82,14 @@ class WhatsAppNewsBundlesController extends BaseController
 
             return $this->jsonCreated(
                 new WhatsAppNewsBundleResource($bundle->load(['group', 'items.event'])),
-                'Bundle criado com sucesso'
+                'Agrupamento editorial criado com sucesso'
             );
         } catch (RuntimeException $exception) {
             return $this->jsonError($exception->getMessage(), 'WHATSAPP_BUNDLE_CREATE_FAILED', 422);
         } catch (Throwable $exception) {
             report($exception);
 
-            return $this->jsonError('Falha ao criar bundle', 'WHATSAPP_BUNDLE_CREATE_FAILED', 500);
+            return $this->jsonError('Falha ao criar o agrupamento editorial', 'WHATSAPP_BUNDLE_CREATE_FAILED', 500);
         }
     }
 
@@ -112,7 +112,7 @@ class WhatsAppNewsBundlesController extends BaseController
 
             return $this->jsonSuccess(
                 new WhatsAppNewsBundleResource($bundle),
-                'Bundle atualizado com sucesso'
+                'Agrupamento editorial atualizado com sucesso'
             );
         } catch (RuntimeException $exception) {
             return $this->jsonError($exception->getMessage(), 'WHATSAPP_BUNDLE_CONFLICT', 409);
@@ -170,7 +170,7 @@ class WhatsAppNewsBundlesController extends BaseController
         try {
             $bundle = $this->manageState->archive($request->user(), $bundle, (int) $request->validated('lock_version'));
 
-            return $this->jsonSuccess(new WhatsAppNewsBundleResource($bundle), 'Bundle arquivado');
+            return $this->jsonSuccess(new WhatsAppNewsBundleResource($bundle), 'Agrupamento editorial arquivado');
         } catch (RuntimeException $exception) {
             return $this->jsonError($exception->getMessage(), 'WHATSAPP_BUNDLE_ARCHIVE_FAILED', 409);
         }
@@ -183,7 +183,7 @@ class WhatsAppNewsBundlesController extends BaseController
         try {
             $bundle = $this->manageState->reopen($request->user(), $bundle, (int) $request->validated('lock_version'));
 
-            return $this->jsonSuccess(new WhatsAppNewsBundleResource($bundle), 'Bundle reaberto');
+            return $this->jsonSuccess(new WhatsAppNewsBundleResource($bundle), 'Agrupamento editorial reaberto');
         } catch (RuntimeException $exception) {
             return $this->jsonError($exception->getMessage(), 'WHATSAPP_BUNDLE_REOPEN_FAILED', 409);
         }
@@ -194,7 +194,7 @@ class WhatsAppNewsBundlesController extends BaseController
         $bundle = $this->findAccessibleBundle($request->user()->getKey(), $id);
         $bundle = $this->duplicateBundle->execute($request->user(), $bundle);
 
-        return $this->jsonCreated(new WhatsAppNewsBundleResource($bundle), 'Bundle duplicado com sucesso');
+        return $this->jsonCreated(new WhatsAppNewsBundleResource($bundle), 'Agrupamento editorial duplicado com sucesso');
     }
 
     public function promote(PromoteWhatsAppNewsBundleRequest $request, int $id): JsonResponse
@@ -218,7 +218,7 @@ class WhatsAppNewsBundlesController extends BaseController
                     'news_source_id' => $result['news_item']->news_source_id,
                 ],
                 'created' => $result['created'],
-            ], $result['created'] ? 'Bundle promovido com sucesso' : 'Bundle ja promovido');
+            ], $result['created'] ? 'Agrupamento editorial promovido com sucesso' : 'Agrupamento editorial ja promovido');
         } catch (RuntimeException $exception) {
             return $this->jsonError($exception->getMessage(), 'WHATSAPP_BUNDLE_PROMOTE_FAILED', 409);
         }

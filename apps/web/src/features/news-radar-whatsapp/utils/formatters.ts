@@ -42,7 +42,7 @@ export function truncateText(value?: string | null, maxLength = 96) {
         return value;
     }
 
-    return `${value.slice(0, maxLength - 1)}…`;
+    return `${value.slice(0, maxLength - 3)}...`;
 }
 
 export function compareTimelineEventsAsc(
@@ -57,4 +57,41 @@ export function compareTimelineEventsAsc(
     }
 
     return (left?.id ?? 0) - (right?.id ?? 0);
+}
+
+export function compareTimelineEventsDesc(
+    left?: { sent_at?: string | null; id: number },
+    right?: { sent_at?: string | null; id: number },
+) {
+    return compareTimelineEventsAsc(right, left);
+}
+
+export function getBundleUsageStateLabel(value?: string | null) {
+    switch (value) {
+        case "used_in_open_bundle":
+            return "Em agrupamento aberto";
+        case "used_in_promoted_bundle":
+            return "Ja usada em noticia";
+        case "used_in_multiple_bundles":
+            return "Em varios agrupamentos";
+        default:
+            return null;
+    }
+}
+
+export function getMediaDownloadStatusLabel(value?: string | null) {
+    switch (value) {
+        case "pending":
+            return "Pendente";
+        case "downloaded":
+            return "Disponivel";
+        case "failed":
+            return "Indisponivel";
+        case "expired":
+            return "Expirado";
+        case "skipped":
+            return "Sem download";
+        default:
+            return value || "Sem status";
+    }
 }

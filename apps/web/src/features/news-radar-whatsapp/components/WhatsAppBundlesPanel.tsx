@@ -32,7 +32,7 @@ export function WhatsAppBundlesPanel({
     return (
         <Card className="rounded-3xl border-border/60">
             <CardHeader>
-                <CardTitle className="text-base">Bundles do grupo</CardTitle>
+                <CardTitle className="text-base">Agrupamentos editoriais do grupo</CardTitle>
                 <p className="text-xs text-muted-foreground">
                     Rascunhos criados a partir da selecao manual da timeline.
                 </p>
@@ -46,7 +46,7 @@ export function WhatsAppBundlesPanel({
                     </>
                 ) : bundles.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-                        Nenhum bundle criado para este grupo ainda.
+                        Nenhum agrupamento editorial criado para este grupo ainda.
                     </div>
                 ) : (
                     bundles.map((bundle) => (
@@ -58,14 +58,14 @@ export function WhatsAppBundlesPanel({
                                 <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <p className="truncate text-sm font-semibold text-foreground">
-                                            {bundle.title || `Bundle #${bundle.id}`}
+                                            {bundle.title || `Agrupamento #${bundle.id}`}
                                         </p>
                                         <Badge variant="outline" className="rounded-full">
                                             {getBundleStatusLabel(bundle.status)}
                                         </Badge>
                                     </div>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        {bundle.message_count} mensagem(ns) • Atualizado em{" "}
+                                        {bundle.message_count} mensagem(ns) | Atualizado em{" "}
                                         {formatWhatsAppDateTime(bundle.updated_at)}
                                     </p>
                                 </div>
@@ -95,7 +95,7 @@ export function WhatsAppBundlesPanel({
                                     onClick={() => onOpenBundle(bundle.id)}
                                 >
                                     <FolderOpen className="mr-2 h-4 w-4" />
-                                    Abrir bundle
+                                    Abrir agrupamento
                                 </Button>
 
                                 <Button

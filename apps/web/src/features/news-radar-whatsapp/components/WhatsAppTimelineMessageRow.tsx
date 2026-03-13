@@ -19,7 +19,9 @@ import type { WhatsAppTimelineEvent } from "@/features/news-radar-whatsapp/types
 import {
     formatWhatsAppDateTime,
     formatWhatsAppTime,
+    getBundleUsageStateLabel,
     getInitials,
+    getMediaDownloadStatusLabel,
 } from "@/features/news-radar-whatsapp/utils/formatters";
 import { cn } from "@/lib/utils";
 
@@ -32,23 +34,6 @@ interface WhatsAppTimelineMessageRowProps {
     onStar: (eventId: number) => void;
     onUnstar: (eventId: number) => void;
     onMarkReviewed: (eventId: number) => void;
-}
-
-function renderMediaKindLabel(kind: string) {
-    switch (kind) {
-        case "image":
-            return "Imagem";
-        case "video":
-            return "Video";
-        case "document":
-            return "Documento";
-        case "audio":
-            return "Audio";
-        case "thumbnail":
-            return "Thumbnail";
-        default:
-            return kind;
-    }
 }
 
 export function WhatsAppTimelineMessageRow({
@@ -65,6 +50,7 @@ export function WhatsAppTimelineMessageRow({
     const isStarred = event.user_state.is_starred;
     const isReviewed = Boolean(event.user_state.reviewed_at);
     const unavailableMedia = event.media.some((media) => media.download_status === "failed");
+    const bundleUsageLabel = getBundleUsageStateLabel(event.bundle_usage_state);
 
     return (
         <Card
@@ -104,18 +90,15 @@ export function WhatsAppTimelineMessageRow({
                                             {event.participant_phone}
                                         </Badge>
                                     ) : null}
-                                    <Badge variant="secondary" className="rounded-full text-[11px]">
-                                        {renderMediaKindLabel(event.message_kind)}
-                                    </Badge>
                                 </div>
 
                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                     <span>{formatWhatsAppDateTime(event.sent_at)}</span>
-                                    <span>•</span>
+                                    <span>|</span>
                                     <span>{formatWhatsAppTime(event.sent_at)}</span>
                                     {event.reference_message_id ? (
                                         <>
-                                            <span>•</span>
+                                            <span>|</span>
                                             <span className="inline-flex items-center gap-1">
                                                 <MessageSquareQuote className="h-3.5 w-3.5" />
                                                 Resposta encadeada
@@ -136,9 +119,9 @@ export function WhatsAppTimelineMessageRow({
                                         Anexo indisponivel
                                     </Badge>
                                 ) : null}
-                                {event.bundle_usage_state ? (
+                                {bundleUsageLabel ? (
                                     <Badge variant="outline" className="rounded-full text-[11px]">
-                                        {event.bundle_usage_state}
+                                        {bundleUsageLabel}
                                     </Badge>
                                 ) : null}
                                 {isReviewed ? (
@@ -203,7 +186,7 @@ export function WhatsAppTimelineMessageRow({
                                                 >
                                                     <img
                                                         src={previewUrl}
-                                                        alt={media.file_name ?? "Preview da imagem"}
+                                                        alt={media.file_name ?? "Preview do anexo"}
                                                         className="h-32 w-full object-cover"
                                                     />
                                                 </a>
@@ -218,12 +201,9 @@ export function WhatsAppTimelineMessageRow({
                                             )}
 
                                             <div className="space-y-2 p-3">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <p className="text-xs font-semibold text-foreground">
-                                                        {renderMediaKindLabel(media.kind)}
-                                                    </p>
+                                                <div className="flex items-center justify-end gap-2">
                                                     <Badge variant="outline" className="rounded-full text-[10px]">
-                                                        {media.download_status}
+                                                        {getMediaDownloadStatusLabel(media.download_status)}
                                                     </Badge>
                                                 </div>
 
@@ -231,7 +211,11 @@ export function WhatsAppTimelineMessageRow({
                                                     <p className="truncate text-xs text-muted-foreground">
                                                         {media.file_name}
                                                     </p>
-                                                ) : null}
+                                                ) : (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Anexo recebido
+                                                    </p>
+                                                )}
 
                                                 {media.source_url || previewUrl ? (
                                                     <a

@@ -53,7 +53,7 @@ class WhatsAppBundleMarkdownController extends BaseController
                 'bundle_lock_version' => $export->bundle_lock_version,
                 'markdown_hash' => $export->markdown_hash,
                 'expires_at' => $export->expires_at?->toIso8601String(),
-                'signed_url' => url("/api/v1/public/news-radar/whatsapp/markdown-exports/{$export->signed_token}"),
+                'signed_url' => $this->buildPublicMarkdownUrl($export->signed_token),
             ], 'Markdown exportado com sucesso');
         } catch (RuntimeException $exception) {
             return $this->jsonError($exception->getMessage(), 'WHATSAPP_BUNDLE_MARKDOWN_EXPORT_FAILED', 409);
@@ -77,6 +77,7 @@ class WhatsAppBundleMarkdownController extends BaseController
         return response($export->markdown_text, 200, [
             'Content-Type' => 'text/markdown; charset=UTF-8',
             'Cache-Control' => 'private, max-age=60',
+            'Content-Disposition' => sprintf('inline; filename="agrupamento-whatsapp-%d.md"', $export->bundle_id),
         ]);
     }
 
@@ -86,5 +87,10 @@ class WhatsAppBundleMarkdownController extends BaseController
         $this->ensureAccess->forBundle(\App\Models\User::query()->findOrFail($userId), $bundle);
 
         return $bundle;
+    }
+
+    private function buildPublicMarkdownUrl(string $token): string
+    {
+        return url("/api/v1/public/news-radar/whatsapp/markdown-exports/{$token}.md");
     }
 }

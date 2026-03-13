@@ -51,7 +51,7 @@ class PromoteWhatsAppBundleToNewsItemAction
             WhatsAppNewsBundle::STATUS_REVIEWING,
             WhatsAppNewsBundle::STATUS_READY,
         ], true)) {
-            throw new RuntimeException('Bundle nao pode ser promovido a partir do estado atual.');
+            throw new RuntimeException('O agrupamento editorial nao pode ser promovido a partir do estado atual.');
         }
 
         return DB::transaction(function () use ($user, $bundle): array {

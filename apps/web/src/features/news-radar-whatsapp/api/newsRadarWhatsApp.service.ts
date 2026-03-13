@@ -189,7 +189,7 @@ export const newsRadarWhatsAppService = {
     ): Promise<ApiEnvelope<WhatsAppNewsBundle[]>> {
         return request(
             () => api.get<ApiEnvelope<WhatsAppNewsBundle[]>>(`${ENDPOINT}/bundles`, { params }),
-            "Nao foi possivel carregar os bundles do grupo.",
+            "Nao foi possivel carregar os agrupamentos editoriais do grupo.",
         );
     },
 
@@ -198,14 +198,14 @@ export const newsRadarWhatsAppService = {
     ): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.post<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles`, payload),
-            "Nao foi possivel criar o bundle.",
+            "Nao foi possivel criar o agrupamento editorial.",
         );
     },
 
     async getBundle(id: number): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.get<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}`),
-            "Nao foi possivel carregar o bundle.",
+            "Nao foi possivel carregar o agrupamento editorial.",
         );
     },
 
@@ -215,7 +215,7 @@ export const newsRadarWhatsAppService = {
     ): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.put<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}`, payload),
-            "Nao foi possivel atualizar o bundle.",
+            "Nao foi possivel atualizar o agrupamento editorial.",
         );
     },
 
@@ -225,7 +225,7 @@ export const newsRadarWhatsAppService = {
     ): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.post<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}/items`, payload),
-            "Nao foi possivel adicionar mensagens ao bundle.",
+            "Nao foi possivel adicionar mensagens ao agrupamento editorial.",
         );
     },
 
@@ -239,7 +239,7 @@ export const newsRadarWhatsAppService = {
                 api.delete<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}/items/${eventId}`, {
                     data: { lock_version: lockVersion },
                 }),
-            "Nao foi possivel remover a mensagem do bundle.",
+            "Nao foi possivel remover a mensagem do agrupamento editorial.",
         );
     },
 
@@ -249,28 +249,28 @@ export const newsRadarWhatsAppService = {
     ): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.put<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}/star`, { is_starred: isStarred }),
-            "Nao foi possivel atualizar a estrela do bundle.",
+            "Nao foi possivel atualizar o destaque do agrupamento editorial.",
         );
     },
 
     async archiveBundle(id: number, lockVersion: number): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.post<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}/archive`, { lock_version: lockVersion }),
-            "Nao foi possivel arquivar o bundle.",
+            "Nao foi possivel arquivar o agrupamento editorial.",
         );
     },
 
     async reopenBundle(id: number, lockVersion: number): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.post<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}/reopen`, { lock_version: lockVersion }),
-            "Nao foi possivel reabrir o bundle.",
+            "Nao foi possivel reabrir o agrupamento editorial.",
         );
     },
 
     async duplicateBundle(id: number): Promise<ApiEnvelope<WhatsAppNewsBundle>> {
         return request(
             () => api.post<ApiEnvelope<WhatsAppNewsBundle>>(`${ENDPOINT}/bundles/${id}/duplicate`),
-            "Nao foi possivel duplicar o bundle.",
+            "Nao foi possivel duplicar o agrupamento editorial.",
         );
     },
 
@@ -283,7 +283,7 @@ export const newsRadarWhatsAppService = {
                 api.post<ApiEnvelope<WhatsAppBundlePromotionResult>>(`${ENDPOINT}/bundles/${id}/promote`, {
                     lock_version: lockVersion,
                 }),
-            "Nao foi possivel promover o bundle.",
+            "Nao foi possivel promover o agrupamento editorial.",
         );
     },
 
@@ -300,7 +300,7 @@ export const newsRadarWhatsAppService = {
     ): Promise<ApiEnvelope<WhatsAppBundleMarkdownExport>> {
         return request(
             () => api.post<ApiEnvelope<WhatsAppBundleMarkdownExport>>(`${ENDPOINT}/bundles/${id}/markdown-export`, payload),
-            "Nao foi possivel exportar o markdown do bundle.",
+            "Nao foi possivel exportar o markdown do agrupamento editorial.",
         );
     },
 };

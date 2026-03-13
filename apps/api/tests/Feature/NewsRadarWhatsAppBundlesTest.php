@@ -244,6 +244,7 @@ test('bundle markdown preview and export generate stable snapshot and public acc
         ->assertJsonPath('data.bundle_id', $bundleId)
         ->assertJsonPath('data.lock_version', $lockVersion);
 
+    expect($previewResponse->json('data.markdown_text'))->toContain('Agrupamento editorial do WhatsApp');
     expect($previewResponse->json('data.markdown_text'))->toContain('Bundle exportado');
     expect($previewResponse->json('data.markdown_text'))->toContain('Texto para exportacao');
 
@@ -257,6 +258,7 @@ test('bundle markdown preview and export generate stable snapshot and public acc
         ->assertJsonPath('data.bundle_id', $bundleId);
 
     $signedUrl = $exportResponse->json('data.signed_url');
+    expect($signedUrl)->toEndWith('.md');
     $signedPath = parse_url($signedUrl, PHP_URL_PATH);
 
     $this->get($signedPath)

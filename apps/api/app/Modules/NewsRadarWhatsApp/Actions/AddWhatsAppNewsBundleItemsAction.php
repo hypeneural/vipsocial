@@ -30,7 +30,7 @@ class AddWhatsAppNewsBundleItemsAction
                 ->keyBy('id');
 
             if ($events->count() !== count(array_unique($eventIds))) {
-                throw new \RuntimeException('Todos os eventos precisam pertencer ao mesmo grupo do bundle.');
+                throw new \RuntimeException('Todos os eventos precisam pertencer ao mesmo grupo do agrupamento editorial.');
             }
 
             $nextSortOrder = (int) $bundle->items()->max('sort_order');

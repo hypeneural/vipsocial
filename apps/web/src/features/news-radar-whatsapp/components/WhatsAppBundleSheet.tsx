@@ -215,7 +215,7 @@ export function WhatsAppBundleSheet({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-3xl">
                 <SheetHeader className="pr-8">
-                    <SheetTitle>Bundle editorial</SheetTitle>
+                    <SheetTitle>Agrupamento editorial</SheetTitle>
                     <SheetDescription>
                         Edite o rascunho, revise os itens de origem e envie para a I.A. a
                         partir do mesmo fluxo.
@@ -225,11 +225,11 @@ export function WhatsAppBundleSheet({
                 {!bundleId ? null : bundleQuery.isLoading ? (
                     <div className="flex min-h-[240px] items-center justify-center text-sm text-muted-foreground">
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Carregando bundle...
+                        Carregando agrupamento...
                     </div>
                 ) : !bundle ? (
                     <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-                        Bundle nao encontrado.
+                        Agrupamento editorial nao encontrado.
                     </div>
                 ) : (
                     <div className="mt-6 space-y-6">
@@ -294,7 +294,7 @@ export function WhatsAppBundleSheet({
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="bundle-headline">Headline draft</Label>
+                                <Label htmlFor="bundle-headline">Titulo de apoio</Label>
                                 <Input
                                     id="bundle-headline"
                                     value={form.headline_draft}
@@ -363,7 +363,7 @@ export function WhatsAppBundleSheet({
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="bundle-lead">Lead draft</Label>
+                            <Label htmlFor="bundle-lead">Lead</Label>
                             <Textarea
                                 id="bundle-lead"
                                 value={form.lead_draft}
@@ -455,12 +455,6 @@ export function WhatsAppBundleSheet({
                                                         className="rounded-full"
                                                     >
                                                         Ordem {item.sort_order}
-                                                    </Badge>
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="rounded-full"
-                                                    >
-                                                        {item.event?.message_kind || "Evento"}
                                                     </Badge>
                                                 </div>
                                                 <p className="mt-2 text-sm text-foreground">
@@ -556,7 +550,7 @@ export function WhatsAppBundleSheet({
                                 onClick={() => bundle && openBundleComposer(bundle)}
                             >
                                 <Sparkles className="mr-2 h-4 w-4" />
-                                Abrir no composer
+                                Gerar o Prompt de I.A.
                             </Button>
                             <Button
                                 type="button"

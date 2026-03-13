@@ -37,9 +37,9 @@ export function CreateWhatsAppBundleDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="rounded-2xl sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Criar bundle editorial</DialogTitle>
+                    <DialogTitle>Criar agrupamento editorial</DialogTitle>
                     <DialogDescription>
                         {selectedCount} mensagem(ns) selecionada(s)
                         {groupName ? ` em ${groupName}` : ""}. O titulo e opcional nesta etapa.
@@ -75,7 +75,7 @@ export function CreateWhatsAppBundleDialog({
                         onClick={() => onSubmit(title)}
                         disabled={isSubmitting || selectedCount === 0}
                     >
-                        {isSubmitting ? "Criando..." : "Criar bundle"}
+                        {isSubmitting ? "Criando..." : "Criar agrupamento"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

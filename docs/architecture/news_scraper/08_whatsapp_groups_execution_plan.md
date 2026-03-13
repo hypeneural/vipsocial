@@ -65,11 +65,21 @@ Estas decisoes devem ser tratadas como baseline do V1.
 
 - O markdown para I.A. deve usar snapshot textual, nunca bundle resolvido ao vivo para link externo.
 - O link do snapshot deve ser assinado e expirar.
+- A URL publica assinada desse snapshot deve terminar com `.md`.
 - O modulo atual de prompts deve ser reutilizado com contexto `whatsapp-bundle`.
 - O endpoint de exportacao deve exigir `lock_version`.
 - Conversas 1:1 fora do contrato de grupo do provider ficam fora do V1.
 
-### 1.9 Fora do V1
+### 1.9 Linguagem de interface
+
+- Na UI final, `bundle` deve aparecer como `agrupamento editorial`.
+- Rotulos operacionais devem privilegiar portugues claro:
+  - `criar agrupamento editorial`
+  - `abrir agrupamento`
+  - `agrupamentos editoriais do grupo`
+  - `gerar o prompt de I.A.`
+
+### 1.10 Fora do V1
 
 - OCR de imagem.
 - transcricao de audio.
@@ -77,7 +87,7 @@ Estas decisoes devem ser tratadas como baseline do V1.
 - publicacao automatica sem operador.
 - suporte completo a multiplos providers, embora o contrato ja deva nascer preparado.
 
-### 1.10 Tenant
+### 1.11 Tenant
 
 - Se o ambiente for multi-tenant, a decisao deve entrar antes da primeira migration.
 - Se aplicavel, todas as tabelas precisam de `tenant_id` ou escopo equivalente.
@@ -618,6 +628,8 @@ Subtasks:
 - Implementar timeline cronologica.
 - Carregar por blocos com cursor.
 - Renderizar texto, remetente, horario e preview de midia.
+- Exibir visualmente a mensagem mais recente no topo.
+- Nao expor o `message_kind` como rotulo tecnico na linha principal da mensagem.
 - Indicar:
   - usada em bundle
   - removida na origem
@@ -635,6 +647,10 @@ Subtasks:
 - Implementar `ignore`, `unignore`, `star`, `unstar` e `mark-reviewed`.
 - Garantir atualizacao de UI sem impactar outro usuario.
 - Implementar barra de selecao fixa.
+- Permitir acoes em lote na selecao:
+  - destacar
+  - ignorar
+  - marcar como revisadas
 - Implementar busca e filtros.
 
 Criterio de aceite:
@@ -666,9 +682,11 @@ Criterio de aceite:
 
 Subtasks:
 
+- Exibir CTA `Gerar o Prompt de I.A.`.
 - Abrir bundle no composer de prompt.
 - Oferecer preview do markdown.
 - Gerar exportacao assinada para I.A.
+- Garantir que a URL assinada do snapshot termine com `.md`.
 - Manter historico consistente com snapshot.
 
 Criterio de aceite:

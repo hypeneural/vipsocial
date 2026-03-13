@@ -23,7 +23,7 @@ class EnsureWhatsAppNewsSourceAction
             'homepage_url' => sprintf('internal://whatsapp-group/%s', $group->provider_group_id ?: $group->group_id),
             'active' => true,
             'source_type' => SourceType::Whatsapp,
-            'notes' => 'Fonte criada automaticamente a partir de bundle do WhatsApp.',
+            'notes' => 'Fonte criada automaticamente a partir de agrupamento editorial do WhatsApp.',
         ]);
 
         $group->forceFill([

@@ -71,7 +71,7 @@ export function WhatsAppGroupTimeline({
                 </div>
                 <h3 className="text-base font-semibold text-foreground">Nenhuma mensagem nesta faixa</h3>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                    Ajuste a busca, troque o filtro ou aguarde novas mensagens chegarem ao grupo monitorado.
+                    Ajuste a busca ou aguarde novas mensagens chegarem ao grupo monitorado.
                 </p>
             </div>
         );
@@ -79,27 +79,6 @@ export function WhatsAppGroupTimeline({
 
     return (
         <div className="space-y-3">
-            {hasNextPage ? (
-                <div className="flex justify-center">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        className="rounded-xl"
-                        onClick={onFetchNextPage}
-                        disabled={isFetchingNextPage}
-                    >
-                        {isFetchingNextPage ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Carregando anteriores...
-                            </>
-                        ) : (
-                            "Carregar mensagens anteriores"
-                        )}
-                    </Button>
-                </div>
-            ) : null}
-
             {events.map((event) => (
                 <WhatsAppTimelineMessageRow
                     key={event.id}
@@ -113,6 +92,27 @@ export function WhatsAppGroupTimeline({
                     onMarkReviewed={onMarkReviewed}
                 />
             ))}
+
+            {hasNextPage ? (
+                <div className="flex justify-center">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={onFetchNextPage}
+                        disabled={isFetchingNextPage}
+                    >
+                        {isFetchingNextPage ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Carregando mensagens mais antigas...
+                            </>
+                        ) : (
+                            "Carregar mensagens mais antigas"
+                        )}
+                    </Button>
+                </div>
+            ) : null}
         </div>
     );
 }
