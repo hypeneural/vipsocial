@@ -415,15 +415,20 @@ class ExternalEventWhatsAppNotificationService
         string $recipientType,
         string $target
     ): string {
+        $scheduledKey = $scheduledFor;
         $eventVersion = $triggerType === ExternalEventWhatsAppNotification::TRIGGER_CREATED
             ? ($event->created_at?->timestamp ?? $event->id)
             : ($event->updated_at?->timestamp ?? $event->id);
+
+        if ($triggerType === ExternalEventWhatsAppNotification::TRIGGER_CREATED && $event->created_at !== null) {
+            $scheduledKey = CarbonImmutable::parse($event->created_at)->setTimezone('UTC');
+        }
 
         return sprintf(
             'externas:%d:%s:%s:%s:%s:%s',
             $event->id,
             $triggerType,
-            $scheduledFor->toIso8601String(),
+            $scheduledKey->toIso8601String(),
             $recipientType,
             sha1($target),
             $eventVersion

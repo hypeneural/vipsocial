@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Modules\Externas\Models\ExternalEvent;
+use App\Modules\Externas\Services\ExternalEventWhatsAppNotificationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Client\Request;
@@ -331,6 +332,13 @@ test('creating external event sends immediate whatsapp notifications and schedul
             && str_contains((string) $request['message'], '*Nova externa agendada*')
             && str_contains((string) $request['message'], '*Colaboradores:* Ana Maria Souza');
     });
+
+    app(ExternalEventWhatsAppNotificationService::class)->handleEventCreated(
+        ExternalEvent::query()->with('collaborators')->firstOrFail()
+    );
+
+    expect(DB::table('external_event_whatsapp_notifications')->where('trigger_type', 'created')->count())->toBe(2);
+    Http::assertSentCount(2);
 });
 
 test('updating start datetime sends date changed notifications and replaces pending reminders', function () {

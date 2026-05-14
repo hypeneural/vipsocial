@@ -620,3 +620,28 @@ Status da implementacao atual:
 - `whatsapp_group_id` ja tem significado de Cobertura VIP; reutilizar esse campo para agenda causaria regressao em eventos sem VIP.
 - Se a fila estiver em `sync` no ambiente, criacao/edicao do evento pode esperar chamadas externas. Em producao, usar worker real.
 - Sem tela de logs, suporte operacional depende do banco/API. Para produto, logs por evento sao recomendados.
+
+## 14. Validacao real local - 2026-05-14
+
+Validacoes executadas no ambiente local `apps/api` usando o banco configurado em `.env`:
+
+- Migration `2026_05_14_120000_create_external_event_whatsapp_notifications_table` aplicada com sucesso.
+- Banco ativo: `vipsocialadm`.
+- Z-API configurada e respondendo em `connectionState(true)`.
+- Estado retornado pela integracao WhatsApp: conectado, `smartphone_connected = true`, origem `status+device`.
+- Destino padrao ativo em config: `554896318744-1499088823`.
+- Rotas WhatsApp existentes incluem `/api/v1/whatsapp/status`, `/api/v1/whatsapp/connection-state` e `/api/v1/whatsapp/send-text`.
+- Rotas Alertas existentes incluem `/api/v1/alertas/logs` e `/api/v1/alertas/logs/{logId}/retry`.
+- Rotas Externas existentes incluem `/api/v1/externas`, `/api/v1/externas/{id}`, `/api/v1/externas/{id}/logs`, mas ainda nao incluem endpoints especificos de logs/retry de WhatsApp de Externas.
+
+Bloqueio encontrado para o disparo real solicitado:
+
+- `ExternalEvent::withTrashed()->find(6)` retornou `null`.
+- Busca por titulo contendo `Teste de Evento` tambem retornou `0` registros.
+- Nao havia notificacoes para `external_event_id = 6`.
+
+Conclusao operacional: o endpoint Z-API esta pronto para envio, mas o disparo real para `externas/6` nao foi executado porque esse evento nao existe no banco local da API. Para testar o envio real, e necessario confirmar o ID correto do evento no banco `vipsocialadm` ou ajustar o `.env` da API para o banco onde o evento foi cadastrado.
+
+Melhoria aplicada durante a validacao:
+
+- O idempotency key de `trigger_type = created` passou a usar `created_at` do evento como chave temporal estavel. Assim, reexecutar `handleEventCreated` manualmente para o mesmo evento nao cria notificacoes duplicadas nem reenvia mensagens.
