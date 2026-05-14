@@ -15,11 +15,10 @@ class ExternalEventWhatsAppMessageBuilder
     public function collaboratorMessage(ExternalEvent $event, User $collaborator, string $triggerType): string
     {
         $firstName = $this->firstName($collaborator->name);
-        $role = $this->collaboratorRole($collaborator);
         $headline = match ($triggerType) {
-            ExternalEventWhatsAppNotification::TRIGGER_DATE_CHANGED => "{$firstName}, a data da sua externa foi alterada.",
-            ExternalEventWhatsAppNotification::TRIGGER_TWO_HOURS_BEFORE => "{$firstName}, lembrete da sua externa.",
-            default => "{$firstName}, voce foi escalado para uma externa.",
+            ExternalEventWhatsAppNotification::TRIGGER_DATE_CHANGED => "🔄 {$firstName}, a data da sua externa foi alterada.",
+            ExternalEventWhatsAppNotification::TRIGGER_TWO_HOURS_BEFORE => "⏰ {$firstName}, lembrete da sua externa.",
+            default => "📅 {$firstName}, voce foi escalado para uma externa.",
         };
         $startLabel = $triggerType === ExternalEventWhatsAppNotification::TRIGGER_DATE_CHANGED
             ? 'Novo inicio'
@@ -28,17 +27,13 @@ class ExternalEventWhatsAppMessageBuilder
         $lines = [
             $headline,
             '',
-            "*Evento:* {$event->titulo}",
-            "*{$startLabel}:* {$this->formatEventStart($event)}",
-            "*Local:* {$event->local}",
+            "🎬 *Evento:* {$event->titulo}",
+            "🗓️ *{$startLabel}:* {$this->formatEventStart($event)}",
+            "📍 *Local:* {$event->local}",
         ];
 
         if ($triggerType === ExternalEventWhatsAppNotification::TRIGGER_TWO_HOURS_BEFORE) {
-            array_splice($lines, 3, 0, ['*Comeca em:* 2 horas']);
-        }
-
-        if ($role !== '') {
-            $lines[] = "*Funcao:* {$role}";
+            array_splice($lines, 3, 0, ['⏳ *Comeca em:* 2 horas']);
         }
 
         $this->appendOptionalEventLines($lines, $event);
@@ -49,9 +44,9 @@ class ExternalEventWhatsAppMessageBuilder
     public function defaultTargetMessage(ExternalEvent $event, string $triggerType): string
     {
         $headline = match ($triggerType) {
-            ExternalEventWhatsAppNotification::TRIGGER_DATE_CHANGED => '*Data de externa alterada*',
-            ExternalEventWhatsAppNotification::TRIGGER_TWO_HOURS_BEFORE => '*Lembrete de externa*',
-            default => '*Nova externa agendada*',
+            ExternalEventWhatsAppNotification::TRIGGER_DATE_CHANGED => '🔄 *Data de externa alterada*',
+            ExternalEventWhatsAppNotification::TRIGGER_TWO_HOURS_BEFORE => '⏰ *Lembrete de externa*',
+            default => '📅 *Nova externa agendada*',
         };
         $startLabel = $triggerType === ExternalEventWhatsAppNotification::TRIGGER_DATE_CHANGED
             ? 'Novo inicio'
@@ -60,18 +55,18 @@ class ExternalEventWhatsAppMessageBuilder
         $lines = [
             $headline,
             '',
-            "*Evento:* {$event->titulo}",
-            "*{$startLabel}:* {$this->formatEventStart($event)}",
-            "*Local:* {$event->local}",
+            "🎬 *Evento:* {$event->titulo}",
+            "🗓️ *{$startLabel}:* {$this->formatEventStart($event)}",
+            "📍 *Local:* {$event->local}",
         ];
 
         if ($triggerType === ExternalEventWhatsAppNotification::TRIGGER_TWO_HOURS_BEFORE) {
-            array_splice($lines, 3, 0, ['*Comeca em:* 2 horas']);
+            array_splice($lines, 3, 0, ['⏳ *Comeca em:* 2 horas']);
         }
 
         $collaborators = $this->collaboratorsList($event->collaborators);
         if ($collaborators !== '') {
-            $lines[] = "*Colaboradores:* {$collaborators}";
+            $lines[] = "👥 *Colaboradores:* {$collaborators}";
         }
 
         $this->appendOptionalEventLines($lines, $event, includeBriefing: false);
@@ -142,19 +137,19 @@ class ExternalEventWhatsAppMessageBuilder
     {
         $address = trim((string) ($event->endereco_completo ?? ''));
         if ($address !== '') {
-            $lines[] = "*Endereco:* {$address}";
+            $lines[] = "📌 *Endereco:* {$address}";
         }
 
         $contactName = trim((string) ($event->contato_nome ?? ''));
         $contactWhatsApp = trim((string) ($event->contato_whatsapp ?? ''));
         if ($contactName !== '' || $contactWhatsApp !== '') {
             $contact = trim(implode(' - ', array_filter([$contactName, $contactWhatsApp])));
-            $lines[] = "*Contato:* {$contact}";
+            $lines[] = "☎️ *Contato:* {$contact}";
         }
 
         $briefing = $includeBriefing ? trim((string) ($event->briefing ?? '')) : '';
         if ($briefing !== '') {
-            $lines[] = '*Briefing:* '.Str::limit(Str::squish($briefing), 240);
+            $lines[] = '📝 *Briefing:* '.Str::limit(Str::squish($briefing), 240);
         }
     }
 }

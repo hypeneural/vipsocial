@@ -368,41 +368,40 @@ Dados de destino coletivo:
 
 ### 6.2 Regras de formatacao WhatsApp
 
-- Comecar a mensagem individual com o nome do colaborador.
+- Comecar a mensagem individual com emoji e o nome do colaborador.
 - Usar `*...*` para destacar titulo e labels principais.
+- Usar emojis simples antes dos headlines e labels para melhorar leitura no WhatsApp.
 - Usar quebras de linha `\n`; a doc oficial da Z-API lista `\n`, `\r`, `\r\n` e `%0a`, mas no Laravel deve-se usar string com `\n`.
 - Evitar markdown complexo para nao quebrar visual no WhatsApp.
-- Evitar emojis no MVP para manter mensagens previsiveis e compativeis com logs/testes.
 - Limitar briefing/observacao para nao gerar mensagens longas demais.
 
 ### 6.3 Criacao - colaborador
 
 ```text
-{collaborator_first_name}, voce foi escalado para uma externa.
+📅 {collaborator_first_name}, voce foi escalado para uma externa.
 
-*Evento:* {event_title}
-*Inicio:* {event_start_formatted}
-*Local:* {event_location}
-*Funcao:* {collaborator_role}
+🎬 *Evento:* {event_title}
+🗓️ *Inicio:* {event_start_formatted}
+📍 *Local:* {event_location}
 ```
 
 Campos condicionais:
 
 ```text
-*Endereco:* {event_address}
-*Contato:* {event_contact_name} - {event_contact_whatsapp}
-*Briefing:* {event_briefing}
+📌 *Endereco:* {event_address}
+☎️ *Contato:* {event_contact_name} - {event_contact_whatsapp}
+📝 *Briefing:* {event_briefing}
 ```
 
 ### 6.4 Criacao - destino fixo/grupo
 
 ```text
-*Nova externa agendada*
+📅 *Nova externa agendada*
 
-*Evento:* {event_title}
-*Inicio:* {event_start_formatted}
-*Local:* {event_location}
-*Colaboradores:* {collaborators_list}
+🎬 *Evento:* {event_title}
+🗓️ *Inicio:* {event_start_formatted}
+📍 *Local:* {event_location}
+👥 *Colaboradores:* {collaborators_list}
 ```
 
 Enviar para:
@@ -417,47 +416,45 @@ Enviar para:
 ### 6.5 Alteracao de data - colaborador
 
 ```text
-{collaborator_first_name}, a data da sua externa foi alterada.
+🔄 {collaborator_first_name}, a data da sua externa foi alterada.
 
-*Evento:* {event_title}
-*Novo inicio:* {event_start_formatted}
-*Local:* {event_location}
-*Funcao:* {collaborator_role}
+🎬 *Evento:* {event_title}
+🗓️ *Novo inicio:* {event_start_formatted}
+📍 *Local:* {event_location}
 ```
 
 ### 6.6 Alteracao de data - destino fixo/grupo
 
 ```text
-*Data de externa alterada*
+🔄 *Data de externa alterada*
 
-*Evento:* {event_title}
-*Novo inicio:* {event_start_formatted}
-*Local:* {event_location}
-*Colaboradores:* {collaborators_list}
+🎬 *Evento:* {event_title}
+🗓️ *Novo inicio:* {event_start_formatted}
+📍 *Local:* {event_location}
+👥 *Colaboradores:* {collaborators_list}
 ```
 
 ### 6.7 Duas horas antes - colaborador
 
 ```text
-{collaborator_first_name}, lembrete da sua externa.
+⏰ {collaborator_first_name}, lembrete da sua externa.
 
-*Evento:* {event_title}
-*Comeca em:* 2 horas
-*Inicio:* {event_start_formatted}
-*Local:* {event_location}
-*Funcao:* {collaborator_role}
+🎬 *Evento:* {event_title}
+⏳ *Comeca em:* 2 horas
+🗓️ *Inicio:* {event_start_formatted}
+📍 *Local:* {event_location}
 ```
 
 ### 6.8 Duas horas antes - destino fixo/grupo
 
 ```text
-*Lembrete de externa*
+⏰ *Lembrete de externa*
 
-*Evento:* {event_title}
-*Comeca em:* 2 horas
-*Inicio:* {event_start_formatted}
-*Local:* {event_location}
-*Colaboradores:* {collaborators_list}
+🎬 *Evento:* {event_title}
+⏳ *Comeca em:* 2 horas
+🗓️ *Inicio:* {event_start_formatted}
+📍 *Local:* {event_location}
+👥 *Colaboradores:* {collaborators_list}
 ```
 
 Formato de data: usar `America/Sao_Paulo`, seguindo `externas.timezone` e o padrao de datas do projeto.
@@ -681,3 +678,22 @@ Status Z-API durante a validacao:
 - `connectionState(true)`: `connected = true`, `smartphone_connected = true`, origem `status+device`.
 
 Conclusao operacional: o fluxo real de envio, persistencia de logs, command de due dispatch e processamento por fila `database` funcionaram corretamente para o evento 124.
+
+## 16. Validacao real local - template com emojis
+
+Validacao executada em `2026-05-14` no evento `/externas/124`, apos ajuste do template:
+
+- Batch de teste: `template-emoji-20260514135732`.
+- Queue isolada: `externas-template-test`.
+- Mensagens geradas com emojis nos headlines e labels principais.
+- Linha `*Funcao:*` removida das mensagens individuais.
+- Verificacao em banco: `contains_funcao = false` nos 4 registros do batch.
+
+Resultado:
+
+- `created` para colaborador: `success`, com `provider_message_id` gravado.
+- `created` para grupo padrao: `success`, com `provider_message_id` gravado.
+- `two_hours_before` para colaborador: `success`, com `provider_message_id` gravado.
+- `two_hours_before` para grupo padrao: `success`, com `provider_message_id` gravado.
+- Total final do batch: `4 success`, `0 failed`, `0 pending`.
+- Jobs restantes na queue `externas-template-test`: `0`.

@@ -323,14 +323,16 @@ test('creating external event sends immediate whatsapp notifications and schedul
     Http::assertSentCount(2);
     Http::assertSent(function (Request $request): bool {
         return $request['phone'] === '5548996318744'
-            && str_starts_with((string) $request['message'], 'Ana,')
-            && str_contains((string) $request['message'], '*Evento:* Coletiva da Prefeitura')
-            && str_contains((string) $request['message'], '*Inicio:* 15/05/2026 18:00');
+            && str_starts_with((string) $request['message'], '📅 Ana,')
+            && str_contains((string) $request['message'], '🎬 *Evento:* Coletiva da Prefeitura')
+            && str_contains((string) $request['message'], '🗓️ *Inicio:* 15/05/2026 18:00')
+            && ! str_contains((string) $request['message'], '*Funcao:*');
     });
     Http::assertSent(function (Request $request): bool {
         return $request['phone'] === '554896318744-1499088823'
-            && str_contains((string) $request['message'], '*Nova externa agendada*')
-            && str_contains((string) $request['message'], '*Colaboradores:* Ana Maria Souza');
+            && str_contains((string) $request['message'], '📅 *Nova externa agendada*')
+            && str_contains((string) $request['message'], '👥 *Colaboradores:* Ana Maria Souza')
+            && ! str_contains((string) $request['message'], '*Funcao:*');
     });
 
     app(ExternalEventWhatsAppNotificationService::class)->handleEventCreated(
