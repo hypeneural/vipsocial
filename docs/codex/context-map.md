@@ -72,5 +72,6 @@ Formularios:
 ## Artefatos Versionados
 
 - `apps/web/dist` e versionado para hospedagem.
-- Nao editar manualmente.
-- Manter mudancas de `dist` apenas quando build frontend for intencional.
+- `apps/api/public` tambem recebe o build do admin, pois a producao serve o `public` do Laravel.
+- Nao editar artefatos gerados manualmente.
+- Para build frontend intencional, rode `pnpm --dir apps/web build` e mantenha no diff `apps/web/dist` e os artefatos sincronizados em `apps/api/public`.

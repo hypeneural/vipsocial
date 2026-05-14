@@ -25,4 +25,4 @@ Frontend em React 18 + Vite 5 + TypeScript + TanStack Query + shadcn/Radix + Tai
 
 ## Build Versionado
 
-`dist` e versionado para deploy. Se a tarefa alterar o frontend e exigir build, mantenha os artefatos gerados no diff. Se a tarefa for apenas documentacao, scripts ou analise, nao rode build sem necessidade.
+`dist` e versionado para deploy. O dominio principal tambem serve os assets sincronizados em `apps/api/public`, porque o webroot de producao e o `public` do Laravel. Se a tarefa alterar o frontend e exigir build, rode `pnpm --dir apps/web build` e mantenha no diff tanto `apps/web/dist` quanto os artefatos gerados em `apps/api/public`. Se a tarefa for apenas documentacao, scripts ou analise, nao rode build sem necessidade.

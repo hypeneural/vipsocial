@@ -390,7 +390,8 @@ php artisan migrate --force
 # Frontend
 cd apps/web
 pnpm build
-# Servir o conteúdo de dist/ via Nginx/Apache
+# O build gera apps/web/dist e sincroniza o admin para apps/api/public.
+# Em producao, adm.tvvip.social deve servir apps/api/public.
 ```
 
 ### Variáveis de Ambiente

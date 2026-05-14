@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/sync-to-api-public.mjs",
+    "build:dist": "vite build",
     "build:api-public": "vite build && node scripts/sync-to-api-public.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
