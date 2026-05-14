@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Models\UserPreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -89,6 +90,23 @@ test('ver detalhe de colaborador', function () {
         ->assertJsonPath('data.name', $this->journalist->name)
         ->assertJsonPath('data.department', 'Redação')
         ->assertJsonPath('data.profile', 'journalist');
+});
+
+test('criar colaborador usa senha inicial padrao', function () {
+    $this->actingAs($this->admin, 'sanctum')
+        ->postJson('/api/v1/pessoas/colaboradores', [
+            'name' => 'Jhulia Serpa',
+            'email' => 'jhulia@example.com',
+            'profile' => 'media',
+            'department' => 'ProduÃ§Ã£o',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.email', 'jhulia@example.com')
+        ->assertJsonPath('data.profile', 'media');
+
+    $created = User::where('email', 'jhulia@example.com')->firstOrFail();
+
+    expect(Hash::check('admin123', $created->password))->toBeTrue();
 });
 
 test('atualizar colaborador com role change', function () {

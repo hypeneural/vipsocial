@@ -13,6 +13,8 @@ use Spatie\QueryBuilder\QueryBuilder;
 
 class ColaboradorController extends BaseController
 {
+    private const DEFAULT_COLLABORATOR_PASSWORD = 'admin123';
+
     /**
      * Lista colaboradores com filtros e campos computados.
      */
@@ -230,16 +232,14 @@ class ColaboradorController extends BaseController
             'birth_date' => ['nullable', 'date_format:Y-m-d'],
             'admission_date' => ['nullable', 'date_format:Y-m-d'],
             'profile' => ['required', 'string', 'in:admin,editor,journalist,media,analyst'],
-            'password' => ['nullable', 'string', 'min:8'],
         ]);
 
-        $password = $data['password'] ?? 'VipSocial@' . rand(1000, 9999);
         $profile = $data['profile'];
-        unset($data['profile'], $data['password']);
+        unset($data['profile']);
 
         $user = User::create([
             ...$data,
-            'password' => bcrypt($password),
+            'password' => bcrypt(self::DEFAULT_COLLABORATOR_PASSWORD),
             'role' => $profile,
             'active' => true,
             'admission_date' => $data['admission_date'] ?? now()->format('Y-m-d'),
