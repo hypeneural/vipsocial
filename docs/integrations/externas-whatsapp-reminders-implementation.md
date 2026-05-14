@@ -645,3 +645,39 @@ Conclusao operacional: o endpoint Z-API esta pronto para envio, mas o disparo re
 Melhoria aplicada durante a validacao:
 
 - O idempotency key de `trigger_type = created` passou a usar `created_at` do evento como chave temporal estavel. Assim, reexecutar `handleEventCreated` manualmente para o mesmo evento nao cria notificacoes duplicadas nem reenvia mensagens.
+
+## 15. Validacao real local - evento 124
+
+Validacao executada em `2026-05-14` no banco `vipsocialadm`, evento `/externas/124`:
+
+- Evento: `TESTE - Cobertura do VivaPark`.
+- Colaborador: `Anderson marques`.
+- Destino colaborador normalizado: `5548996553954`.
+- Destino padrao/grupo: `554896318744-1499088823`.
+- Queue connection: `database`.
+- Queue isolada para teste: `externas-real-test`, para nao processar backlog nao relacionado da fila `default`.
+
+Passos executados:
+
+1. Criacao das notificacoes pelo service `ExternalEventWhatsAppNotificationService::handleEventCreated`.
+2. Processamento da fila `externas-real-test` com `php artisan queue:work database --queue=externas-real-test --stop-when-empty`.
+3. Forca dos lembretes `two_hours_before` pendentes para `due now`.
+4. Despacho pelo command `externas:dispatch-due-whatsapp-reminders --limit=10` com `EXTERNAS_WHATSAPP_QUEUE=externas-real-test`.
+5. Novo processamento da fila `externas-real-test`.
+6. Consulta final dos logs em `external_event_whatsapp_notifications`.
+
+Resultado:
+
+- `created` para colaborador: `success`, com `provider_message_id` gravado.
+- `created` para grupo padrao: `success`, com `provider_message_id` gravado.
+- `two_hours_before` para colaborador: `success`, com `provider_message_id` gravado.
+- `two_hours_before` para grupo padrao: `success`, com `provider_message_id` gravado.
+- Total final: `4 success`, `0 failed`, `0 pending`.
+- Jobs restantes na queue `externas-real-test`: `0`.
+
+Status Z-API durante a validacao:
+
+- `status(true)`: conectado.
+- `connectionState(true)`: `connected = true`, `smartphone_connected = true`, origem `status+device`.
+
+Conclusao operacional: o fluxo real de envio, persistencia de logs, command de due dispatch e processamento por fila `database` funcionaram corretamente para o evento 124.
