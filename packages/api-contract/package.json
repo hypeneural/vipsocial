@@ -1,0 +1,10 @@
+{
+  "name": "@vipsocial/api-contract",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "generate": "pnpm --dir ../../apps/api api:generate-spec",
+    "validate": "node scripts/validate-openapi-present.mjs"
+  }
+}

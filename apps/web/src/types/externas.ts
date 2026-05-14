@@ -1,5 +1,10 @@
 // Externas Module - Type Definitions (DB-backed)
 
+import {
+    EXTERNAS_TIME_ZONE,
+    formatGoogleCalendarDate as formatExternalGoogleCalendarDate,
+} from "@/features/externas/event-date-utils";
+
 /**
  * Event Category (from DB)
  */
@@ -437,19 +442,17 @@ const buildGoogleCalendarDetails = (event: ExternalEvent): string => {
  * Helper: Gera URL do Google Calendar
  */
 export const generateGoogleCalendarUrl = (event: ExternalEvent): string => {
-    const start = parseEventDate(event.data_hora);
-    const end = event.data_hora_fim
-        ? parseEventDate(event.data_hora_fim)
-        : new Date(start.getTime() + 2 * 60 * 60 * 1000);
-    const startDate = formatGoogleCalendarDate(start);
-    const endDate = formatGoogleCalendarDate(end);
+    const startDate = formatExternalGoogleCalendarDate(event.data_hora);
+    const endDate = event.data_hora_fim
+        ? formatExternalGoogleCalendarDate(event.data_hora_fim)
+        : formatExternalGoogleCalendarDate(new Date(new Date(event.data_hora).getTime() + 2 * 60 * 60 * 1000));
     const categoryName = (event.category?.name?.trim() || "Evento").toUpperCase();
 
     const params = new URLSearchParams({
         action: "TEMPLATE",
         text: `${categoryName} | ${event.titulo}`,
         dates: `${startDate}/${endDate}`,
-        ctz: GOOGLE_CALENDAR_TIME_ZONE,
+        ctz: EXTERNAS_TIME_ZONE,
         details: buildGoogleCalendarDetails(event),
         location: event.endereco_completo || event.local,
     });

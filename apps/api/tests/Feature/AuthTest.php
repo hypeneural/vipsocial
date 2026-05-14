@@ -20,6 +20,7 @@ function createUser(string $role = 'admin', array $attrs = []): User
     ], $attrs));
     $user->assignRole($role);
     UserPreference::create(['user_id' => $user->id]);
+
     return $user;
 }
 
@@ -39,6 +40,19 @@ test('login com credenciais válidas retorna token', function () {
             'message',
         ])
         ->assertJson(['success' => true]);
+});
+
+test('login preflight permite frontend local em 127.0.0.1', function () {
+    $response = $this->call('OPTIONS', '/api/v1/auth/login', [], [], [], [
+        'HTTP_ORIGIN' => 'http://127.0.0.1:8080',
+        'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+        'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'content-type',
+    ]);
+
+    $response->assertNoContent()
+        ->assertHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:8080');
+
+    expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('POST');
 });
 
 test('login com senha errada retorna 422', function () {

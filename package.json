@@ -9,8 +9,13 @@
         "lint": "turbo run lint",
         "test": "turbo run test",
         "typecheck": "turbo run typecheck",
-        "api:generate-spec": "turbo run api:generate-spec",
-        "api:generate-client": "turbo run api:generate-client"
+        "validate": "pnpm validate:web && pnpm validate:gallery && pnpm validate:api && pnpm validate:contract",
+        "validate:web": "pnpm --dir apps/web lint && pnpm --dir apps/web test && pnpm --dir apps/web typecheck && pnpm --dir apps/web build",
+        "validate:gallery": "pnpm --dir gallery lint && pnpm --dir gallery test && pnpm --dir gallery typecheck && pnpm --dir gallery build",
+        "validate:api": "pnpm --dir apps/api test && pnpm --dir apps/api lint",
+        "validate:contract": "pnpm api:generate-spec && pnpm api:generate-client && pnpm --dir apps/web typecheck",
+        "api:generate-spec": "pnpm --dir apps/api api:generate-spec",
+        "api:generate-client": "pnpm --dir packages/api-client generate"
     },
     "devDependencies": {
         "turbo": "^2"

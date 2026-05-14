@@ -1,10 +1,16 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
+    "name": "@vipsocial/api",
     "private": true,
     "type": "module",
     "scripts": {
+        "api:generate-spec": "php artisan scramble:export --path=../../packages/api-contract/openapi.json",
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "format": "vendor/bin/pint",
+        "lint": "vendor/bin/pint --test",
+        "test": "composer test",
+        "typecheck": "php artisan route:list --quiet"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

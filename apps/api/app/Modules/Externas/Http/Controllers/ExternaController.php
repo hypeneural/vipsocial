@@ -7,14 +7,16 @@ use App\Modules\Externas\Models\EventActivityLog;
 use App\Modules\Externas\Models\EventCategory;
 use App\Modules\Externas\Models\EventStatus;
 use App\Modules\Externas\Models\ExternalEvent;
+use App\Modules\Externas\Services\ExternalEventWhatsAppNotificationService;
+use App\Modules\Externas\Support\ExternalEventDateTime;
 use App\Modules\VipGallery\Models\VipGalleryPhoto;
 use App\Modules\VipGallery\Models\VipGallerySlideshow;
 use App\Support\Http\Controllers\BaseController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -284,6 +286,8 @@ class ExternaController extends BaseController
             'equipamentos.*.checked' => ['nullable', 'boolean'],
         ], $this->eventValidationMessages());
 
+        $this->assertEventDateRange($validated);
+        $validated = $this->normalizeEventDateTimes($validated);
         $this->assertValidVipGalleryConfiguration($validated);
         $validated = $this->normalizeVipGalleryPayload($validated);
 
@@ -318,6 +322,10 @@ class ExternaController extends BaseController
         // Log creation
         EventActivityLog::log($event->id, 'created', "Evento \"{$event->titulo}\" criado");
 
+        app(ExternalEventWhatsAppNotificationService::class)->handleEventCreated(
+            $event->fresh(['collaborators'])
+        );
+
         return $this->jsonCreated($event);
     }
 
@@ -346,6 +354,8 @@ class ExternaController extends BaseController
             'equipamentos.*.checked' => ['nullable', 'boolean'],
         ], $this->eventValidationMessages());
 
+        $this->assertEventDateRange($validated, $event);
+        $validated = $this->normalizeEventDateTimes($validated);
         $this->assertValidVipGalleryConfiguration($validated, $event);
         $validated = $this->normalizeVipGalleryPayload($validated, $event);
 
@@ -377,6 +387,7 @@ class ExternaController extends BaseController
             'delete_command_keyword' => 'Palavra-chave apagar',
         ];
         $original = $event->getOriginal();
+        $originalStart = $original['data_hora'] ?? null;
 
         $event->update(collect($validated)->except(['colaboradores', 'equipamentos'])->toArray());
 
@@ -425,6 +436,18 @@ class ExternaController extends BaseController
             'vipGalleryBanners' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ]);
 
+        $oldStart = $originalStart ? Carbon::parse($originalStart, 'UTC')->format('Y-m-d H:i:s') : null;
+        $newStart = $event->getRawOriginal('data_hora')
+            ? Carbon::parse((string) $event->getRawOriginal('data_hora'), 'UTC')->format('Y-m-d H:i:s')
+            : null;
+
+        if ($oldStart !== $newStart) {
+            app(ExternalEventWhatsAppNotificationService::class)->handleEventStartChanged(
+                $event->fresh(['collaborators']),
+                $originalStart
+            );
+        }
+
         return $this->jsonSuccess($event);
     }
 
@@ -433,6 +456,11 @@ class ExternaController extends BaseController
         $event = ExternalEvent::with('vipGallerySlideshow')->findOrFail($id);
 
         DB::transaction(function () use ($event): void {
+            app(ExternalEventWhatsAppNotificationService::class)->cancelPendingForEvent(
+                $event,
+                'Evento deletado'
+            );
+
             if ($event->is_vip_gallery) {
                 $event->forceFill([
                     'vip_gallery_status' => ExternalEvent::VIP_GALLERY_STATUS_ARCHIVED,
@@ -479,6 +507,13 @@ class ExternaController extends BaseController
             "Status alterado de \"{$oldStatus}\" para \"{$newStatus}\"",
             ['Status' => ['de' => $oldStatus, 'para' => $newStatus]]
         );
+
+        if ($event->status?->slug === 'cancelado') {
+            app(ExternalEventWhatsAppNotificationService::class)->cancelPendingForEvent(
+                $event,
+                'Evento cancelado'
+            );
+        }
 
         return $this->jsonSuccess($event);
     }
@@ -868,6 +903,7 @@ class ExternaController extends BaseController
     private function eventValidationMessages(): array
     {
         return [
+            'data_hora_fim.after' => 'A data e hora de termino deve ser posterior ao inicio.',
             'colaboradores.required' => 'Selecione ao menos 1 colaborador.',
             'colaboradores.array' => 'Selecione ao menos 1 colaborador.',
             'colaboradores.min' => 'Selecione ao menos 1 colaborador.',
@@ -875,6 +911,36 @@ class ExternaController extends BaseController
             'equipamentos.array' => 'Selecione ao menos 1 equipamento.',
             'equipamentos.min' => 'Selecione ao menos 1 equipamento.',
         ];
+    }
+
+    private function normalizeEventDateTimes(array $validated): array
+    {
+        if (array_key_exists('data_hora', $validated)) {
+            $validated['data_hora'] = ExternalEventDateTime::toUtcDateTimeString($validated['data_hora']);
+        }
+
+        if (array_key_exists('data_hora_fim', $validated)) {
+            $validated['data_hora_fim'] = ExternalEventDateTime::toUtcDateTimeString($validated['data_hora_fim']);
+        }
+
+        return $validated;
+    }
+
+    private function assertEventDateRange(array $validated, ?ExternalEvent $event = null): void
+    {
+        $start = array_key_exists('data_hora', $validated)
+            ? ExternalEventDateTime::toUtcCarbon($validated['data_hora'])
+            : ExternalEventDateTime::toUtcCarbon($event?->data_hora);
+
+        $end = array_key_exists('data_hora_fim', $validated)
+            ? ExternalEventDateTime::toUtcCarbon($validated['data_hora_fim'])
+            : ExternalEventDateTime::toUtcCarbon($event?->data_hora_fim);
+
+        if ($start && $end && $end->lessThanOrEqualTo($start)) {
+            throw ValidationException::withMessages([
+                'data_hora_fim' => 'A data e hora de termino deve ser posterior ao inicio.',
+            ]);
+        }
     }
 
     private function defaultPauseCommandKeywords(): string
@@ -968,10 +1034,10 @@ class ExternaController extends BaseController
             'exclude_event_id' => ['nullable', 'integer'],
         ]);
 
-        $start = Carbon::parse($validated['data_hora']);
+        $start = ExternalEventDateTime::toUtcCarbon($validated['data_hora']);
         // If no end time given, assume 2 hours
         $end = isset($validated['data_hora_fim'])
-            ? Carbon::parse($validated['data_hora_fim'])
+            ? ExternalEventDateTime::toUtcCarbon($validated['data_hora_fim'])
             : (clone $start)->addHours(2);
         $excludeId = $validated['exclude_event_id'] ?? null;
 

@@ -4,6 +4,8 @@ vendor/
 
 # Build outputs
 dist/
+!apps/web/dist/
+!apps/web/dist/**
 build/
 .next/
 
@@ -37,8 +39,12 @@ composer.phar
 # Testing
 coverage/
 .phpunit.result.cache
+*.tsbuildinfo
 
 # Misc
 *.log
 npm-debug.log*
 apps/web/nul
+nul
+warmup-cookies*.txt
+*.timestamp-*.mjs

@@ -60,6 +60,7 @@ import { generateGoogleCalendarUrl, generateWhatsAppUrl } from "@/types/externas
 import type { ActivityLog } from "@/services/externa.service";
 import { cn } from "@/lib/utils";
 import { deriveVipLogoMode, FALLBACK_VIP_GROUPS, vipGalleryStatusLabel, vipGroupLabel } from "@/features/externas/vipGallery";
+import { formatEventDateRange } from "@/features/externas/event-date-utils";
 
 // ==========================================
 // ICON MAP
@@ -363,7 +364,7 @@ const EventDetail = () => {
                         <div className="flex items-start gap-3">
                             <Calendar className="w-5 h-5 text-primary mt-0.5 shrink-0" />
                             <p className="text-sm font-medium capitalize">
-                                {formatDateRange(event.data_hora, event.data_hora_fim)}
+                                {formatEventDateRange(event.data_hora, event.data_hora_fim)}
                             </p>
                         </div>
                     </motion.div>

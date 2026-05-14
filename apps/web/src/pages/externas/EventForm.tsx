@@ -102,6 +102,11 @@ import {
     VIP_GALLERY_STATUS_LABELS,
     VIP_NO_LOGO_SENTINEL,
 } from "@/features/externas/vipGallery";
+import {
+    formatEventDateTime,
+    toEventDateOnly,
+    toEventDateTimeLocalInput,
+} from "@/features/externas/event-date-utils";
 
 // ==========================================
 // ICON MAP & PICKER
@@ -433,7 +438,7 @@ const EventForm = () => {
             return [];
         }
 
-        const selectedDate = dataHora.slice(0, 10);
+        const selectedDate = toEventDateOnly(dataHora);
         const currentEventId = isEditing ? Number(id) : null;
 
         return vipEvents.filter((event) => {
@@ -443,7 +448,7 @@ const EventForm = () => {
 
             return event.whatsapp_group_id === whatsappGroupId
                 && typeof event.data_hora === "string"
-                && event.data_hora.slice(0, 10) === selectedDate;
+                && toEventDateOnly(event.data_hora) === selectedDate;
         });
     }, [dataHora, id, isEditing, isVipGallery, vipEvents, whatsappGroupId]);
 
@@ -455,8 +460,8 @@ const EventForm = () => {
             setCategoryId(ev.category_id);
             setStatusId(ev.status_id);
             setBriefing(ev.briefing || "");
-            setDataHora(ev.data_hora ? ev.data_hora.slice(0, 16) : "");
-            setDataHoraFim(ev.data_hora_fim ? ev.data_hora_fim.slice(0, 16) : "");
+            setDataHora(toEventDateTimeLocalInput(ev.data_hora));
+            setDataHoraFim(toEventDateTimeLocalInput(ev.data_hora_fim));
             setLocal(ev.local);
             setEnderecoCompleto(ev.endereco_completo || "");
             setContatoNome(ev.contato_nome || "");
@@ -1051,11 +1056,11 @@ const EventForm = () => {
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="data_hora">Data e Hora de Início *</Label>
-                                    <Input id="data_hora" type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)} required className="rounded-xl" min={new Date().toISOString().slice(0, 16)} />
+                                    <Input id="data_hora" type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)} required className="rounded-xl" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="data_hora_fim">Data e Hora de Término</Label>
-                                    <Input id="data_hora_fim" type="datetime-local" value={dataHoraFim} onChange={(e) => setDataHoraFim(e.target.value)} className="rounded-xl" min={dataHora || new Date().toISOString().slice(0, 16)} />
+                                    <Input id="data_hora_fim" type="datetime-local" value={dataHoraFim} onChange={(e) => setDataHoraFim(e.target.value)} className="rounded-xl" min={dataHora || undefined} />
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -1743,13 +1748,7 @@ const EventForm = () => {
                             <div key={event.id} className="rounded-xl border bg-muted/30 px-4 py-3">
                                 <p className="font-medium">{event.titulo}</p>
                                 <p className="text-sm text-muted-foreground">
-                                    {new Date(event.data_hora).toLocaleString("pt-BR", {
-                                        day: "2-digit",
-                                        month: "2-digit",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                    })}
+                                    {formatEventDateTime(event.data_hora)}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                     Grupo: {vipGroupOptions.find((option) => option.value === event.whatsapp_group_id)?.label || event.whatsapp_group_id}

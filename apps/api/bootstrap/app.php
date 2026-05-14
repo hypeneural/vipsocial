@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\DispatchDueAlertsCommand;
+use App\Console\Commands\DispatchDueExternalEventWhatsAppNotificationsCommand;
 use App\Console\Commands\ReconcilePollResultsCommand;
 use App\Console\Commands\SyncWhatsAppGroupsCommand;
 use App\Console\Commands\CaptureWhatsAppGroupsOverviewDailySnapshotCommand;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withCommands([
         DispatchDueAlertsCommand::class,
+        DispatchDueExternalEventWhatsAppNotificationsCommand::class,
         SyncPollStatusCommand::class,
         ReconcilePollResultsCommand::class,
         SyncWhatsAppGroupsCommand::class,
@@ -48,6 +50,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $schedule->command('alertas:dispatch-due')
             ->timezone((string) config('alertas.timezone', 'America/Sao_Paulo'))
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        $schedule->command('externas:dispatch-due-whatsapp-reminders')
+            ->timezone((string) config('externas.timezone', 'America/Sao_Paulo'))
             ->everyMinute()
             ->withoutOverlapping()
             ->onOneServer();

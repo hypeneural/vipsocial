@@ -5,7 +5,9 @@ $defaultOrigins = [
     'https://coberturavip.com.br',
     'https://www.coberturavip.com.br',
     'http://localhost:8080',
+    'http://127.0.0.1:8080',
     'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ];
 
 $extraOrigins = array_filter(array_map(

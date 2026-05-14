@@ -10,6 +10,7 @@ use App\Modules\VipGallery\Models\VipGallerySlideshow;
 use App\Modules\VipGallery\Support\VipGalleryMediaManager;
 use App\Support\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -124,6 +125,11 @@ class ExternalEvent extends Model
     public function vipGallerySlideshow(): HasOne
     {
         return $this->hasOne(VipGallerySlideshow::class, 'external_event_id');
+    }
+
+    public function whatsappNotifications(): HasMany
+    {
+        return $this->hasMany(ExternalEventWhatsAppNotification::class, 'external_event_id');
     }
 
     public function isVipGalleryActive(): bool

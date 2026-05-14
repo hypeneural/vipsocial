@@ -36,6 +36,11 @@ import {
 import { useExternas, useExternaStats, useEventCategories, useEventStatuses, useUpcomingExternas } from "@/hooks/useExternas";
 import type { ExternalEvent } from "@/types/externas";
 import { cn } from "@/lib/utils";
+import {
+    formatShortEventDateRange,
+    getEventEndDate,
+    isEventTodayInSaoPaulo,
+} from "@/features/externas/event-date-utils";
 
 // ==========================================
 // ICON MAP
@@ -114,7 +119,7 @@ interface EventCardProps {
 }
 
 const EventCard = ({ event, onClick }: EventCardProps) => {
-    const isToday = new Date(event.data_hora).toDateString() === new Date().toDateString();
+    const isToday = isEventTodayInSaoPaulo(event.data_hora);
 
     return (
         <motion.div
@@ -140,7 +145,7 @@ const EventCard = ({ event, onClick }: EventCardProps) => {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{formatShortRange(event.data_hora, event.data_hora_fim)}</span>
+                        <span className="truncate">{formatShortEventDateRange(event.data_hora, event.data_hora_fim)}</span>
                         {isToday && (
                             <Badge variant="outline" className="text-xs shrink-0">Hoje</Badge>
                         )}
@@ -250,7 +255,7 @@ const ExternasDashboard = () => {
 
     const pastEvents = useMemo(() =>
         events
-            .filter((ev) => getEventEnd(ev) < now)
+            .filter((ev) => getEventEndDate(ev) < now)
             .sort((a, b) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime()),
         [events, now]
     );
