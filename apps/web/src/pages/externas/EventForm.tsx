@@ -1060,7 +1060,7 @@ const EventForm = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="data_hora_fim">Data e Hora de Término</Label>
-                                    <Input id="data_hora_fim" type="datetime-local" value={dataHoraFim} onChange={(e) => setDataHoraFim(e.target.value)} className="rounded-xl" min={dataHora || undefined} />
+                                    <Input id="data_hora_fim" type="datetime-local" value={dataHoraFim} onChange={(e) => setDataHoraFim(e.target.value)} className="rounded-xl" />
                                 </div>
                             </div>
                             <div className="space-y-2">

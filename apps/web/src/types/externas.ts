@@ -348,40 +348,11 @@ export interface VipCoverageEvent extends ExternalEvent {
     vip_gallery_last_photo_sent_at?: string | null;
 }
 
-const GOOGLE_CALENDAR_TIME_ZONE = "America/Sao_Paulo";
-
 const VIP_GALLERY_STATUS_TEXT: Record<VipGalleryStatus, string> = {
     draft: "Rascunho",
     active: "Ativa",
     paused: "Pausada",
     archived: "Arquivada",
-};
-
-
-const parseEventDate = (dateStr: string): Date => {
-    // DB stores dates in São Paulo local time. Strip any UTC/timezone suffix
-    // so that new Date() interprets the value as local time, not UTC.
-    let normalized = dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T");
-    // Remove trailing Z (UTC marker) or timezone offset like +00:00 / -03:00
-    normalized = normalized.replace(/Z$/i, "").replace(/[+-]\d{2}:\d{2}$/, "");
-    // Trim fractional seconds (.000000) to keep only YYYY-MM-DDTHH:mm:ss
-    normalized = normalized.replace(/\.\d+$/, "");
-    const parsed = new Date(normalized);
-
-    return Number.isNaN(parsed.getTime()) ? new Date(dateStr) : parsed;
-};
-
-const formatGoogleCalendarDate = (value: string | Date): string => {
-    const date = value instanceof Date ? value : parseEventDate(value);
-    // Format directly from the Date object (already in local time)
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    const seconds = String(date.getSeconds()).padStart(2, "0");
-
-    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
 };
 
 const formatCollaboratorLine = (collaborator: EventCollaborator): string => {

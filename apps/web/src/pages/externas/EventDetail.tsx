@@ -76,32 +76,6 @@ function DynIcon({ name, className }: { name?: string; className?: string }) {
 }
 
 // ==========================================
-// SMART DATE FORMATTER
-// ==========================================
-const formatDateRange = (start: string, end?: string | null): string => {
-    const s = new Date(start);
-    const weekday = s.toLocaleDateString("pt-BR", { weekday: "long" });
-    const day = s.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-    const startTime = s.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-    let result = `${weekday}, ${day} às ${startTime}`;
-
-    if (end) {
-        const e = new Date(end);
-        const endTime = e.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-        if (s.toDateString() === e.toDateString()) {
-            result += ` até ${endTime}`;
-        } else {
-            const endWeekday = e.toLocaleDateString("pt-BR", { weekday: "long" });
-            const endDay = e.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-            result += ` até ${endWeekday}, ${endDay} às ${endTime}`;
-        }
-    }
-
-    return result;
-};
-
-// ==========================================
 // ACTIVITY LOG ICONS
 // ==========================================
 const actionIcons: Record<string, { icon: LucideIcon; color: string }> = {

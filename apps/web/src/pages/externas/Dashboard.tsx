@@ -56,61 +56,6 @@ function DynIcon({ name, className }: { name?: string; className?: string }) {
 }
 
 // ==========================================
-// SMART DATE FORMATTER
-// ==========================================
-const formatDateRange = (start: string, end?: string | null): string => {
-    const s = new Date(start);
-    const weekday = s.toLocaleDateString("pt-BR", { weekday: "long" });
-    const day = s.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-    const startTime = s.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-    let result = `${weekday}, ${day} às ${startTime}`;
-
-    if (end) {
-        const e = new Date(end);
-        const endTime = e.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-        // Same day?
-        if (s.toDateString() === e.toDateString()) {
-            result += ` até ${endTime}`;
-        } else {
-            const endDay = e.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-            result += ` até ${endDay} às ${endTime}`;
-        }
-    }
-
-    return result;
-};
-
-const formatShortRange = (start: string, end?: string | null): string => {
-    const s = new Date(start);
-    const startTime = s.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    const dayStr = s.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
-
-    let result = `${dayStr} ${startTime}`;
-
-    if (end) {
-        const e = new Date(end);
-        const endTime = e.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-        if (s.toDateString() === e.toDateString()) {
-            result += `–${endTime}`;
-        } else {
-            const endDay = e.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-            result += ` → ${endDay} ${endTime}`;
-        }
-    }
-
-    return result;
-};
-
-/** Returns the effective end time: data_hora_fim if set, otherwise data_hora + 2h */
-const getEventEnd = (ev: ExternalEvent): Date => {
-    if (ev.data_hora_fim) return new Date(ev.data_hora_fim);
-    const start = new Date(ev.data_hora);
-    return new Date(start.getTime() + 2 * 60 * 60 * 1000);
-};
-
-// ==========================================
 // EVENT CARD
 // ==========================================
 interface EventCardProps {
