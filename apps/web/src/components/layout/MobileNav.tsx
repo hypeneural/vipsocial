@@ -12,6 +12,7 @@ import {
   Settings,
   MapPin,
   Vote,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoVipsocial from "@/assets/logo-vipsocial.png";
@@ -48,6 +49,24 @@ const navItems: NavItem[] = [
       { label: "Agenda", path: "/externas" },
       { label: "Cobertura VIP", path: "/externas/cobertura-vip" },
       { label: "Novo Evento", path: "/externas/novo" },
+    ],
+  },
+  {
+    icon: Sparkles,
+    label: "Festa do Divino",
+    path: "/festa-divino",
+    requiredPermission: "festa-divino.view",
+    children: [
+      { label: "Painel", path: "/festa-divino" },
+      { label: "Edicao", path: "/festa-divino/edicao" },
+      { label: "Programacao", path: "/festa-divino/programacao" },
+      { label: "Cardapio", path: "/festa-divino/cardapio" },
+      { label: "Conteudo", path: "/festa-divino/conteudo" },
+      { label: "Midia", path: "/festa-divino/midia" },
+      { label: "FAQ", path: "/festa-divino/faq" },
+      { label: "Brinquedos", path: "/festa-divino/brinquedos" },
+      { label: "Auditoria", path: "/festa-divino/auditoria", requiredPermission: "festa-divino.audit.view" },
+      { label: "Health", path: "/festa-divino/health" },
     ],
   },
   {

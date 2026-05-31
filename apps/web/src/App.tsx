@@ -67,6 +67,7 @@ const ExternasEventDetail = lazy(() => import("./pages/externas/EventDetail"));
 const ExternasVipCoverageDashboard = lazy(() => import("./pages/externas/VipCoverageDashboard"));
 const ExternasVipCoverageLogs = lazy(() => import("./pages/externas/VipCoverageLogs"));
 const SlideshowPage = lazy(() => import("./pages/public/SlideshowPage"));
+const FestaDivinoPage = lazy(() => import("./pages/festa-divino/FestaDivinoPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -178,6 +179,17 @@ const App = () => (
                     <Route path="/externas/novo" element={<ExternasEventForm />} />
                     <Route path="/externas/:id" element={<ExternasEventDetail />} />
                     <Route path="/externas/:id/editar" element={<ExternasEventForm />} />
+
+                    <Route path="/festa-divino" element={<FestaDivinoPage section="dashboard" />} />
+                    <Route path="/festa-divino/edicao" element={<FestaDivinoPage section="edicao" />} />
+                    <Route path="/festa-divino/programacao" element={<FestaDivinoPage section="programacao" />} />
+                    <Route path="/festa-divino/cardapio" element={<FestaDivinoPage section="cardapio" />} />
+                    <Route path="/festa-divino/conteudo" element={<FestaDivinoPage section="conteudo" />} />
+                    <Route path="/festa-divino/midia" element={<FestaDivinoPage section="midia" />} />
+                    <Route path="/festa-divino/faq" element={<FestaDivinoPage section="faq" />} />
+                    <Route path="/festa-divino/brinquedos" element={<FestaDivinoPage section="brinquedos" />} />
+                    <Route path="/festa-divino/auditoria" element={<FestaDivinoPage section="auditoria" />} />
+                    <Route path="/festa-divino/health" element={<FestaDivinoPage section="health" />} />
 
                     <Route path="/cobertura-vip" element={<Navigate to="/externas/cobertura-vip" replace />} />
                     <Route path="/cobertura-vip/novo" element={<Navigate to="/externas/novo" replace />} />

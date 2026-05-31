@@ -30,6 +30,11 @@ import {
   Package,
   LogOut,
   Sparkles,
+  Utensils,
+  HelpCircle,
+  Activity,
+  History,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoVipsocial from "@/assets/logo-vipsocial.png";
@@ -65,6 +70,24 @@ const menuItems: MenuItem[] = [
       { icon: Calendar, label: "Agenda", path: "/externas" },
       { icon: Camera, label: "Cobertura VIP", path: "/externas/cobertura-vip" },
       { icon: FileText, label: "Novo Evento", path: "/externas/novo" },
+    ],
+  },
+  {
+    icon: Sparkles,
+    label: "Festa do Divino",
+    path: "/festa-divino",
+    requiredPermission: "festa-divino.view",
+    children: [
+      { icon: LayoutDashboard, label: "Painel", path: "/festa-divino" },
+      { icon: Calendar, label: "Edicao", path: "/festa-divino/edicao" },
+      { icon: Calendar, label: "Programacao", path: "/festa-divino/programacao" },
+      { icon: Utensils, label: "Cardapio", path: "/festa-divino/cardapio" },
+      { icon: FileText, label: "Conteudo", path: "/festa-divino/conteudo" },
+      { icon: Video, label: "Midia", path: "/festa-divino/midia" },
+      { icon: HelpCircle, label: "FAQ", path: "/festa-divino/faq" },
+      { icon: Package, label: "Brinquedos", path: "/festa-divino/brinquedos" },
+      { icon: History, label: "Auditoria", path: "/festa-divino/auditoria", requiredPermission: "festa-divino.audit.view" },
+      { icon: Activity, label: "Health", path: "/festa-divino/health" },
     ],
   },
   {

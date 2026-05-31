@@ -32,6 +32,7 @@ class RoleAndPermissionSeeder extends Seeder
             'ai_prompts',
             'audit',
             'whatsapp',
+            'festa-divino',
         ];
 
         $actions = ['view', 'create', 'edit', 'delete', 'publish'];
@@ -41,6 +42,21 @@ class RoleAndPermissionSeeder extends Seeder
             foreach ($actions as $action) {
                 Permission::firstOrCreate(['name' => "{$module}.{$action}", 'guard_name' => 'web']);
             }
+        }
+
+        $festaDivinoPermissions = [
+            'festa-divino.health',
+            'festa-divino.audit.view',
+            'festa-divino.programacao.manage',
+            'festa-divino.cardapio.manage',
+            'festa-divino.conteudo.manage',
+            'festa-divino.faq.manage',
+            'festa-divino.brinquedos.manage',
+            'festa-divino.write',
+        ];
+
+        foreach ($festaDivinoPermissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
         // ── Roles ────────────────────────────────────────

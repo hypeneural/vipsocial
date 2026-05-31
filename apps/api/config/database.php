@@ -83,6 +83,46 @@ return [
             ]) : [],
         ],
 
+        'festa_divino_read' => [
+            'driver' => env('FESTA_DIVINO_READ_DB_CONNECTION', 'mariadb'),
+            'url' => env('FESTA_DIVINO_READ_DB_URL'),
+            'host' => env('FESTA_DIVINO_READ_DB_HOST', '127.0.0.1'),
+            'port' => env('FESTA_DIVINO_READ_DB_PORT', '3306'),
+            'database' => env('FESTA_DIVINO_READ_DB_DATABASE'),
+            'username' => env('FESTA_DIVINO_READ_DB_USERNAME'),
+            'password' => env('FESTA_DIVINO_READ_DB_PASSWORD'),
+            'unix_socket' => env('FESTA_DIVINO_READ_DB_SOCKET', ''),
+            'charset' => env('FESTA_DIVINO_READ_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('FESTA_DIVINO_READ_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('FESTA_DIVINO_READ_MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        'festa_divino_write' => [
+            'driver' => env('FESTA_DIVINO_WRITE_DB_CONNECTION', 'mariadb'),
+            'url' => env('FESTA_DIVINO_WRITE_DB_URL'),
+            'host' => env('FESTA_DIVINO_WRITE_DB_HOST', '127.0.0.1'),
+            'port' => env('FESTA_DIVINO_WRITE_DB_PORT', '3306'),
+            'database' => env('FESTA_DIVINO_WRITE_DB_DATABASE'),
+            'username' => env('FESTA_DIVINO_WRITE_DB_USERNAME'),
+            'password' => env('FESTA_DIVINO_WRITE_DB_PASSWORD'),
+            'unix_socket' => env('FESTA_DIVINO_WRITE_DB_SOCKET', ''),
+            'charset' => env('FESTA_DIVINO_WRITE_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('FESTA_DIVINO_WRITE_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('FESTA_DIVINO_WRITE_MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
