@@ -37,44 +37,54 @@ import type {
     FestaDivinoVideoPayload,
 } from "../types";
 import { buildFestaDivinoParams } from "../utils/festaDivinoFormatters";
+import {
+    festaDivinoMappers,
+    mapFestaDivinoApiArrayResponse,
+    mapFestaDivinoApiResponse,
+    mapFestaDivinoPaginatedResponse,
+} from "../utils/festaDivinoMappers";
 
 const ENDPOINT = "/festa-divino";
 
-const getList = async <T>(path: string, params?: FestaDivinoListParams): Promise<PaginatedResponse<T>> => {
-    const { data } = await api.get<PaginatedResponse<T>>(`${ENDPOINT}${path}`, {
+const getList = async <T>(
+    path: string,
+    params: FestaDivinoListParams | undefined,
+    mapper: (value: unknown) => T
+): Promise<PaginatedResponse<T>> => {
+    const { data } = await api.get<PaginatedResponse<unknown>>(`${ENDPOINT}${path}`, {
         params: buildFestaDivinoParams(params),
     });
 
-    return data;
+    return mapFestaDivinoPaginatedResponse(data, mapper);
 };
 
 export const festaDivinoService = {
     async getDashboard(): Promise<ApiResponse<FestaDivinoDashboard>> {
-        const { data } = await api.get<ApiResponse<FestaDivinoDashboard>>(`${ENDPOINT}/dashboard`);
+        const { data } = await api.get<ApiResponse<unknown>>(`${ENDPOINT}/dashboard`);
 
-        return data;
+        return mapFestaDivinoApiResponse(data, festaDivinoMappers.dashboard);
     },
 
     async getHealth(): Promise<ApiResponse<FestaDivinoHealth>> {
-        const { data } = await api.get<ApiResponse<FestaDivinoHealth>>(`${ENDPOINT}/health`);
+        const { data } = await api.get<ApiResponse<unknown>>(`${ENDPOINT}/health`);
 
-        return data;
+        return mapFestaDivinoApiResponse(data, festaDivinoMappers.health);
     },
 
-    auditLogs: (params?: FestaDivinoListParams) => getList<FestaDivinoAuditLog>("/audit-logs", params),
+    auditLogs: (params?: FestaDivinoListParams) => getList("/audit-logs", params, festaDivinoMappers.auditLog),
 
     edicoes: Object.assign(
-        (params?: FestaDivinoListParams) => getList<FestaDivinoEdition>("/edicoes", params),
+        (params?: FestaDivinoListParams) => getList("/edicoes", params, festaDivinoMappers.edicao),
         {
             criar: async (payload: FestaDivinoEditionPayload) => {
-                const { data } = await api.post<ApiResponse<FestaDivinoEdition>>(`${ENDPOINT}/edicoes`, payload);
+                const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/edicoes`, payload);
 
-                return data;
+                return mapFestaDivinoApiResponse(data, festaDivinoMappers.edicao);
             },
             atualizar: async (id: number, payload: FestaDivinoEditionPayload) => {
-                const { data } = await api.put<ApiResponse<FestaDivinoEdition>>(`${ENDPOINT}/edicoes/${id}`, payload);
+                const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/edicoes/${id}`, payload);
 
-                return data;
+                return mapFestaDivinoApiResponse(data, festaDivinoMappers.edicao);
             },
             remover: async (id: number) => {
                 const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/edicoes/${id}`);
@@ -85,46 +95,42 @@ export const festaDivinoService = {
     ),
 
     programacao: {
-        dias: (params?: FestaDivinoListParams) => getList<FestaDivinoDiaFesta>("/programacao/dias", params),
+        dias: (params?: FestaDivinoListParams) =>
+            getList("/programacao/dias", params, festaDivinoMappers.diaFesta),
         criarDia: async (payload: FestaDivinoDiaFestaPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoDiaFesta>>(`${ENDPOINT}/programacao/dias`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/programacao/dias`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.diaFesta);
         },
         atualizarDia: async (id: number, payload: FestaDivinoDiaFestaPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoDiaFesta>>(
-                `${ENDPOINT}/programacao/dias/${id}`,
-                payload
-            );
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/programacao/dias/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.diaFesta);
         },
         removerDia: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/programacao/dias/${id}`);
 
             return data;
         },
-        eventos: (params?: FestaDivinoListParams) => getList<FestaDivinoEvento>("/programacao/eventos", params),
+        eventos: (params?: FestaDivinoListParams) =>
+            getList("/programacao/eventos", params, festaDivinoMappers.evento),
         criarEvento: async (payload: FestaDivinoEventoPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoEvento>>(`${ENDPOINT}/programacao/eventos`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/programacao/eventos`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.evento);
         },
         atualizarEvento: async (id: number, payload: FestaDivinoEventoPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoEvento>>(
-                `${ENDPOINT}/programacao/eventos/${id}`,
-                payload
-            );
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/programacao/eventos/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.evento);
         },
         atualizarStatusEvento: async (id: number, payload: Pick<FestaDivinoEventoPayload, "ativo" | "destaque">) => {
-            const { data } = await api.patch<ApiResponse<FestaDivinoEvento>>(
+            const { data } = await api.patch<ApiResponse<unknown>>(
                 `${ENDPOINT}/programacao/eventos/${id}/status`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.evento);
         },
         removerEvento: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/programacao/eventos/${id}`);
@@ -132,63 +138,62 @@ export const festaDivinoService = {
             return data;
         },
         categorias: (params?: FestaDivinoListParams) =>
-            getList<FestaDivinoCategoriaEvento>("/programacao/categorias", params),
+            getList("/programacao/categorias", params, festaDivinoMappers.categoriaEvento),
         criarCategoria: async (payload: FestaDivinoCategoriaEventoPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoCategoriaEvento>>(
+            const { data } = await api.post<ApiResponse<unknown>>(
                 `${ENDPOINT}/programacao/categorias`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.categoriaEvento);
         },
         atualizarCategoria: async (id: number, payload: FestaDivinoCategoriaEventoPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoCategoriaEvento>>(
+            const { data } = await api.put<ApiResponse<unknown>>(
                 `${ENDPOINT}/programacao/categorias/${id}`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.categoriaEvento);
         },
         removerCategoria: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/programacao/categorias/${id}`);
 
             return data;
         },
-        locais: (params?: FestaDivinoListParams) => getList<FestaDivinoLocal>("/programacao/locais", params),
+        locais: (params?: FestaDivinoListParams) =>
+            getList("/programacao/locais", params, festaDivinoMappers.local),
         criarLocal: async (payload: FestaDivinoLocalPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoLocal>>(`${ENDPOINT}/programacao/locais`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/programacao/locais`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.local);
         },
         atualizarLocal: async (id: number, payload: FestaDivinoLocalPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoLocal>>(
-                `${ENDPOINT}/programacao/locais/${id}`,
-                payload
-            );
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/programacao/locais/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.local);
         },
         removerLocal: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/programacao/locais/${id}`);
 
             return data;
         },
-        atracoes: (params?: FestaDivinoListParams) => getList<FestaDivinoAtracao>("/programacao/atracoes", params),
+        atracoes: (params?: FestaDivinoListParams) =>
+            getList("/programacao/atracoes", params, festaDivinoMappers.atracao),
         criarAtracao: async (payload: FestaDivinoAtracaoPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoAtracao>>(
+            const { data } = await api.post<ApiResponse<unknown>>(
                 `${ENDPOINT}/programacao/atracoes`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.atracao);
         },
         atualizarAtracao: async (id: number, payload: FestaDivinoAtracaoPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoAtracao>>(
+            const { data } = await api.put<ApiResponse<unknown>>(
                 `${ENDPOINT}/programacao/atracoes/${id}`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.atracao);
         },
         removerAtracao: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/programacao/atracoes/${id}`);
@@ -199,41 +204,39 @@ export const festaDivinoService = {
 
     cardapio: {
         categorias: (params?: FestaDivinoListParams) =>
-            getList<FestaDivinoCardapioCategoria>("/cardapio/categorias", params),
+            getList("/cardapio/categorias", params, festaDivinoMappers.cardapioCategoria),
         criarCategoria: async (payload: FestaDivinoCardapioCategoriaPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoCardapioCategoria>>(
+            const { data } = await api.post<ApiResponse<unknown>>(
                 `${ENDPOINT}/cardapio/categorias`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.cardapioCategoria);
         },
         atualizarCategoria: async (id: number, payload: FestaDivinoCardapioCategoriaPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoCardapioCategoria>>(
+            const { data } = await api.put<ApiResponse<unknown>>(
                 `${ENDPOINT}/cardapio/categorias/${id}`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.cardapioCategoria);
         },
         removerCategoria: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/cardapio/categorias/${id}`);
 
             return data;
         },
-        produtos: (params?: FestaDivinoListParams) => getList<FestaDivinoProduto>("/cardapio/produtos", params),
+        produtos: (params?: FestaDivinoListParams) =>
+            getList("/cardapio/produtos", params, festaDivinoMappers.produto),
         criarProduto: async (payload: FestaDivinoProdutoPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoProduto>>(`${ENDPOINT}/cardapio/produtos`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/cardapio/produtos`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.produto);
         },
         atualizarProduto: async (id: number, payload: FestaDivinoProdutoPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoProduto>>(
-                `${ENDPOINT}/cardapio/produtos/${id}`,
-                payload
-            );
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/cardapio/produtos/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.produto);
         },
         removerProduto: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/cardapio/produtos/${id}`);
@@ -243,38 +246,33 @@ export const festaDivinoService = {
     },
 
     conteudo: {
-        noticias: (params?: FestaDivinoListParams) => getList<FestaDivinoNoticia>("/conteudo/noticias", params),
+        noticias: (params?: FestaDivinoListParams) =>
+            getList("/conteudo/noticias", params, festaDivinoMappers.noticia),
         criarNoticia: async (payload: FestaDivinoNoticiaPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoNoticia>>(`${ENDPOINT}/conteudo/noticias`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/conteudo/noticias`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.noticia);
         },
         atualizarNoticia: async (id: number, payload: FestaDivinoNoticiaPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoNoticia>>(
-                `${ENDPOINT}/conteudo/noticias/${id}`,
-                payload
-            );
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/conteudo/noticias/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.noticia);
         },
         removerNoticia: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/conteudo/noticias/${id}`);
 
             return data;
         },
-        textos: (params?: FestaDivinoListParams) => getList<FestaDivinoTexto>("/conteudo/textos", params),
+        textos: (params?: FestaDivinoListParams) => getList("/conteudo/textos", params, festaDivinoMappers.texto),
         criarTexto: async (payload: FestaDivinoTextoPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoTexto>>(`${ENDPOINT}/conteudo/textos`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/conteudo/textos`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.texto);
         },
         atualizarTexto: async (id: number, payload: FestaDivinoTextoPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoTexto>>(
-                `${ENDPOINT}/conteudo/textos/${id}`,
-                payload
-            );
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/conteudo/textos/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.texto);
         },
         removerTexto: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/conteudo/textos/${id}`);
@@ -284,32 +282,32 @@ export const festaDivinoService = {
     },
 
     midia: {
-        videos: (params?: FestaDivinoListParams) => getList<FestaDivinoVideo>("/midia/videos", params),
+        videos: (params?: FestaDivinoListParams) => getList("/midia/videos", params, festaDivinoMappers.video),
         criarVideo: async (payload: FestaDivinoVideoPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoVideo>>(`${ENDPOINT}/midia/videos`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/midia/videos`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.video);
         },
         atualizarVideo: async (id: string, payload: FestaDivinoVideoPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoVideo>>(`${ENDPOINT}/midia/videos/${id}`, payload);
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/midia/videos/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.video);
         },
         removerVideo: async (id: string) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/midia/videos/${id}`);
 
             return data;
         },
-        shorts: (params?: FestaDivinoListParams) => getList<FestaDivinoVideo>("/midia/shorts", params),
+        shorts: (params?: FestaDivinoListParams) => getList("/midia/shorts", params, festaDivinoMappers.video),
         criarShort: async (payload: FestaDivinoVideoPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoVideo>>(`${ENDPOINT}/midia/shorts`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/midia/shorts`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.video);
         },
         atualizarShort: async (id: string, payload: FestaDivinoVideoPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoVideo>>(`${ENDPOINT}/midia/shorts/${id}`, payload);
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/midia/shorts/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.video);
         },
         removerShort: async (id: string) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/midia/shorts/${id}`);
@@ -319,70 +317,62 @@ export const festaDivinoService = {
     },
 
     faq: {
-        categorias: (params?: FestaDivinoListParams) => getList<FestaDivinoFaqCategory>("/faq/categorias", params),
+        categorias: (params?: FestaDivinoListParams) =>
+            getList("/faq/categorias", params, festaDivinoMappers.faqCategory),
         criarCategoria: async (payload: FestaDivinoFaqCategoryPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoFaqCategory>>(
-                `${ENDPOINT}/faq/categorias`,
-                payload
-            );
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/faq/categorias`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.faqCategory);
         },
         atualizarCategoria: async (id: number, payload: FestaDivinoFaqCategoryPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoFaqCategory>>(
-                `${ENDPOINT}/faq/categorias/${id}`,
-                payload
-            );
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/faq/categorias/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.faqCategory);
         },
         atualizarStatusCategoria: async (id: number, payload: FestaDivinoStatusPayload) => {
-            const { data } = await api.patch<ApiResponse<FestaDivinoFaqCategory>>(
+            const { data } = await api.patch<ApiResponse<unknown>>(
                 `${ENDPOINT}/faq/categorias/${id}/status`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.faqCategory);
         },
         reordenarCategorias: async (payload: FestaDivinoReorderPayload) => {
-            const { data } = await api.patch<ApiResponse<FestaDivinoFaqCategory[]>>(
+            const { data } = await api.patch<ApiResponse<unknown>>(
                 `${ENDPOINT}/faq/categorias/reorder`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiArrayResponse(data, festaDivinoMappers.faqCategory);
         },
         removerCategoria: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/faq/categorias/${id}`);
 
             return data;
         },
-        items: (params?: FestaDivinoListParams) => getList<FestaDivinoFaqItem>("/faq/items", params),
+        items: (params?: FestaDivinoListParams) => getList("/faq/items", params, festaDivinoMappers.faqItem),
         criarItem: async (payload: FestaDivinoFaqItemPayload) => {
-            const { data } = await api.post<ApiResponse<FestaDivinoFaqItem>>(`${ENDPOINT}/faq/items`, payload);
+            const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/faq/items`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.faqItem);
         },
         atualizarItem: async (id: number, payload: FestaDivinoFaqItemPayload) => {
-            const { data } = await api.put<ApiResponse<FestaDivinoFaqItem>>(`${ENDPOINT}/faq/items/${id}`, payload);
+            const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/faq/items/${id}`, payload);
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.faqItem);
         },
         atualizarStatusItem: async (id: number, payload: FestaDivinoStatusPayload) => {
-            const { data } = await api.patch<ApiResponse<FestaDivinoFaqItem>>(
+            const { data } = await api.patch<ApiResponse<unknown>>(
                 `${ENDPOINT}/faq/items/${id}/status`,
                 payload
             );
 
-            return data;
+            return mapFestaDivinoApiResponse(data, festaDivinoMappers.faqItem);
         },
         reordenarItems: async (payload: FestaDivinoReorderPayload) => {
-            const { data } = await api.patch<ApiResponse<FestaDivinoFaqItem[]>>(
-                `${ENDPOINT}/faq/items/reorder`,
-                payload
-            );
+            const { data } = await api.patch<ApiResponse<unknown>>(`${ENDPOINT}/faq/items/reorder`, payload);
 
-            return data;
+            return mapFestaDivinoApiArrayResponse(data, festaDivinoMappers.faqItem);
         },
         removerItem: async (id: number) => {
             const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/faq/items/${id}`);
@@ -392,28 +382,25 @@ export const festaDivinoService = {
     },
 
     brinquedos: Object.assign(
-        (params?: FestaDivinoListParams) => getList<FestaDivinoBrinquedo>("/brinquedos", params),
+        (params?: FestaDivinoListParams) => getList("/brinquedos", params, festaDivinoMappers.brinquedo),
         {
             criar: async (payload: FestaDivinoBrinquedoPayload) => {
-                const { data } = await api.post<ApiResponse<FestaDivinoBrinquedo>>(`${ENDPOINT}/brinquedos`, payload);
+                const { data } = await api.post<ApiResponse<unknown>>(`${ENDPOINT}/brinquedos`, payload);
 
-                return data;
+                return mapFestaDivinoApiResponse(data, festaDivinoMappers.brinquedo);
             },
             atualizar: async (id: number, payload: FestaDivinoBrinquedoPayload) => {
-                const { data } = await api.put<ApiResponse<FestaDivinoBrinquedo>>(
-                    `${ENDPOINT}/brinquedos/${id}`,
-                    payload
-                );
+                const { data } = await api.put<ApiResponse<unknown>>(`${ENDPOINT}/brinquedos/${id}`, payload);
 
-                return data;
+                return mapFestaDivinoApiResponse(data, festaDivinoMappers.brinquedo);
             },
             atualizarStatus: async (id: number, payload: FestaDivinoStatusPayload) => {
-                const { data } = await api.patch<ApiResponse<FestaDivinoBrinquedo>>(
+                const { data } = await api.patch<ApiResponse<unknown>>(
                     `${ENDPOINT}/brinquedos/${id}/status`,
                     payload
                 );
 
-                return data;
+                return mapFestaDivinoApiResponse(data, festaDivinoMappers.brinquedo);
             },
             remover: async (id: number) => {
                 const { data } = await api.delete<ApiResponse<null>>(`${ENDPOINT}/brinquedos/${id}`);

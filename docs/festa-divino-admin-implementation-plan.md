@@ -1571,7 +1571,7 @@ Se a base Vitest/RTL nao estiver estavel, registrar a lacuna e cobrir o fluxo co
 - [x] Criar `festaDivino.permissions.ts`.
 - [x] Criar helper para extrair erros 422 do Laravel e aplicar mensagens por campo.
 - [x] Criar APIs e queries por entidade, sem mutations enquanto escrita estiver bloqueada.
-- [ ] Criar mappers por entidade.
+- [x] Criar mappers por entidade.
 - [x] Criar dashboard frontend.
 - [x] Criar telas read-only de edicao, programacao, cardapio, conteudo, midia, FAQ e brinquedos.
 - [x] Melhorar tela de Edicao/Dias com mensagens de validacao por campo e confirmacao modal de exclusao.
@@ -1662,7 +1662,7 @@ Se a base Vitest/RTL nao estiver estavel, registrar a lacuna e cobrir o fluxo co
   - [x] `vendor/bin/pint --test app/Modules/FestaDivino tests/Feature/FestaDivino`
   - [x] `pnpm --dir apps/web exec eslint src/features/festa-divino src/pages/festa-divino`
   - [x] `pnpm --dir apps/web exec tsc --noEmit --pretty false`
-  - [x] `pnpm --dir apps/web test src/features/festa-divino/utils/festaDivinoApiErrors.test.ts src/features/festa-divino/utils/festaDivinoFormatters.test.ts`
+  - [x] `pnpm --dir apps/web test src/features/festa-divino/utils/festaDivinoApiErrors.test.ts src/features/festa-divino/utils/festaDivinoFormatters.test.ts src/features/festa-divino/utils/festaDivinoMappers.test.ts`
   - [x] `pnpm api:generate-spec`
   - [x] `pnpm --dir apps/web build`
   - [x] `php artisan route:list --path=api/v1/festa-divino`
