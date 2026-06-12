@@ -35,5 +35,19 @@ return [
         ))),
     ],
 
+    'raffle' => [
+        'group_id' => env('WHATSAPP_RAFFLE_GROUP_ID', ''),
+        'campaign_name' => env('WHATSAPP_RAFFLE_CAMPAIGN_NAME', 'SORTEIO VIP | Camisa do Brasil'),
+        'campaign_key' => env('WHATSAPP_RAFFLE_CAMPAIGN_KEY', 'camisa-brasil'),
+        'exclude_admins' => filter_var(env('WHATSAPP_RAFFLE_EXCLUDE_ADMINS', true), FILTER_VALIDATE_BOOLEAN),
+        'excluded_phones' => array_values(array_filter(array_map(
+            static fn(string $phone): string => preg_replace('/\D+/', '', trim($phone)) ?: '',
+            explode(',', (string) env('WHATSAPP_RAFFLE_EXCLUDED_PHONES', ''))
+        ))),
+        'phone_last_digits' => max(4, (int) env('WHATSAPP_RAFFLE_PHONE_LAST_DIGITS', 5)),
+        'allow_phone_reveal' => filter_var(env('WHATSAPP_RAFFLE_ALLOW_PHONE_REVEAL', true), FILTER_VALIDATE_BOOLEAN),
+        'lock_ttl_seconds' => max(5, (int) env('WHATSAPP_RAFFLE_LOCK_TTL_SECONDS', 10)),
+    ],
+
     'default_country_code' => env('WHATSAPP_DEFAULT_COUNTRY_CODE', '55'),
 ];

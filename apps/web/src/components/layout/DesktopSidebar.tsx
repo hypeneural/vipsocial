@@ -35,6 +35,7 @@ import {
   Activity,
   History,
   Video,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoVipsocial from "@/assets/logo-vipsocial.png";
@@ -48,6 +49,7 @@ interface MenuItem {
   path: string;
   children?: MenuItem[];
   requiredPermission?: string;
+  openInNewTab?: boolean;
 }
 
 const menuItems: MenuItem[] = [
@@ -94,9 +96,15 @@ const menuItems: MenuItem[] = [
     icon: BarChart3,
     label: "Engajamento",
     path: "/engajamento",
-    requiredPermission: "enquetes.view",
     children: [
-      { icon: Vote, label: "Enquetes", path: "/engajamento/enquetes" },
+      { icon: Vote, label: "Enquetes", path: "/engajamento/enquetes", requiredPermission: "enquetes.view" },
+      {
+        icon: Gift,
+        label: "Sortear do Grupo",
+        path: "/engajamento/sorteador",
+        requiredPermission: "whatsapp.raffle.view",
+        openInNewTab: true,
+      },
     ],
   },
   {
@@ -280,6 +288,8 @@ export function DesktopSidebar({ collapsed, onToggle }: DesktopSidebarProps) {
                           <PrefetchLink
                             key={child.path}
                             to={child.path}
+                            target={child.openInNewTab ? "_blank" : undefined}
+                            rel={child.openInNewTab ? "noopener noreferrer" : undefined}
                             className={cn(
                               "flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-all hover:bg-white/10 hover:text-white",
                               isActive(child.path) && "bg-white/20 font-medium text-white"

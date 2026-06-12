@@ -75,5 +75,17 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(5)->by((string) $request->ip().'|'.$suffix);
         });
+
+        RateLimiter::for('raffle', function (Request $request) {
+            $userId = $request->user()?->getAuthIdentifier() ?? 'guest';
+
+            return Limit::perMinute(6)->by((string) $userId.'|'.(string) $request->ip());
+        });
+
+        RateLimiter::for('raffle-reveal', function (Request $request) {
+            $userId = $request->user()?->getAuthIdentifier() ?? 'guest';
+
+            return Limit::perMinute(12)->by((string) $userId.'|'.(string) $request->ip());
+        });
     }
 }

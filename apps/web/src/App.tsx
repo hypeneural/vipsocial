@@ -29,6 +29,7 @@ const EnqueteResultados = lazy(() => import("./pages/engajamento/EnqueteResultad
 const EnqueteForm = lazy(() => import("./pages/engajamento/EnqueteForm"));
 const EnqueteSites = lazy(() => import("./pages/engajamento/EnqueteSites"));
 const EnquetePlacements = lazy(() => import("./pages/engajamento/EnquetePlacements"));
+const EngajamentoSorteador = lazy(() => import("./pages/engajamento/Sorteador"));
 
 const AutomacaoStatusConexao = lazy(() => import("./pages/automacao/StatusConexao"));
 
@@ -89,7 +90,7 @@ const LegacyVipEventRedirect = ({ edit = false }: { edit?: boolean }) => {
 const RouteAwareOfflineIndicator = () => {
   const location = useLocation();
 
-  if (location.pathname.startsWith("/slideshow/")) {
+  if (location.pathname.startsWith("/slideshow/") || location.pathname === "/engajamento/sorteador") {
     return null;
   }
 
@@ -141,6 +142,7 @@ const App = () => (
                     <Route path="/engajamento/enquetes/:id/editar" element={<EnqueteForm />} />
                     <Route path="/engajamento/enquetes/:id/placements" element={<EnquetePlacements />} />
                     <Route path="/engajamento/enquetes/:id/resultados" element={<EnqueteResultados />} />
+                    <Route path="/engajamento/sorteador" element={<EngajamentoSorteador />} />
 
                     <Route path="/engajamento/relatorios" element={<Navigate to="/engajamento/enquetes" replace />} />
                     <Route path="/automacao/grupos" element={<Navigate to="/alertas" replace />} />

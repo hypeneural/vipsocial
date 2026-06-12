@@ -59,6 +59,17 @@ class RoleAndPermissionSeeder extends Seeder
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
+        $whatsappRafflePermissions = [
+            'whatsapp.raffle.view',
+            'whatsapp.raffle.draw',
+            'whatsapp.raffle.reveal-phone',
+            'whatsapp.raffle.history',
+        ];
+
+        foreach ($whatsappRafflePermissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
+        }
+
         // ── Roles ────────────────────────────────────────
 
         $admin = Role::firstOrCreate(

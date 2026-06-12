@@ -179,6 +179,19 @@ class WhatsAppService
         return $this->client->get('light-group-metadata/' . rawurlencode($groupId));
     }
 
+    public function profilePicture(string $phone): array
+    {
+        $normalizedPhone = preg_replace('/\D+/', '', trim($phone)) ?? '';
+
+        if ($normalizedPhone === '') {
+            throw new \InvalidArgumentException('Telefone obrigatorio para buscar foto do perfil');
+        }
+
+        return $this->client->get('profile-picture', [
+            'phone' => $normalizedPhone,
+        ]);
+    }
+
     public function getContacts(int $page = 1, int $pageSize = 1000): array
     {
         return $this->client->get('contacts', [

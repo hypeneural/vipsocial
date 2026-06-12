@@ -1,0 +1,25 @@
+{
+  "phone": "120363000000000000-group",
+  "description": "",
+  "owner": "5511999999999",
+  "subject": "SORTEIO VIP | Camisa do Brasil",
+  "name": "SORTEIO VIP | Camisa do Brasil",
+  "creation": 1778763759000,
+  "invitationLink": "https://chat.whatsapp.com/example",
+  "invitationLinkError": null,
+  "adminOnlyMessage": true,
+  "adminOnlySettings": true,
+  "requireAdminApproval": false,
+  "isGroupAnnouncement": true,
+  "adminOnlyAddMember": false,
+  "participants": [
+    {
+      "phone": "5511888888888",
+      "lid": "100000000000000@lid",
+      "isAdmin": false,
+      "isSuperAdmin": false
+    }
+  ],
+  "subjectTime": 1778763759000,
+  "subjectOwner": "5511999999999"
+}

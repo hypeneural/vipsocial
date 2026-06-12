@@ -26,7 +26,7 @@ interface NavItem {
   label: string;
   path: string;
   requiredPermission?: string;
-  children?: { label: string; path: string; requiredPermission?: string }[];
+  children?: { label: string; path: string; requiredPermission?: string; openInNewTab?: boolean }[];
 }
 
 const navItems: NavItem[] = [
@@ -73,9 +73,14 @@ const navItems: NavItem[] = [
     icon: BarChart3,
     label: "Engajamento",
     path: "/engajamento",
-    requiredPermission: "enquetes.view",
     children: [
-      { label: "Enquetes", path: "/engajamento/enquetes" },
+      { label: "Enquetes", path: "/engajamento/enquetes", requiredPermission: "enquetes.view" },
+      {
+        label: "Sortear do Grupo",
+        path: "/engajamento/sorteador",
+        requiredPermission: "whatsapp.raffle.view",
+        openInNewTab: true,
+      },
     ],
   },
   {
@@ -216,6 +221,8 @@ export function MobileNav() {
                                   <Link
                                     key={child.path}
                                     to={child.path}
+                                    target={child.openInNewTab ? "_blank" : undefined}
+                                    rel={child.openInNewTab ? "noopener noreferrer" : undefined}
                                     onClick={() => setOpen(false)}
                                     className={cn(
                                       "block rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors",
