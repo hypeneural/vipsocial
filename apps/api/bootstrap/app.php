@@ -142,6 +142,16 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        $exceptions->renderable(function (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e, $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sem permissão para esta ação',
+                    'code' => 'FORBIDDEN',
+                ], 403);
+            }
+        });
+
         $exceptions->renderable(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e, $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json([

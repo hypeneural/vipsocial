@@ -33,7 +33,45 @@ it('requires draw permission', function (): void {
     Sanctum::actingAs(User::factory()->create());
 
     $this->postJson('/api/v1/whatsapp/raffle/draw')
-        ->assertForbidden();
+        ->assertForbidden()
+        ->assertJsonPath('code', 'FORBIDDEN');
+});
+
+it('allows admin users to draw even before raffle permissions are synced to the role', function (): void {
+    $user = User::factory()->create([
+        'role' => 'admin',
+    ]);
+
+    app()->instance(DrawWhatsAppRaffleAction::class, new class extends DrawWhatsAppRaffleAction {
+        public function __construct()
+        {
+        }
+
+        public function execute(?User $user = null, array $overrides = []): array
+        {
+            return [
+                'draw_id' => '01HXADMINRAFFLE0000000000',
+                'confirmation_code' => 'BR-ADMN',
+                'group_id' => '120363407637460643-group',
+                'group_name' => 'SORTEIO VIP | Camisa do Brasil',
+                'campaign_name' => null,
+                'campaign_key' => 'vip-test',
+                'phone_masked' => '****68144',
+                'phone_last_digits' => '68144',
+                'photo_url' => null,
+                'eligible_participants_count' => 4,
+                'can_reveal_phone' => true,
+                'drawn_at' => now()->toJSON(),
+            ];
+        }
+    });
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/v1/whatsapp/raffle/draw')
+        ->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('data.confirmation_code', 'BR-ADMN');
 });
 
 it('draws a winner from zapi metadata without exposing the full phone', function (): void {

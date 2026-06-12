@@ -13,6 +13,7 @@ use App\Modules\WhatsApp\Clients\WhatsAppProviderInterface;
 use App\Modules\WhatsApp\Clients\ZApiClient;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -65,6 +66,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::before(function ($user): ?bool {
+            if (($user->role ?? null) === 'admin') {
+                return true;
+            }
+
+            if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
+                return true;
+            }
+
+            return null;
+        });
+
         RateLimiter::for('vip-gallery-view', function (Request $request) {
             return Limit::perMinute(5)->by((string) $request->ip());
         });
